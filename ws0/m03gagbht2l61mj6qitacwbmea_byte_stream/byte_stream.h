@@ -8,6 +8,7 @@
 # include <cstdint>
 # include <format>
 # include <cstddef>
+# include <memory>
 
 namespace m03gagbht2l61mj6qitacwbmea_byte_stream {
 
@@ -21,6 +22,11 @@ public:
      */
     byte_stream_t();
 
+    byte_stream_t(const byte_stream_t& other);
+    byte_stream_t(byte_stream_t&& other) noexcept;
+    byte_stream_t& operator=(const byte_stream_t& other);
+    byte_stream_t& operator=(byte_stream_t&& other) noexcept;
+
     /**
      * @brief Constructs a byte_stream_t from a byte sequence.
      *
@@ -28,19 +34,21 @@ public:
      */
     explicit byte_stream_t(std::span<const std::byte> bytes);
 
-    /**
-     * @brief Returns a view over the stored bytes.
-     *
-     * @return A non-owning view over the stored bytes.
-     */
-    std::span<const std::byte> bytes() const noexcept;
+    byte_stream_t(std::vector<std::byte> bytes);
 
-    /**
-     * @brief Returns the number of bytes stored.
-     *
-     * @return The number of bytes stored.
-     */
-    size_t size() const noexcept;
+    std::span<const std::byte> bytes() const& noexcept;
+    std::span<std::byte> bytes() & noexcept;
+
+    std::span<const std::byte> bytes() const && = delete;
+    std::span<std::byte> bytes() && = delete;
+
+    void push_back(std::byte value);
+    void append(std::span<const std::byte> bytes);
+    void append(byte_stream_t&& other);
+    void clear() noexcept;
+
+    std::size_t size() const noexcept;
+    bool empty() const noexcept;
 
     /**
      * @brief Constructs a byte_stream_t from a lowercase unsigned integer string in the given radix.
@@ -79,6 +87,13 @@ private:
 namespace std {
 
 template <>
+struct formatter<m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t>;
+
+} // namespace std
+
+namespace std {
+
+template <>
 struct formatter<m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t> {
     constexpr auto parse(std::format_parse_context& ctx) {
         auto it = ctx.begin();
@@ -92,8 +107,11 @@ struct formatter<m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t> {
 
     auto format(const m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t& byte_stream, auto& ctx) const {
         auto out = ctx.out();
-
-        out = std::format_to(out, "0x{}", byte_stream.to_radix(16));
+        
+        out = std::format_to(out, "0x");
+        for (const auto& byte : byte_stream.bytes()) {
+            out = std::format_to(out, "{:02x}", static_cast<uint8_t>(byte));
+        }
 
         return out;
     }

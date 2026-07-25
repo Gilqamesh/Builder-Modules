@@ -114,6 +114,11 @@ public:
      */
     length_t euclidean_length_squared() const;
 
+    std::array<T, N>::const_iterator begin() const;
+    std::array<T, N>::const_iterator end() const;
+    std::array<T, N>::iterator begin();
+    std::array<T, N>::iterator end();
+
     T& operator[](std::size_t index); // does no bound checking
     const T& operator[](std::size_t index) const; // does no bound checking
 
@@ -130,6 +135,7 @@ public:
     vector_t& operator/=(const vector_t& other); // element-wise, does no bound checking
     vector_t operator+(const vector_t& other) const; // element-wise, does no bound checking
     vector_t operator-(const vector_t& other) const; // element-wise, does no bound checking
+    vector_t operator-() const; // element-wise, does no bound checking
     vector_t operator*(const vector_t& other) const; // element-wise, does no bound checking
     vector_t operator/(const vector_t& other) const; // element-wise, does no bound checking
 
@@ -266,6 +272,26 @@ typename vector_t<T, N>::length_t vector_t<T, N>::euclidean_length_squared() con
 }
 
 template <typename T, std::size_t N>
+std::array<T, N>::const_iterator vector_t<T, N>::begin() const {
+    return m_data.begin();
+}
+
+template <typename T, std::size_t N>
+std::array<T, N>::const_iterator vector_t<T, N>::end() const {
+    return m_data.end();
+}
+
+template <typename T, std::size_t N>
+std::array<T, N>::iterator vector_t<T, N>::begin() {
+    return m_data.begin();
+}
+
+template <typename T, std::size_t N>
+std::array<T, N>::iterator vector_t<T, N>::end() {
+    return m_data.end();
+}
+
+template <typename T, std::size_t N>
 T& vector_t<T, N>::operator[](std::size_t index) {
     return m_data[index];
 }
@@ -333,6 +359,15 @@ template <typename T, std::size_t N>
 vector_t<T, N> vector_t<T, N>::operator-(const vector_t<T, N>& other) const {
     vector_t result = *this;
     result -= other;
+    return result;
+}
+
+template <typename T, std::size_t N>
+vector_t<T, N> vector_t<T, N>::operator-() const {
+    vector_t result;
+    for (std::size_t i = 0; i < N; ++i) {
+        result[i] = -m_data[i];
+    }
     return result;
 }
 

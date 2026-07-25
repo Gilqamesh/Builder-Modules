@@ -1,0 +1,64 @@
+#ifndef M03GILSFSV3K34EJ14YTZ8A29K_RENDERER_H
+# define M03GILSFSV3K34EJ14YTZ8A29K_RENDERER_H
+
+# include "camera.h"
+# include "entity.h"
+
+# include <format>
+
+# include <m03ginwy24ng8o487c4beoms6l_vector/api.h>
+# include <m03gagbht17w4tser1fescqxye_raylib/raylib.h>
+
+namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+
+/**
+ * todo: remove window dependency from renderer_t, instead pass in a drawable surface to draw to, which can be a window or something else, like a texture.
+ */
+class renderer_t {
+public:
+    renderer_t();
+    explicit renderer_t(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>& window_bounds);
+    ~renderer_t();
+
+    void window_bounds(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>& bounds);
+    const m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>& window_bounds() const;
+
+    void draw(const camera_t<float, int, 2>& camera, const entity_t<float, 2>& entity);
+
+private:
+    m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2> m_window_bounds;
+};
+
+} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+
+namespace std {
+
+template <>
+struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::renderer_t>;
+
+} // namespace std
+
+namespace std {
+
+template <>
+struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::renderer_t> {
+    constexpr auto parse(std::format_parse_context& ctx) {
+        auto it = ctx.begin();
+        if (it != ctx.end() && *it != '}') {
+            throw std::format_error("invalid renderer_t format specifier");
+        }
+        return it;
+    }
+
+    auto format(const m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::renderer_t& renderer, auto& ctx) const {
+        auto out = ctx.out();
+
+        out = std::format_to(out, "{{ window_bounds: {} }}", renderer.window_bounds());
+
+        return out;
+    }
+};
+
+} // namespace std
+
+#endif // M03GILSFSV3K34EJ14YTZ8A29K_RENDERER_H

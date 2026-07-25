@@ -10,17 +10,69 @@ byte_stream_t::byte_stream_t()
 {
 }
 
-byte_stream_t::byte_stream_t(std::span<const std::byte> bytes):
-    m_bytes(bytes.begin(), bytes.end())
+byte_stream_t::byte_stream_t(const byte_stream_t& other): byte_stream_t(other.bytes())
 {
 }
 
-std::span<const std::byte> byte_stream_t::bytes() const noexcept {
-    return m_bytes;
+byte_stream_t::byte_stream_t(byte_stream_t&& other) noexcept:
+    m_bytes(std::move(other.m_bytes))
+{
 }
 
-size_t byte_stream_t::size() const noexcept {
+byte_stream_t& byte_stream_t::operator=(const byte_stream_t& other) {
+    if (this != &other) {
+        byte_stream_t tmp(other);
+        std::swap(m_bytes, tmp.m_bytes);
+    }
+    return *this;
+}
+
+byte_stream_t& byte_stream_t::operator=(byte_stream_t&& other) noexcept {
+    if (this != &other) {
+        m_bytes = std::move(other.m_bytes);
+    }
+    return *this;
+}
+
+byte_stream_t::byte_stream_t(std::span<const std::byte> bytes): byte_stream_t(std::vector<std::byte>(bytes.begin(), bytes.end()))
+{
+}
+
+byte_stream_t::byte_stream_t(std::vector<std::byte> bytes):
+    m_bytes(std::move(bytes))
+{
+}
+
+std::span<const std::byte> byte_stream_t::bytes() const& noexcept {
+    return std::as_bytes(std::span<const std::byte>(m_bytes));
+}
+
+std::span<std::byte> byte_stream_t::bytes() & noexcept {
+    return std::as_writable_bytes(std::span<std::byte>(m_bytes));
+}
+
+void byte_stream_t::push_back(std::byte value) {
+    m_bytes.push_back(value);
+}
+
+void byte_stream_t::append(std::span<const std::byte> bytes) {
+    m_bytes.insert(m_bytes.end(), bytes.begin(), bytes.end());
+}
+
+void byte_stream_t::append(byte_stream_t&& other) {
+    m_bytes.insert(m_bytes.end(), std::make_move_iterator(other.m_bytes.begin()), std::make_move_iterator(other.m_bytes.end()));
+}
+
+void byte_stream_t::clear() noexcept {
+    m_bytes.clear();
+}
+
+std::size_t byte_stream_t::size() const noexcept {
     return m_bytes.size();
+}
+
+bool byte_stream_t::empty() const noexcept {
+    return m_bytes.empty();
 }
 
 byte_stream_t byte_stream_t::from_radix(std::string_view text, uint32_t radix) {
@@ -66,7 +118,7 @@ byte_stream_t byte_stream_t::from_radix(std::string_view text, uint32_t radix) {
 
     std::reverse(bytes.begin(), bytes.end());
 
-    return byte_stream_t(bytes);
+    return byte_stream_t(std::move(bytes));
 }
 
 std::string byte_stream_t::to_radix(uint32_t radix) const {
@@ -74,7 +126,7 @@ std::string byte_stream_t::to_radix(uint32_t radix) const {
         throw std::invalid_argument(std::format("m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t::to_radix: invalid radix {}", radix));
     }
 
-    std::vector<std::byte> bytes(m_bytes.begin(), m_bytes.end());
+    std::vector<std::byte> bytes = m_bytes;
 
     std::size_t begin = 0;
 

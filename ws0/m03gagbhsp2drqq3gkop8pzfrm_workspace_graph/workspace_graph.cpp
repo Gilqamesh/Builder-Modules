@@ -153,14 +153,16 @@ std::array<std::byte, 16> module_name_t::base36_uuidv7_bytes(std::string_view vi
 
     std::array<std::byte, 16> result{};
 
-    if (result.size() < base36_decoded_uuidv7.size()) {
+    const auto& base36_decoded_uuidv7_bytes = base36_decoded_uuidv7.bytes();
+
+    if (result.size() < base36_decoded_uuidv7_bytes.size()) {
         throw std::invalid_argument(std::format("m03gagbhsp2drqq3gkop8pzfrm_workspace_graph::module_name_t::base36_uuidv7_bytes: base36-decoded UUIDv7 '{}' is wider than {} bytes", base36_decoded_uuidv7, result.size()));
     }
 
     std::copy(
-        base36_decoded_uuidv7.bytes().begin(),
-        base36_decoded_uuidv7.bytes().end(),
-        result.begin() + static_cast<std::ptrdiff_t>(result.size() - base36_decoded_uuidv7.size())
+        base36_decoded_uuidv7_bytes.begin(),
+        base36_decoded_uuidv7_bytes.end(),
+        result.begin() + static_cast<std::ptrdiff_t>(result.size() - base36_decoded_uuidv7_bytes.size())
     );
 
     return result;

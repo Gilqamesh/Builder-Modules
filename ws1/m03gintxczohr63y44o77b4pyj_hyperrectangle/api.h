@@ -59,9 +59,14 @@ public:
     m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> opposite_corner() const noexcept;
 
     /**
-     * @brief Sets the intervals of the hyperrectangle.
+     * @brief Sets the bounds of the hyperrectangle.
      */
     void bounds(const std::array<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>, N>& intervals) noexcept;
+
+    /**
+     * @brief Returns the bounds of the hyperrectangle in each dimension.
+     */
+    const std::array<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>, N>& bounds() const;
 
     std::array<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>, N>::const_iterator begin() const noexcept;
     std::array<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>, N>::const_iterator end() const noexcept;
@@ -170,11 +175,6 @@ public:
      */
     bool overlaps(const hyperrectangle_t& other) const;
 
-    /**
-     * @brief Returns the lengths of the hyperrectangle in each dimension.
-     */
-    m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> lengths() const;
-
 private:
     std::array<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>, N> m_intervals;
 };
@@ -236,6 +236,11 @@ m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> hyperrectangle_t<T, N>::opposi
 template <typename T, std::size_t N>
 void hyperrectangle_t<T, N>::bounds(const std::array<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>, N>& intervals) noexcept {
     m_intervals = intervals;
+}
+
+template <typename T, std::size_t N>
+const std::array<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>, N>& hyperrectangle_t<T, N>::bounds() const {
+    return m_intervals;
 }
 
 template <typename T, std::size_t N>
@@ -380,15 +385,6 @@ bool hyperrectangle_t<T, N>::overlaps(const hyperrectangle_t<T, N>& other) const
         }
     }
     return true;
-}
-
-template <typename T, std::size_t N>
-m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> hyperrectangle_t<T, N>::lengths() const {
-    m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> result;
-    for (std::size_t i = 0; i < N; ++i) {
-        result[i] = m_intervals[i].length();
-    }
-    return result;
 }
 
 } // namespace m03gintxczohr63y44o77b4pyj_hyperrectangle
