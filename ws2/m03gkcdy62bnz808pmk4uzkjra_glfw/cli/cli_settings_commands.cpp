@@ -93,7 +93,8 @@ void application_t::register_settings_commands() {
         std::string name,
         std::string argument_description,
         std::string description,
-        auto handler
+        auto handler,
+        std::vector<argument_spec_t> argument_specs = {}
     ) {
         std::string usage = "settings set " + name;
         if (!argument_description.empty()) {
@@ -109,6 +110,7 @@ void application_t::register_settings_commands() {
                 arguments.expect_end(usage);
                 std::cout << std::format("{} updated.\n", name);
             },
+            std::move(argument_specs),
             false
         );
     };
@@ -124,6 +126,12 @@ void application_t::register_settings_commands() {
             std::move(description),
             [setter](arguments_t& arguments) {
                 setter(arguments.pop_bool("value"));
+            },
+            {
+                command_table_t::values_argument(
+                    "bool",
+                    {"true", "false", "on", "off", "yes", "no", "1", "0"}
+                )
             }
         );
     };
@@ -139,6 +147,9 @@ void application_t::register_settings_commands() {
             std::move(description),
             [setter](arguments_t& arguments) {
                 setter(std::string(arguments.pop("value")));
+            },
+            {
+                command_table_t::argument("value")
             }
         );
     };
@@ -208,6 +219,12 @@ void application_t::register_settings_commands() {
             }
 
             std::cout << std::format("Applied '{}' creation-settings preset.\n", preset);
+        },
+        {
+            command_table_t::values_argument(
+                "preset",
+                {"default", "no-api", "hidden-no-api", "gl33-core", "transparent"}
+            )
         },
         false
     );
@@ -399,6 +416,12 @@ void application_t::register_settings_commands() {
             const int blue = parse_preference(arguments.pop("blue"), "blue");
             const int alpha = parse_preference(arguments.pop("alpha"), "alpha");
             m_creation_settings.color_bits(red, green, blue, alpha);
+        },
+        {
+            command_table_t::values_argument("red", {"none", "no-preference", "dont-care"}),
+            command_table_t::values_argument("green", {"none", "no-preference", "dont-care"}),
+            command_table_t::values_argument("blue", {"none", "no-preference", "dont-care"}),
+            command_table_t::values_argument("alpha", {"none", "no-preference", "dont-care"})
         }
     );
 
@@ -410,6 +433,10 @@ void application_t::register_settings_commands() {
             const int depth = parse_preference(arguments.pop("depth"), "depth");
             const int stencil = parse_preference(arguments.pop("stencil"), "stencil");
             m_creation_settings.depth_stencil_bits(depth, stencil);
+        },
+        {
+            command_table_t::values_argument("depth", {"none", "no-preference", "dont-care"}),
+            command_table_t::values_argument("stencil", {"none", "no-preference", "dont-care"})
         }
     );
 
@@ -423,6 +450,12 @@ void application_t::register_settings_commands() {
             const int blue = parse_preference(arguments.pop("blue"), "blue");
             const int alpha = parse_preference(arguments.pop("alpha"), "alpha");
             m_creation_settings.accumulation_bits(red, green, blue, alpha);
+        },
+        {
+            command_table_t::values_argument("red", {"none", "no-preference", "dont-care"}),
+            command_table_t::values_argument("green", {"none", "no-preference", "dont-care"}),
+            command_table_t::values_argument("blue", {"none", "no-preference", "dont-care"}),
+            command_table_t::values_argument("alpha", {"none", "no-preference", "dont-care"})
         }
     );
 
@@ -434,6 +467,9 @@ void application_t::register_settings_commands() {
             m_creation_settings.auxiliary_buffers(
                 parse_preference(arguments.pop("count"), "count")
             );
+        },
+        {
+            command_table_t::values_argument("count", {"none", "no-preference", "dont-care"})
         }
     );
 
@@ -445,6 +481,9 @@ void application_t::register_settings_commands() {
             m_creation_settings.sample_count(
                 parse_preference(arguments.pop("count"), "count")
             );
+        },
+        {
+            command_table_t::values_argument("count", {"none", "no-preference", "dont-care"})
         }
     );
 
@@ -454,7 +493,8 @@ void application_t::register_settings_commands() {
         "Create windows without an OpenGL or OpenGL ES context.",
         [this](arguments_t&) {
             m_creation_settings.no_client_api();
-        }
+        },
+        {}
     );
 
     add_setting(
@@ -466,6 +506,11 @@ void application_t::register_settings_commands() {
             const int minor = arguments.pop_int("minor");
             const auto profile = parse_opengl_profile(arguments.pop("profile"));
             m_creation_settings.opengl(major, minor, profile);
+        },
+        {
+            command_table_t::argument("major"),
+            command_table_t::argument("minor"),
+            command_table_t::values_argument("profile", {"any", "compatibility", "core"})
         }
     );
 
@@ -477,6 +522,10 @@ void application_t::register_settings_commands() {
             const int major = arguments.pop_int("major");
             const int minor = arguments.pop_int("minor");
             m_creation_settings.opengl_es(major, minor);
+        },
+        {
+            command_table_t::argument("major"),
+            command_table_t::argument("minor")
         }
     );
 
@@ -488,6 +537,9 @@ void application_t::register_settings_commands() {
             m_creation_settings.context_creation_api(
                 parse_context_creation_api(arguments.pop("value"))
             );
+        },
+        {
+            command_table_t::values_argument("value", {"native", "egl", "osmesa"})
         }
     );
 
@@ -499,6 +551,12 @@ void application_t::register_settings_commands() {
             m_creation_settings.context_robustness(
                 parse_context_robustness(arguments.pop("value"))
             );
+        },
+        {
+            command_table_t::values_argument(
+                "value",
+                {"none", "no-reset-notification", "lose-context-on-reset"}
+            )
         }
     );
 
@@ -510,6 +568,9 @@ void application_t::register_settings_commands() {
             m_creation_settings.context_release_behavior(
                 parse_context_release_behavior(arguments.pop("value"))
             );
+        },
+        {
+            command_table_t::values_argument("value", {"any", "flush", "none"})
         }
     );
 

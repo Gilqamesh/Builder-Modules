@@ -370,22 +370,34 @@ void poll_joystick(joystick_t& joystick) {
 
     int axis_count = 0;
     const float* axes = glfwGetJoystickAxes(joystick_id, &axis_count);
+    if (!axes) {
+        throw std::logic_error(std::format("m03gkcdy62bnz808pmk4uzkjra_glfw::poll_joystick: failed to get axes for joystick {}", joystick_id));
+    }
+
+    int button_count = 0;
+    const unsigned char* buttons = glfwGetJoystickButtons(joystick_id, &button_count);
+    if (!buttons) {
+        throw std::logic_error(std::format("m03gkcdy62bnz808pmk4uzkjra_glfw::poll_joystick: failed to get buttons for joystick {}", joystick_id));
+    }
+
+    int hat_count = 0;
+    const unsigned char* hats = glfwGetJoystickHats(joystick_id, &hat_count);
+    if (!hats) {
+        throw std::logic_error(std::format("m03gkcdy62bnz808pmk4uzkjra_glfw::poll_joystick: failed to get hats for joystick {}", joystick_id));
+    }
+
     auto& axes_vector = joystick_state.axes();
     axes_vector.resize(axis_count);
     for (int i = 0; i < axis_count; ++i) {
         axes_vector[i] = axes[i];
     }
 
-    int button_count = 0;
-    const unsigned char* buttons = glfwGetJoystickButtons(joystick_id, &button_count);
     auto& button_states = joystick_state.buttons();
     button_states.resize(button_count);
     for (int i = 0; i < button_count; ++i) {
         button_states[i] = (buttons[i] == GLFW_PRESS);
     }
 
-    int hat_count = 0;
-    const unsigned char* hats = glfwGetJoystickHats(joystick_id, &hat_count);
     auto& hat_states = joystick_state.hats();
     hat_states.resize(hat_count);
     for (int i = 0; i < hat_count; ++i) {

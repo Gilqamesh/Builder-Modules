@@ -23,13 +23,95 @@ class command_table_t {
 public:
     using handler_t = std::function<void(arguments_t&)>;
 
+    struct completion_context_t {
+        std::span<const std::string> arguments;
+        std::string_view partial;
+    };
+
+    struct completion_result_t {
+        std::vector<std::string> candidates;
+        bool use_files = false;
+    };
+
+    using completion_handler_t = std::function<completion_result_t(const completion_context_t&)>;
+
+    struct argument_spec_t {
+        std::string name;
+        completion_handler_t complete;
+    };
+
     struct command_t {
         std::vector<std::string> path;
         std::string usage;
         std::string description;
         handler_t handler;
+        std::vector<argument_spec_t> arguments;
+        completion_handler_t complete_arguments;
         bool poll_after = true;
     };
+
+    static argument_spec_t argument(std::string name) {
+        return argument(std::move(name), completion_handler_t{});
+    }
+
+    static argument_spec_t argument(
+        std::string name,
+        completion_handler_t complete
+    ) {
+        return argument_spec_t{
+            .name = std::move(name),
+            .complete = std::move(complete)
+        };
+    }
+
+    static argument_spec_t values_argument(
+        std::string name,
+        std::initializer_list<std::string_view> values
+    ) {
+        return argument(
+            std::move(name),
+            values_completion(values)
+        );
+    }
+
+    static argument_spec_t files_argument(std::string name) {
+        return argument(
+            std::move(name),
+            [](const completion_context_t&) {
+                return completion_result_t{.use_files = true};
+            }
+        );
+    }
+
+    static completion_handler_t values_completion(
+        std::initializer_list<std::string_view> values
+    ) {
+        std::vector<std::string> owned_values;
+        owned_values.reserve(values.size());
+        for (const std::string_view value : values) {
+            owned_values.emplace_back(value);
+        }
+
+        return [values = std::move(owned_values)](const completion_context_t& context) {
+            return complete_values(values, context.partial);
+        };
+    }
+
+    static completion_result_t complete_values(
+        std::span<const std::string> values,
+        std::string_view partial
+    ) {
+        std::set<std::string> candidates;
+        for (const std::string& value : values) {
+            if (value.starts_with(partial)) {
+                candidates.insert(value);
+            }
+        }
+
+        return completion_result_t{
+            .candidates = {candidates.begin(), candidates.end()}
+        };
+    }
 
     void add(
         std::initializer_list<std::string_view> path,
@@ -37,6 +119,64 @@ public:
         std::string description,
         handler_t handler,
         bool poll_after = true
+    ) {
+        add_impl(
+            path,
+            std::move(usage),
+            std::move(description),
+            std::move(handler),
+            {},
+            {},
+            poll_after
+        );
+    }
+
+    void add(
+        std::initializer_list<std::string_view> path,
+        std::string usage,
+        std::string description,
+        handler_t handler,
+        std::vector<argument_spec_t> arguments,
+        bool poll_after = true
+    ) {
+        add_impl(
+            path,
+            std::move(usage),
+            std::move(description),
+            std::move(handler),
+            std::move(arguments),
+            {},
+            poll_after
+        );
+    }
+
+    void add(
+        std::initializer_list<std::string_view> path,
+        std::string usage,
+        std::string description,
+        handler_t handler,
+        completion_handler_t complete_arguments,
+        bool poll_after = true
+    ) {
+        add_impl(
+            path,
+            std::move(usage),
+            std::move(description),
+            std::move(handler),
+            {},
+            std::move(complete_arguments),
+            poll_after
+        );
+    }
+
+    void add_impl(
+        std::initializer_list<std::string_view> path,
+        std::string usage,
+        std::string description,
+        handler_t handler,
+        std::vector<argument_spec_t> arguments,
+        completion_handler_t complete_arguments,
+        bool poll_after
     ) {
         if (path.size() == 0) {
             throw std::logic_error("command path must not be empty");
@@ -62,6 +202,8 @@ public:
             .usage = std::move(usage),
             .description = std::move(description),
             .handler = std::move(handler),
+            .arguments = std::move(arguments),
+            .complete_arguments = std::move(complete_arguments),
             .poll_after = poll_after
         });
     }
@@ -108,6 +250,62 @@ public:
             ));
         }
         command_error("empty command");
+    }
+
+    std::vector<std::string> complete_next_component(
+        std::span<const std::string> prefix,
+        std::string_view partial
+    ) const {
+        std::set<std::string> candidates;
+
+        for (const command_t& command : m_commands) {
+            if (command.path.size() <= prefix.size() || !starts_with(command.path, prefix)) {
+                continue;
+            }
+
+            const std::string& candidate = command.path[prefix.size()];
+            if (candidate.starts_with(partial)) {
+                candidates.insert(candidate);
+            }
+        }
+
+        return {candidates.begin(), candidates.end()};
+    }
+
+    completion_result_t complete(
+        std::span<const std::string> prefix,
+        std::string_view partial
+    ) const {
+        if (auto candidates = complete_next_component(prefix, partial); !candidates.empty()) {
+            return completion_result_t{
+                .candidates = std::move(candidates)
+            };
+        }
+
+        const command_t* command = find_completion_command(prefix);
+        if (!command) {
+            return {};
+        }
+
+        const auto argument_prefix = prefix.subspan(command->path.size());
+        const completion_context_t context{
+            .arguments = argument_prefix,
+            .partial = partial
+        };
+
+        if (command->complete_arguments) {
+            return command->complete_arguments(context);
+        }
+
+        if (argument_prefix.size() >= command->arguments.size()) {
+            return {};
+        }
+
+        const argument_spec_t& argument = command->arguments[argument_prefix.size()];
+        if (!argument.complete) {
+            return {};
+        }
+        return argument.complete(context);
     }
 
     void print_help(std::span<const std::string> prefix = {}) const {
@@ -226,6 +424,26 @@ private:
         std::ranges::sort(commands, {}, [](const command_t* command) {
             return command->usage;
         });
+    }
+
+    const command_t* find_completion_command(
+        std::span<const std::string> prefix
+    ) const {
+        const command_t* best_match = nullptr;
+
+        for (const command_t& command : m_commands) {
+            if (prefix.size() < command.path.size()) {
+                continue;
+            }
+            if (!starts_with(prefix, command.path)) {
+                continue;
+            }
+            if (!best_match || best_match->path.size() < command.path.size()) {
+                best_match = &command;
+            }
+        }
+
+        return best_match;
     }
 
     static std::string render_path(std::span<const std::string> path) {

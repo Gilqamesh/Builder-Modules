@@ -88,6 +88,16 @@ extern "C" void phase__library(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::li
         throw std::runtime_error(std::format("libraries/m03gkcdy62bnz808pmk4uzkjra_glfw: expected glfw library under '{}'", library_build_dir));
     }
 
+    const auto readline_so_as = m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("libreadline.so");
+    const auto readline_so_path = m03gagbhsnusi43zogoacgj2ez_filesystem::path_t("/usr/lib64") / readline_so_as;
+    const auto readline_so = phase->build(readline_so_path, readline_so_as);
+    phase->install_library(readline_so);
+
+    const auto history_so_as = m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("libhistory.so");
+    const auto history_so_path = m03gagbhsnusi43zogoacgj2ez_filesystem::path_t("/usr/lib64") / history_so_as;
+    const auto history_so = phase->build(history_so_path, history_so_as);
+    phase->install_library(history_so);
+
     std::vector<m03gagbhsujjf63n0w3r2w4q6h_build_phases::phase_base_t::built_t> source_files;
     for (const auto& source_file : m03gagbhsnusi43zogoacgj2ez_filesystem::find(sources.root(), m03gagbhsnusi43zogoacgj2ez_filesystem::find_include_predicate_t::cpp_file, m03gagbhsnusi43zogoacgj2ez_filesystem::find_descend_predicate_t::descend_all)) {
         const auto filename = source_file.path().filename();

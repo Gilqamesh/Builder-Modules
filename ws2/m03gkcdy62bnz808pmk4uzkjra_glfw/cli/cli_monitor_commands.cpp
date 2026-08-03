@@ -94,6 +94,9 @@ void application_t::register_monitor_commands() {
                 entry.connected ? "connected" : "disconnected snapshot",
                 *entry.object
             );
+        },
+        {
+            monitor_id_argument()
         }
     );
 
@@ -111,6 +114,9 @@ void application_t::register_monitor_commands() {
             for (std::size_t index = 0; index < video_modes.size(); ++index) {
                 std::cout << std::format("  [{}] {}\n", index, video_modes[index]);
             }
+        },
+        {
+            connected_monitor_id_argument()
         }
     );
 
@@ -128,6 +134,9 @@ void application_t::register_monitor_commands() {
                 id,
                 static_cast<void*>(entry.object->handle())
             );
+        },
+        {
+            monitor_id_argument()
         }
     );
 }

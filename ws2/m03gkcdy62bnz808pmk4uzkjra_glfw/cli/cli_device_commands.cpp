@@ -1,7 +1,6 @@
 #include "cli_application.h"
 #include "cli_history.h"
 
-#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
@@ -11,7 +10,6 @@
 #include <iterator>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <utility>
 
 namespace m03gkcdy62bnz808pmk4uzkjra_glfw_cli {
@@ -72,25 +70,18 @@ void application_t::register_device_commands() {
         auto poll_device,
         auto history_of,
         auto resize_history,
-        auto make_change
+        auto make_change,
+        watch_target_t watch_target
     ) {
         auto* const registry_pointer = &registry;
-
-        const auto print_all_changes = [group, history_of, make_change](
-            id_t id,
-            auto& device
-        ) {
-            const std::string heading = std::format(
-                "[{} {}] retained history",
-                group,
-                id
-            );
-            m03gkcdy62bnz808pmk4uzkjra_glfw_cli::print_history_changes(
-                heading,
-                history_of(device),
-                make_change
-            );
-        };
+        const argument_spec_t retained_device_id_argument =
+            group == "joystick"
+                ? joystick_id_argument(group + "-id")
+                : gamepad_id_argument(group + "-id");
+        const argument_spec_t connected_device_id_argument =
+            group == "joystick"
+                ? connected_joystick_id_argument(group + "-id")
+                : connected_gamepad_id_argument(group + "-id");
 
         const auto print_complete_history = [group, history_of, make_change](
             id_t id,
@@ -163,6 +154,9 @@ void application_t::register_device_commands() {
                     entry.connected ? "connected" : "disconnected snapshot",
                     *entry.object
                 );
+            },
+            {
+                retained_device_id_argument
             }
         );
 
@@ -186,6 +180,9 @@ void application_t::register_device_commands() {
                     history.history(0)
                 );
             },
+            {
+                connected_device_id_argument
+            },
             false
         );
 
@@ -200,6 +197,9 @@ void application_t::register_device_commands() {
                 const auto& history = history_of(*registry_pointer->require(id, false).object);
                 require_history_size(history.size(), 1, std::format("{} {}", group, id));
                 std::cout << std::format("{}\n", history.history(0));
+            },
+            {
+                retained_device_id_argument
             }
         );
 
@@ -223,6 +223,9 @@ void application_t::register_device_commands() {
                 const id_t id = arguments.pop_id(group + "-id");
                 arguments.expect_end(group + " state-delta <" + group + "-id>");
                 print_latest_delta(id);
+            },
+            {
+                retained_device_id_argument
             }
         );
 
@@ -234,6 +237,9 @@ void application_t::register_device_commands() {
                 const id_t id = arguments.pop_id(group + "-id");
                 arguments.expect_end(group + " delta <" + group + "-id>");
                 print_latest_delta(id);
+            },
+            {
+                retained_device_id_argument
             }
         );
 
@@ -245,6 +251,9 @@ void application_t::register_device_commands() {
                 const id_t id = arguments.pop_id(group + "-id");
                 arguments.expect_end(group + " history <" + group + "-id>");
                 print_complete_history(id, *registry_pointer->require(id, false).object);
+            },
+            {
+                retained_device_id_argument
             }
         );
 
@@ -284,18 +293,21 @@ void application_t::register_device_commands() {
                     history.size()
                 );
             },
+            {
+                connected_device_id_argument,
+                command_table_t::argument("sample-count")
+            },
             false
         );
 
         m_commands.add(
             {group, "watch"},
             group + " watch <" + group + "-id> <milliseconds> [interval-ms]",
-            "Poll repeatedly and print all adjacent changes retained by the current history size.",
+            "Start a non-blocking watch that prints retained adjacent changes.",
             [
                 this,
-                registry_pointer,
-                print_all_changes,
-                group
+                group,
+                watch_target
             ](arguments_t& arguments) {
                 const id_t id = arguments.pop_id(group + "-id");
                 const auto duration = std::chrono::milliseconds(
@@ -317,42 +329,26 @@ void application_t::register_device_commands() {
                     command_error("interval-ms must be positive");
                 }
 
-                registry_pointer->require(id, true);
-                const auto deadline = std::chrono::steady_clock::now() + duration;
-                std::size_t poll_count = 0;
-
-                do {
-                    poll_once();
-                    ++poll_count;
-
-                    auto& entry = registry_pointer->require(id, false);
-                    if (!entry.connected) {
-                        std::cout << std::format("[{} {}] disconnected\n", group, id);
-                        break;
-                    }
-
-                    std::cout << std::format("watch poll {}:\n", poll_count);
-                    print_all_changes(id, *entry.object);
-
-                    const auto now = std::chrono::steady_clock::now();
-                    if (now >= deadline) {
-                        break;
-                    }
-
-                    std::this_thread::sleep_for(std::min(
-                        interval,
-                        std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now)
-                    ));
-                } while (true);
-
+                const id_t watch_id = start_watch(
+                    watch_target,
+                    id,
+                    duration,
+                    interval
+                );
                 std::cout << std::format(
-                    "Watched {} {} for {} poll(s).\n",
+                    "Started watch {} for {} {} for {} ms at {} ms intervals.\n",
+                    watch_id,
                     group,
                     id,
-                    poll_count
+                    duration.count(),
+                    interval.count()
                 );
             },
-            false
+            {
+                connected_device_id_argument,
+                command_table_t::argument("milliseconds"),
+                command_table_t::argument("interval-ms")
+            }
         );
     };
 
@@ -373,7 +369,8 @@ void application_t::register_device_commands() {
         },
         [](const auto& previous, const auto& current) {
             return glfw_api::joystick_state_change_t(previous, current);
-        }
+        },
+        watch_target_t::joystick
     );
 
     register_group(
@@ -393,7 +390,8 @@ void application_t::register_device_commands() {
         },
         [](const auto& previous, const auto& current) {
             return glfw_api::gamepad_state_change_t(previous, current);
-        }
+        },
+        watch_target_t::gamepad
     );
 
     const auto apply_gamepad_mapping = [this](std::string mapping) {
@@ -413,6 +411,9 @@ void application_t::register_device_commands() {
 
             apply_gamepad_mapping(std::move(mapping));
         },
+        {
+            command_table_t::argument("mapping-string")
+        },
         false
     );
 
@@ -425,6 +426,9 @@ void application_t::register_device_commands() {
             arguments.expect_end("gamepad mapping update-file <file>");
 
             apply_gamepad_mapping(read_gamepad_mapping_file(path));
+        },
+        {
+            command_table_t::files_argument("file")
         },
         false
     );

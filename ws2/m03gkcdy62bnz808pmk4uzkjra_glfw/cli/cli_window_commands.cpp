@@ -1,8 +1,8 @@
 #include "cli_application.h"
 #include "cli_history.h"
 
-#include <algorithm>
 #include <chrono>
+#include <exception>
 #include <format>
 #include <iostream>
 #include <memory>
@@ -10,7 +10,6 @@
 #include <span>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <type_traits>
 #include <utility>
 
@@ -31,6 +30,9 @@ void application_t::register_window_commands() {
                 const id_t id = arguments.pop_id("window-id");
                 arguments.expect_end(usage);
                 std::cout << std::format("{}\n", getter(*require_window(id)));
+            },
+            {
+                window_id_argument()
             }
         );
     };
@@ -50,6 +52,9 @@ void application_t::register_window_commands() {
                 arguments.expect_end(usage);
                 action(*require_window(id));
                 std::cout << "ok\n";
+            },
+            {
+                window_id_argument()
             }
         );
     };
@@ -73,6 +78,13 @@ void application_t::register_window_commands() {
                 }
                 arguments.expect_end(usage);
                 std::cout << std::format("{}\n", getter(*window));
+            },
+            {
+                window_id_argument(),
+                command_table_t::values_argument(
+                    "bool",
+                    {"true", "false", "on", "off", "yes", "no", "1", "0"}
+                )
             }
         );
     };
@@ -96,6 +108,10 @@ void application_t::register_window_commands() {
                 }
                 arguments.expect_end(usage);
                 std::cout << quote_token(getter(*window)) << '\n';
+            },
+            {
+                window_id_argument(),
+                command_table_t::argument("value")
             }
         );
     };
@@ -105,6 +121,26 @@ void application_t::register_window_commands() {
         const glfw_api::input_state_t& current
     ) {
         return glfw_api::input_state_change_t(previous, current);
+    };
+
+    const auto resize_window_input_history = [](
+        glfw_api::window_t& window,
+        std::size_t sample_count
+    ) {
+        if (sample_count == 0) {
+            command_error("sample-count must be positive");
+        }
+
+        auto& history = window.input_states();
+        const glfw_api::input_state_t snapshot = history.size() == 0
+            ? history.stage()
+            : history.history(0);
+
+        using history_t = std::remove_reference_t<decltype(history)>;
+        history = history_t(sample_count);
+        history.stage() = snapshot;
+        history.commit();
+        history.stage() = history.history(0);
     };
 
     m_commands.add(
@@ -183,6 +219,38 @@ void application_t::register_window_commands() {
                 id,
                 quote_token(title)
             );
+        },
+        [this](const completion_context_t& context) {
+            if (context.arguments.empty()) {
+                return command_table_t::values_completion(
+                    {"windowed", "fullscreen"}
+                )(context);
+            }
+
+            if (context.arguments.front() != "fullscreen") {
+                return completion_result_t{};
+            }
+
+            if (context.arguments.size() == 2) {
+                return complete_monitor_ids(context.partial, true);
+            }
+
+            if (context.arguments.size() == 3) {
+                try {
+                    const id_t monitor_id = parse_integer<id_t>(
+                        context.arguments[2],
+                        "monitor-id"
+                    );
+                    return complete_monitor_video_mode_indices(
+                        monitor_id,
+                        context.partial
+                    );
+                } catch (const std::exception&) {
+                    return completion_result_t{};
+                }
+            }
+
+            return completion_result_t{};
         }
     );
 
@@ -228,6 +296,9 @@ void application_t::register_window_commands() {
                 const id_t id = arguments.pop_id("window-id");
                 arguments.expect_end(usage);
                 print_window_status(id, *require_window(id));
+            },
+            {
+                window_id_argument()
             }
         );
     };
@@ -252,6 +323,9 @@ void application_t::register_window_commands() {
                 command_error(std::format("no window with ID {}", id));
             }
             std::cout << std::format("Destroyed window {}.\n", id);
+        },
+        {
+            window_id_argument()
         },
         false
     );
@@ -418,6 +492,9 @@ void application_t::register_window_commands() {
                 id,
                 static_cast<void*>(require_window(id)->handle())
             );
+        },
+        {
+            window_id_argument()
         }
     );
 
@@ -429,6 +506,9 @@ void application_t::register_window_commands() {
             const id_t id = arguments.pop_id("window-id");
             arguments.expect_end("window client-api <window-id>");
             std::cout << std::format("{}\n", require_window(id)->client_api());
+        },
+        {
+            window_id_argument()
         }
     );
 
@@ -458,6 +538,11 @@ void application_t::register_window_commands() {
 
             arguments.expect_end("window size <window-id> [width height]");
             std::cout << std::format("{}\n", window->size());
+        },
+        {
+            window_id_argument(),
+            command_table_t::argument("width"),
+            command_table_t::argument("height")
         }
     );
 
@@ -510,6 +595,25 @@ void application_t::register_window_commands() {
 
             window->size_limits(min_width, min_height, max_width, max_height);
             std::cout << "Window size limits updated.\n";
+        },
+        {
+            window_id_argument(),
+            command_table_t::values_argument(
+                "clear or min-width",
+                {"clear", "none", "any", "no-limit", "no-preference", "dont-care"}
+            ),
+            command_table_t::values_argument(
+                "min-height",
+                {"none", "any", "no-limit", "no-preference", "dont-care"}
+            ),
+            command_table_t::values_argument(
+                "max-width",
+                {"none", "any", "no-limit", "no-preference", "dont-care"}
+            ),
+            command_table_t::values_argument(
+                "max-height",
+                {"none", "any", "no-limit", "no-preference", "dont-care"}
+            )
         }
     );
 
@@ -545,6 +649,11 @@ void application_t::register_window_commands() {
 
             window->aspect_ratio({numerator, denominator});
             std::cout << std::format("Aspect ratio set to {}:{}.\n", numerator, denominator);
+        },
+        {
+            window_id_argument(),
+            command_table_t::values_argument("clear or numerator", {"clear"}),
+            command_table_t::argument("denominator")
         }
     );
 
@@ -563,6 +672,10 @@ void application_t::register_window_commands() {
 
             arguments.expect_end("window fullscreen <window-id> [monitor-id]");
             std::cout << std::format("{}\n", window->fullscreen());
+        },
+        {
+            window_id_argument(),
+            connected_monitor_id_argument()
         }
     );
 
@@ -599,6 +712,15 @@ void application_t::register_window_commands() {
             }
 
             std::cout << std::format("{}\n", window->windowed());
+        },
+        [this](const completion_context_t& context) {
+            if (context.arguments.empty()) {
+                return complete_window_ids(context.partial);
+            }
+            if (context.arguments.size() == 1) {
+                return complete_monitor_ids(context.partial, true);
+            }
+            return completion_result_t{};
         }
     );
 
@@ -623,6 +745,10 @@ void application_t::register_window_commands() {
 
             arguments.expect_end("window opacity <window-id> [0..1]");
             std::cout << std::format("{}\n", window->opacity());
+        },
+        {
+            window_id_argument(),
+            command_table_t::values_argument("opacity", {"0", "0.5", "1"})
         }
     );
 
@@ -645,6 +771,17 @@ void application_t::register_window_commands() {
                 window->cursor_visible(),
                 window->cursor_locked()
             );
+        },
+        {
+            window_id_argument(),
+            command_table_t::values_argument(
+                "visible",
+                {"true", "false", "on", "off", "yes", "no", "1", "0"}
+            ),
+            command_table_t::values_argument(
+                "locked",
+                {"true", "false", "on", "off", "yes", "no", "1", "0"}
+            )
         }
     );
 
@@ -665,6 +802,13 @@ void application_t::register_window_commands() {
 
             arguments.expect_end("window cursor-raw-motion <window-id> [bool]");
             std::cout << std::format("enabled={}\n", window->cursor_raw_motion());
+        },
+        {
+            window_id_argument(),
+            command_table_t::values_argument(
+                "bool",
+                {"true", "false", "on", "off", "yes", "no", "1", "0"}
+            )
         }
     );
 
@@ -687,6 +831,10 @@ void application_t::register_window_commands() {
             } else {
                 command_error("cursor-image operation must be 'test' or 'clear'");
             }
+        },
+        {
+            window_id_argument(),
+            command_table_t::values_argument("operation", {"test", "clear"})
         }
     );
 
@@ -702,6 +850,9 @@ void application_t::register_window_commands() {
             const auto& history = window->input_states();
             require_history_size(history.size(), 1, std::format("window {} input", id));
             std::cout << std::format("{}\n", history.history(0));
+        },
+        {
+            window_id_argument()
         }
     );
 
@@ -721,6 +872,9 @@ void application_t::register_window_commands() {
                 history.history(0)
             );
             std::cout << std::format("{}\n", change);
+        },
+        {
+            window_id_argument()
         }
     );
 
@@ -738,14 +892,44 @@ void application_t::register_window_commands() {
                 window->input_states(),
                 make_input_change
             );
+        },
+        {
+            window_id_argument()
         }
+    );
+
+    m_commands.add(
+        {"window", "input-history-size"},
+        "window input-history-size <window-id> <sample-count>",
+        "Replace retained input history with a new sample capacity.",
+        [this, resize_window_input_history](arguments_t& arguments) {
+            const id_t id = arguments.pop_id("window-id");
+            const std::size_t sample_count = arguments.pop_size("sample-count");
+            arguments.expect_end("window input-history-size <window-id> <sample-count>");
+
+            auto window = require_window(id);
+            resize_window_input_history(*window, sample_count);
+
+            const auto& history = window->input_states();
+            std::cout << std::format(
+                "window {} input history capacity set to {}; samples={}\n",
+                id,
+                history.capacity(),
+                history.size()
+            );
+        },
+        {
+            window_id_argument(),
+            command_table_t::argument("sample-count")
+        },
+        false
     );
 
     m_commands.add(
         {"window", "input-watch"},
         "window input-watch <window-id> <milliseconds> [interval-ms]",
-        "Poll repeatedly and print all adjacent changes retained by the input history size.",
-        [this, make_input_change](arguments_t& arguments) {
+        "Start a non-blocking watch that prints retained input changes.",
+        [this](arguments_t& arguments) {
             const id_t id = arguments.pop_id("window-id");
             const auto duration = std::chrono::milliseconds(
                 arguments.pop_long_long("milliseconds")
@@ -766,44 +950,25 @@ void application_t::register_window_commands() {
                 command_error("interval-ms must be positive");
             }
 
-            require_window(id);
-            const auto deadline = std::chrono::steady_clock::now() + duration;
-            std::size_t poll_count = 0;
-
-            do {
-                poll_once();
-                ++poll_count;
-
-                std::cout << std::format("watch poll {}:\n", poll_count);
-                const auto window = require_window(id);
-                const std::string heading = std::format(
-                    "[window {}] retained input history",
-                    id
-                );
-                m03gkcdy62bnz808pmk4uzkjra_glfw_cli::print_history_changes(
-                    heading,
-                    window->input_states(),
-                    make_input_change
-                );
-
-                const auto now = std::chrono::steady_clock::now();
-                if (now >= deadline) {
-                    break;
-                }
-
-                std::this_thread::sleep_for(std::min(
-                    interval,
-                    std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now)
-                ));
-            } while (true);
-
-            std::cout << std::format(
-                "Watched window {} input for {} poll(s).\n",
+            const id_t watch_id = start_watch(
+                watch_target_t::window_input,
                 id,
-                poll_count
+                duration,
+                interval
+            );
+            std::cout << std::format(
+                "Started watch {} for window {} input for {} ms at {} ms intervals.\n",
+                watch_id,
+                id,
+                duration.count(),
+                interval.count()
             );
         },
-        false
+        {
+            window_id_argument(),
+            command_table_t::argument("milliseconds"),
+            command_table_t::argument("interval-ms")
+        }
     );
 
     m_commands.add(
@@ -814,6 +979,9 @@ void application_t::register_window_commands() {
             const id_t id = arguments.pop_id("window-id");
             arguments.expect_end("window make-context-current <window-id>");
             std::cout << std::format("{}\n", require_window(id)->context_current(true));
+        },
+        {
+            window_id_argument()
         }
     );
 
@@ -827,6 +995,10 @@ void application_t::register_window_commands() {
             arguments.expect_end("window swap-interval <window-id> <interval>");
             require_window(id)->swap_interval(interval);
             std::cout << std::format("Swap interval requested: {}.\n", interval);
+        },
+        {
+            window_id_argument(),
+            command_table_t::argument("interval")
         }
     );
 
@@ -846,6 +1018,10 @@ void application_t::register_window_commands() {
                 window->swap_buffers();
             }
             std::cout << std::format("Swapped buffers {} time(s).\n", count);
+        },
+        {
+            window_id_argument(),
+            command_table_t::argument("count")
         }
     );
 
@@ -868,6 +1044,10 @@ void application_t::register_window_commands() {
                 "{}\n",
                 window->extension_supported(extension_name)
             );
+        },
+        {
+            window_id_argument(),
+            command_table_t::argument("extension-name")
         }
     );
 
@@ -890,6 +1070,10 @@ void application_t::register_window_commands() {
                 "available={}\n",
                 glfw_api::get_proc_address(function_name.c_str()) != nullptr
             );
+        },
+        {
+            window_id_argument(),
+            command_table_t::argument("function-name")
         }
     );
 
@@ -912,6 +1096,10 @@ void application_t::register_window_commands() {
             } else {
                 command_error("icon operation must be 'test' or 'clear'");
             }
+        },
+        {
+            window_id_argument(),
+            command_table_t::values_argument("operation", {"test", "clear"})
         }
     );
 
@@ -938,6 +1126,13 @@ void application_t::register_window_commands() {
             } else {
                 command_error("callback operation must be install, clear or status");
             }
+        },
+        {
+            window_id_argument(),
+            command_table_t::values_argument(
+                "operation",
+                {"install", "clear", "status"}
+            )
         }
     );
 }

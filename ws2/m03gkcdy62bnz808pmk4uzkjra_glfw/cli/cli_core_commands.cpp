@@ -142,6 +142,14 @@ void application_t::register_core_commands() {
         [this](arguments_t& arguments) {
             m_commands.print_help(arguments.remaining());
         },
+        [this](const completion_context_t& context) {
+            return completion_result_t{
+                .candidates = m_commands.complete_next_component(
+                    context.arguments,
+                    context.partial
+                )
+            };
+        },
         false
     );
 
@@ -182,6 +190,9 @@ void application_t::register_core_commands() {
 
             std::cout << std::format("Polled events {} time(s).\n", count);
         },
+        {
+            command_table_t::argument("count")
+        },
         false
     );
 
@@ -212,6 +223,9 @@ void application_t::register_core_commands() {
             wait_timeout_once(timeout);
             std::cout << std::format("Wait completed after at most {} second(s).\n", timeout);
         },
+        {
+            command_table_t::argument("seconds")
+        },
         false
     );
 
@@ -224,6 +238,71 @@ void application_t::register_core_commands() {
             glfw_api::post_empty_event();
             std::cout << "Posted an empty event.\n";
         }
+    );
+
+    m_commands.add(
+        {"watch", "list"},
+        "watch list",
+        "List active non-blocking watches.",
+        [this](arguments_t& arguments) {
+            arguments.expect_end("watch list");
+
+            if (m_watches.empty()) {
+                std::cout << "No active watches.\n";
+                return;
+            }
+
+            const auto now = std::chrono::steady_clock::now();
+            for (const auto& [id, watch] : m_watches) {
+                const auto remaining = watch.deadline > now
+                    ? std::chrono::duration_cast<std::chrono::milliseconds>(watch.deadline - now)
+                    : std::chrono::milliseconds(0);
+                const auto next_poll = watch.next_poll_time > now
+                    ? std::chrono::duration_cast<std::chrono::milliseconds>(watch.next_poll_time - now)
+                    : std::chrono::milliseconds(0);
+
+                std::cout << std::format(
+                    "{}: target={}, object_id={}, polls={}, interval_ms={}, "
+                    "remaining_ms={}, next_poll_ms={}\n",
+                    id,
+                    watch_target_label(watch.target),
+                    watch.object_id,
+                    watch.poll_count,
+                    watch.interval.count(),
+                    remaining.count(),
+                    next_poll.count()
+                );
+            }
+        },
+        false
+    );
+
+    m_commands.add(
+        {"watch", "stop"},
+        "watch stop <watch-id>|all",
+        "Stop one or every active non-blocking watch.",
+        [this](arguments_t& arguments) {
+            const std::string_view target = arguments.pop("watch-id or all");
+            arguments.expect_end("watch stop <watch-id>|all");
+
+            if (target == "all") {
+                const std::size_t count = m_watches.size();
+                m_watches.clear();
+                std::cout << std::format("Stopped {} watch(es).\n", count);
+                return;
+            }
+
+            const id_t id = parse_integer<id_t>(target, "watch-id");
+            if (m_watches.erase(id) == 0) {
+                command_error(std::format("no active watch with ID {}", id));
+            }
+
+            std::cout << std::format("Stopped watch {}.\n", id);
+        },
+        {
+            watch_id_or_all_argument()
+        },
+        false
     );
 
     m_commands.add(
@@ -268,6 +347,10 @@ void application_t::register_core_commands() {
 
             std::cout << std::format("Pumped events {} time(s).\n", poll_count);
         },
+        {
+            command_table_t::argument("milliseconds"),
+            command_table_t::argument("interval-ms")
+        },
         false
     );
 
@@ -279,6 +362,9 @@ void application_t::register_core_commands() {
             const std::filesystem::path path(arguments.pop("file"));
             arguments.expect_end("source <file>");
             run_script(path);
+        },
+        {
+            command_table_t::files_argument("file")
         },
         false
     );

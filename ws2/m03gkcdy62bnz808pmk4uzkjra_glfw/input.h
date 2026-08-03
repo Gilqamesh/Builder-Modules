@@ -804,6 +804,7 @@ struct formatter<m03gkcdy62bnz808pmk4uzkjra_glfw::button_t> {
             case m03gkcdy62bnz808pmk4uzkjra_glfw::button_t::button_mouse_6: name = "mouse 6"; break;
             case m03gkcdy62bnz808pmk4uzkjra_glfw::button_t::button_mouse_7: name = "mouse 7"; break;
             case m03gkcdy62bnz808pmk4uzkjra_glfw::button_t::button_mouse_8: name = "mouse 8"; break;
+            default: throw std::runtime_error(std::format("Unknown button: {}", static_cast<std::uint32_t>(button)));
         }
 
         if (name == nullptr) {
@@ -889,23 +890,34 @@ struct formatter<m03gkcdy62bnz808pmk4uzkjra_glfw::input_state_change_t> {
             if (press_delta == 0 && release_delta == 0 && repeat_delta == 0) {
                 continue;
             }
-
+            
             if (wrote_button_change) {
                 out = std::format_to(out, ", ");
             }
-
+            wrote_button_change = true;
+            
             out = std::format_to(out, "{}: {{ ", button);
-            out = std::format_to(out, "press delta: {}, ", press_delta);
-            out = std::format_to(out, "release delta: {}, ", release_delta);
-            out = std::format_to(out, "repeat delta: {}", repeat_delta);
+            if (press_delta != 0) {
+                out = std::format_to(out, "press delta: {}, ", press_delta);
+            }
+            if (release_delta != 0) {
+                out = std::format_to(out, "release delta: {}, ", release_delta);
+            }
+            if (repeat_delta != 0) {
+                out = std::format_to(out, "repeat delta: {}", repeat_delta);
+            }
+
             out = std::format_to(out, " }}");
 
-            wrote_button_change = true;
         }
         out = std::format_to(out, " }}, ");
 
-        out = std::format_to(out, "cursor position delta: {}, ", input_state_change.cursor_position_delta());
-        out = std::format_to(out, "scroll offset delta: {}", input_state_change.scroll_offset_delta());
+        if (input_state_change.cursor_position_delta() != m03ginwy24ng8o487c4beoms6l_vector::vector_t<double, 2>{0.0, 0.0}) {
+            out = std::format_to(out, "cursor position delta: {}, ", input_state_change.cursor_position_delta());
+        }
+        if (input_state_change.scroll_offset_delta() != m03ginwy24ng8o487c4beoms6l_vector::vector_t<double, 2>{0.0, 0.0}) {
+            out = std::format_to(out, "scroll offset delta: {}", input_state_change.scroll_offset_delta());
+        }
 
         out = std::format_to(out, " }}");
 
