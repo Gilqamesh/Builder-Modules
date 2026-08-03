@@ -5,8 +5,11 @@
 #include <filesystem>
 #include <format>
 #include <iostream>
+#include <limits>
+#include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 
 namespace m03gkcdy62bnz808pmk4uzkjra_glfw_cli {
 
@@ -132,6 +135,18 @@ void run_interface_self_test() {
 
 }
 
+void validate_event_pump_interval(std::chrono::milliseconds interval) {
+    if (interval.count() <= 0) {
+        command_error("milliseconds must be positive");
+    }
+    if (interval.count() > std::numeric_limits<int>::max()) {
+        command_error(std::format(
+            "milliseconds must be no greater than {}",
+            std::numeric_limits<int>::max()
+        ));
+    }
+}
+
 } // namespace
 
 void application_t::register_core_commands() {
@@ -241,6 +256,141 @@ void application_t::register_core_commands() {
     );
 
     m_commands.add(
+        {"event-pump", "show"},
+        "event-pump show",
+        "Show the automatic non-blocking event-pump interval.",
+        [this](arguments_t& arguments) {
+            arguments.expect_end("event-pump show");
+            std::cout << std::format(
+                "event-pump interval_ms={}\n",
+                m_event_pump_interval.count()
+            );
+        },
+        false
+    );
+
+    m_commands.add(
+        {"event-pump", "interval"},
+        "event-pump interval <milliseconds>",
+        "Set the automatic non-blocking event-pump interval.",
+        [this](arguments_t& arguments) {
+            const auto interval = std::chrono::milliseconds(
+                arguments.pop_long_long("milliseconds")
+            );
+            arguments.expect_end("event-pump interval <milliseconds>");
+            validate_event_pump_interval(interval);
+
+            m_event_pump_interval = interval;
+            std::cout << std::format(
+                "event-pump interval_ms={}.\n",
+                m_event_pump_interval.count()
+            );
+        },
+        {
+            command_table_t::argument("milliseconds")
+        },
+        false
+    );
+
+    m_commands.add(
+        {"watch", "start", "window"},
+        "watch start window <window-id> <milliseconds>",
+        "Start a non-blocking window input watch on each event-pump cycle.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop_id("window-id");
+            const auto duration = std::chrono::milliseconds(
+                arguments.pop_long_long("milliseconds")
+            );
+            arguments.expect_end("watch start window <window-id> <milliseconds>");
+
+            const id_t watch_id = start_watch(
+                watch_target_t::window_input,
+                id,
+                duration,
+                std::chrono::milliseconds(0)
+            );
+            std::cout << std::format(
+                "Started watch {} for window {} for {} ms on each event-pump cycle.\n",
+                watch_id,
+                id,
+                duration.count()
+            );
+        },
+        {
+            window_id_argument(),
+            command_table_t::argument("milliseconds")
+        }
+    );
+
+    const auto add_interval_watch_start = [this](
+        std::string target_name,
+        watch_target_t target,
+        argument_spec_t id_argument
+    ) {
+        const std::string id_name = target_name + "-id";
+        const std::string usage = std::format(
+            "watch start {} <{}> <milliseconds> [interval-ms]",
+            target_name,
+            id_name
+        );
+
+        m_commands.add(
+            {"watch", "start", std::string_view(target_name)},
+            usage,
+            "Start a non-blocking device watch that prints retained adjacent changes.",
+            [
+                this,
+                target_name,
+                target,
+                id_name,
+                usage
+            ](arguments_t& arguments) {
+                const id_t id = arguments.pop_id(id_name);
+                const auto duration = std::chrono::milliseconds(
+                    arguments.pop_long_long("milliseconds")
+                );
+                const auto interval = std::chrono::milliseconds(
+                    arguments.empty()
+                        ? m_event_pump_interval.count()
+                        : arguments.pop_long_long("interval-ms")
+                );
+                arguments.expect_end(usage);
+
+                const id_t watch_id = start_watch(
+                    target,
+                    id,
+                    duration,
+                    interval
+                );
+                std::cout << std::format(
+                    "Started watch {} for {} {} for {} ms at {} ms intervals.\n",
+                    watch_id,
+                    target_name,
+                    id,
+                    duration.count(),
+                    interval.count()
+                );
+            },
+            {
+                std::move(id_argument),
+                command_table_t::argument("milliseconds"),
+                command_table_t::argument("interval-ms")
+            }
+        );
+    };
+
+    add_interval_watch_start(
+        "joystick",
+        watch_target_t::joystick,
+        connected_joystick_id_argument("joystick-id")
+    );
+    add_interval_watch_start(
+        "gamepad",
+        watch_target_t::gamepad,
+        connected_gamepad_id_argument("gamepad-id")
+    );
+
+    m_commands.add(
         {"watch", "list"},
         "watch list",
         "List active non-blocking watches.",
@@ -260,19 +410,70 @@ void application_t::register_core_commands() {
                 const auto next_poll = watch.next_poll_time > now
                     ? std::chrono::duration_cast<std::chrono::milliseconds>(watch.next_poll_time - now)
                     : std::chrono::milliseconds(0);
+                const std::string interval = watch_target_uses_interval(watch.target)
+                    ? std::format("{}ms", watch.interval.count())
+                    : std::format("event-pump({}ms)", m_event_pump_interval.count());
 
                 std::cout << std::format(
-                    "{}: target={}, object_id={}, polls={}, interval_ms={}, "
+                    "{}: target={}, object_id={}, polls={}, interval={}, "
                     "remaining_ms={}, next_poll_ms={}\n",
                     id,
                     watch_target_label(watch.target),
                     watch.object_id,
                     watch.poll_count,
-                    watch.interval.count(),
+                    interval,
                     remaining.count(),
                     next_poll.count()
                 );
             }
+        },
+        false
+    );
+
+    m_commands.add(
+        {"watch", "set-interval"},
+        "watch set-interval <watch-id> <interval-ms>",
+        "Set the interval for an active interval-based watch.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop_id("watch-id");
+            const auto interval = std::chrono::milliseconds(
+                arguments.pop_long_long("interval-ms")
+            );
+            arguments.expect_end("watch set-interval <watch-id> <interval-ms>");
+
+            if (interval.count() <= 0) {
+                command_error("interval-ms must be positive");
+            }
+
+            auto iterator = m_watches.find(id);
+            if (iterator == m_watches.end()) {
+                command_error(std::format("no active watch with ID {}", id));
+            }
+
+            auto& watch = iterator->second;
+            if (!watch_target_uses_interval(watch.target)) {
+                command_error(
+                    "window watches follow the event-pump interval; "
+                    "use 'event-pump interval <milliseconds>'"
+                );
+            }
+
+            watch.interval = interval;
+            watch.next_poll_time = std::chrono::steady_clock::now() + interval;
+            std::cout << std::format(
+                "watch {} interval_ms={}.\n",
+                id,
+                interval.count()
+            );
+        },
+        {
+            command_table_t::argument(
+                "watch-id",
+                [this](const completion_context_t& context) {
+                    return complete_watch_ids(context.partial, false);
+                }
+            ),
+            command_table_t::argument("interval-ms")
         },
         false
     );
@@ -315,7 +516,7 @@ void application_t::register_core_commands() {
             );
             const auto interval = std::chrono::milliseconds(
                 arguments.empty()
-                    ? 16
+                    ? m_event_pump_interval.count()
                     : arguments.pop_long_long("interval-ms")
             );
             arguments.expect_end("pump <milliseconds> [interval-ms]");

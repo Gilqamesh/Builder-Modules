@@ -83,6 +83,8 @@ static std::string builder_source() {
         "#include <m03gagbhsujjf63n0w3r2w4q6h_build_phases/build_phases.h>\n"
         "#include <m03gagbhsnusi43zogoacgj2ez_filesystem/filesystem.h>\n"
         "\n"
+        "#include <vector>\n"
+        "\n"
         "extern \"C\" void phase__source(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::source_phase_t* phase) {\n"
         "    phase->install_source_tree();\n"
         "}\n"

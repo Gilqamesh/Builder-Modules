@@ -2,7 +2,6 @@
 # define M03GILSFSV3K34EJ14YTZ8A29K_TEXTURE_H
 
 # include <cstddef>
-
 # include <format>
 # include <stdexcept>
 

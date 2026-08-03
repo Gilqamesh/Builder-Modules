@@ -1,7 +1,6 @@
 #include "cli_application.h"
 #include "cli_history.h"
 
-#include <chrono>
 #include <cstddef>
 #include <filesystem>
 #include <format>
@@ -70,8 +69,7 @@ void application_t::register_device_commands() {
         auto poll_device,
         auto history_of,
         auto resize_history,
-        auto make_change,
-        watch_target_t watch_target
+        auto make_change
     ) {
         auto* const registry_pointer = &registry;
         const argument_spec_t retained_device_id_argument =
@@ -299,57 +297,6 @@ void application_t::register_device_commands() {
             },
             false
         );
-
-        m_commands.add(
-            {group, "watch"},
-            group + " watch <" + group + "-id> <milliseconds> [interval-ms]",
-            "Start a non-blocking watch that prints retained adjacent changes.",
-            [
-                this,
-                group,
-                watch_target
-            ](arguments_t& arguments) {
-                const id_t id = arguments.pop_id(group + "-id");
-                const auto duration = std::chrono::milliseconds(
-                    arguments.pop_long_long("milliseconds")
-                );
-                const auto interval = std::chrono::milliseconds(
-                    arguments.empty()
-                        ? 16
-                        : arguments.pop_long_long("interval-ms")
-                );
-                arguments.expect_end(
-                    group + " watch <" + group + "-id> <milliseconds> [interval-ms]"
-                );
-
-                if (duration.count() < 0) {
-                    command_error("milliseconds must be non-negative");
-                }
-                if (interval.count() <= 0) {
-                    command_error("interval-ms must be positive");
-                }
-
-                const id_t watch_id = start_watch(
-                    watch_target,
-                    id,
-                    duration,
-                    interval
-                );
-                std::cout << std::format(
-                    "Started watch {} for {} {} for {} ms at {} ms intervals.\n",
-                    watch_id,
-                    group,
-                    id,
-                    duration.count(),
-                    interval.count()
-                );
-            },
-            {
-                connected_device_id_argument,
-                command_table_t::argument("milliseconds"),
-                command_table_t::argument("interval-ms")
-            }
-        );
     };
 
     register_group(
@@ -369,8 +316,7 @@ void application_t::register_device_commands() {
         },
         [](const auto& previous, const auto& current) {
             return glfw_api::joystick_state_change_t(previous, current);
-        },
-        watch_target_t::joystick
+        }
     );
 
     register_group(
@@ -390,8 +336,7 @@ void application_t::register_device_commands() {
         },
         [](const auto& previous, const auto& current) {
             return glfw_api::gamepad_state_change_t(previous, current);
-        },
-        watch_target_t::gamepad
+        }
     );
 
     const auto apply_gamepad_mapping = [this](std::string mapping) {

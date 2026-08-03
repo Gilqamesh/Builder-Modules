@@ -177,7 +177,11 @@ bool application_t::repl() {
             .revents = 0
         };
 
-        const int result = ::poll(&descriptor, 1, 16);
+        const int result = ::poll(
+            &descriptor,
+            1,
+            static_cast<int>(m_event_pump_interval.count())
+        );
         if (result < 0) {
             if (errno == EINTR) {
                 continue;
@@ -632,8 +636,14 @@ id_t application_t::start_watch(
     if (duration.count() < 0) {
         command_error("milliseconds must be non-negative");
     }
-    if (interval.count() <= 0) {
+    if (watch_target_uses_interval(target) && interval.count() <= 0) {
         command_error("interval-ms must be positive");
+    }
+    if (!watch_target_uses_interval(target) && interval.count() != 0) {
+        command_error(std::format(
+            "{} watches follow the event-pump interval",
+            watch_target_label(target)
+        ));
     }
 
     switch (target) {
@@ -671,7 +681,7 @@ void application_t::service_watches() {
     std::vector<id_t> finished;
 
     for (auto& [id, watch] : m_watches) {
-        if (now < watch.next_poll_time) {
+        if (watch_target_uses_interval(watch.target) && now < watch.next_poll_time) {
             continue;
         }
 
@@ -703,7 +713,9 @@ void application_t::service_watches() {
             continue;
         }
 
-        watch.next_poll_time = now + watch.interval;
+        watch.next_poll_time = watch_target_uses_interval(watch.target)
+            ? now + watch.interval
+            : now;
     }
 
     for (const id_t id : finished) {
@@ -826,7 +838,7 @@ bool application_t::print_watch_sample(watch_t& watch) {
 std::string_view application_t::watch_target_label(watch_target_t target) {
     switch (target) {
     case watch_target_t::window_input:
-        return "window input";
+        return "window";
     case watch_target_t::joystick:
         return "joystick";
     case watch_target_t::gamepad:
@@ -834,6 +846,18 @@ std::string_view application_t::watch_target_label(watch_target_t target) {
     }
 
     throw std::logic_error("application_t::watch_target_label: unknown watch target");
+}
+
+bool application_t::watch_target_uses_interval(watch_target_t target) {
+    switch (target) {
+    case watch_target_t::window_input:
+        return false;
+    case watch_target_t::joystick:
+    case watch_target_t::gamepad:
+        return true;
+    }
+
+    throw std::logic_error("application_t::watch_target_uses_interval: unknown watch target");
 }
 
 void application_t::require_history_size(

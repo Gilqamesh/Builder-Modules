@@ -1,7 +1,6 @@
 #include "cli_application.h"
 #include "cli_history.h"
 
-#include <chrono>
 #include <exception>
 #include <format>
 #include <iostream>
@@ -923,52 +922,6 @@ void application_t::register_window_commands() {
             command_table_t::argument("sample-count")
         },
         false
-    );
-
-    m_commands.add(
-        {"window", "input-watch"},
-        "window input-watch <window-id> <milliseconds> [interval-ms]",
-        "Start a non-blocking watch that prints retained input changes.",
-        [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
-            const auto duration = std::chrono::milliseconds(
-                arguments.pop_long_long("milliseconds")
-            );
-            const auto interval = std::chrono::milliseconds(
-                arguments.empty()
-                    ? 16
-                    : arguments.pop_long_long("interval-ms")
-            );
-            arguments.expect_end(
-                "window input-watch <window-id> <milliseconds> [interval-ms]"
-            );
-
-            if (duration.count() < 0) {
-                command_error("milliseconds must be non-negative");
-            }
-            if (interval.count() <= 0) {
-                command_error("interval-ms must be positive");
-            }
-
-            const id_t watch_id = start_watch(
-                watch_target_t::window_input,
-                id,
-                duration,
-                interval
-            );
-            std::cout << std::format(
-                "Started watch {} for window {} input for {} ms at {} ms intervals.\n",
-                watch_id,
-                id,
-                duration.count(),
-                interval.count()
-            );
-        },
-        {
-            window_id_argument(),
-            command_table_t::argument("milliseconds"),
-            command_table_t::argument("interval-ms")
-        }
     );
 
     m_commands.add(

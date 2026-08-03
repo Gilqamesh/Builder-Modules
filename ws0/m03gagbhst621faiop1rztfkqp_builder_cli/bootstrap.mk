@@ -67,6 +67,7 @@ SRC := \
 	$(FOUNDATION_DIR)/m03gagbhsnusi43zogoacgj2ez_filesystem/filesystem.cpp \
 	$(FOUNDATION_DIR)/m03gagbhsyhlx2pk5sdabbr1sx_signal_handler/signal_handler.cpp \
 	$(FOUNDATION_DIR)/m03gagbhsvr0m5w15urj0o291m_process/process.cpp \
+	$(FOUNDATION_DIR)/m03gagbhsvr0m5w15urj0o291m_process/foreground_job.cpp \
 	$(FOUNDATION_DIR)/m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain/cxx_toolchain.cpp \
 	$(FOUNDATION_DIR)/m03gagbhsx4j5z28bqkac3dhhh_shared_library/shared_library.cpp \
 	$(FOUNDATION_DIR)/m03gagbhsp2drqq3gkop8pzfrm_workspace_graph/workspace_graph.cpp \
@@ -80,6 +81,7 @@ BOOTSTRAP_SEED_BUILDER_SRC := \
 	$(FOUNDATION_DIR)/m03gagbhsnusi43zogoacgj2ez_filesystem/filesystem.cpp \
 	$(FOUNDATION_DIR)/m03gagbhsyhlx2pk5sdabbr1sx_signal_handler/signal_handler.cpp \
 	$(FOUNDATION_DIR)/m03gagbhsvr0m5w15urj0o291m_process/process.cpp \
+	$(FOUNDATION_DIR)/m03gagbhsvr0m5w15urj0o291m_process/foreground_job.cpp \
 	$(FOUNDATION_DIR)/m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain/cxx_toolchain.cpp \
 	$(FOUNDATION_DIR)/m03gagbhsx4j5z28bqkac3dhhh_shared_library/shared_library.cpp \
 	$(FOUNDATION_DIR)/m03gagbhsp2drqq3gkop8pzfrm_workspace_graph/workspace_graph.cpp \

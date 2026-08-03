@@ -897,26 +897,39 @@ struct formatter<m03gkcdy62bnz808pmk4uzkjra_glfw::input_state_change_t> {
             wrote_button_change = true;
             
             out = std::format_to(out, "{}: {{ ", button);
+            bool wrote_any_delta = false;
             if (press_delta != 0) {
-                out = std::format_to(out, "press delta: {}, ", press_delta);
+                if (wrote_any_delta) {
+                    out = std::format_to(out, ", ");
+                }
+                out = std::format_to(out, "press delta: {}", press_delta);
+                wrote_any_delta = true;
             }
             if (release_delta != 0) {
-                out = std::format_to(out, "release delta: {}, ", release_delta);
+                if (wrote_any_delta) {
+                    out = std::format_to(out, ", ");
+                }
+                out = std::format_to(out, "release delta: {}", release_delta);
+                wrote_any_delta = true;
             }
             if (repeat_delta != 0) {
+                if (wrote_any_delta) {
+                    out = std::format_to(out, ", ");
+                }
                 out = std::format_to(out, "repeat delta: {}", repeat_delta);
+                wrote_any_delta = true;
             }
 
             out = std::format_to(out, " }}");
 
         }
-        out = std::format_to(out, " }}, ");
+        out = std::format_to(out, " }}");
 
         if (input_state_change.cursor_position_delta() != m03ginwy24ng8o487c4beoms6l_vector::vector_t<double, 2>{0.0, 0.0}) {
-            out = std::format_to(out, "cursor position delta: {}, ", input_state_change.cursor_position_delta());
+            out = std::format_to(out, ", cursor position delta: {}, ", input_state_change.cursor_position_delta());
         }
         if (input_state_change.scroll_offset_delta() != m03ginwy24ng8o487c4beoms6l_vector::vector_t<double, 2>{0.0, 0.0}) {
-            out = std::format_to(out, "scroll offset delta: {}", input_state_change.scroll_offset_delta());
+            out = std::format_to(out, ", scroll offset delta: {}", input_state_change.scroll_offset_delta());
         }
 
         out = std::format_to(out, " }}");
@@ -1008,14 +1021,13 @@ struct formatter<m03gkcdy62bnz808pmk4uzkjra_glfw::joystick_state_change_t> {
         out = std::format_to(out, "axis deltas: {{ ");
         bool wrote_axis_change = false;
         for (std::size_t i = 0; i < joystick_state_change.axis_count(); ++i) {
-            if (wrote_axis_change) {
-                out = std::format_to(out, ", ");
-            }
-
             if (joystick_state_change.axis_delta(i) == 0.0f) {
                 continue;
             }
 
+            if (wrote_axis_change) {
+                out = std::format_to(out, ", ");
+            }
             out = std::format_to(out, "{}: {}", i, joystick_state_change.axis_delta(i));
             wrote_axis_change = true;
         }
@@ -1363,18 +1375,18 @@ struct formatter<m03gkcdy62bnz808pmk4uzkjra_glfw::joystick_to_gamepad_mapping_t>
         return ctx.begin();
     }
 
-    auto format(const m03gkcdy62bnz808pmk4uzkjra_glfw::joystick_to_gamepad_mapping_t& mapping, auto& ctx) const {
+    auto format(const m03gkcdy62bnz808pmk4uzkjra_glfw::joystick_to_gamepad_mapping_t& joystick_to_gamepad_mapping, auto& ctx) const {
         auto out = ctx.out();
 
         out = std::format_to(out, "{{ ");
 
-        out = std::format_to(out, "gamepad guid: {}, ", mapping.gamepad_guid());
-        out = std::format_to(out, "gamepad name: {}, ", mapping.gamepad_name());
-        out = std::format_to(out, "platform: {}, ", mapping.platform());
+        out = std::format_to(out, "gamepad guid: {}, ", joystick_to_gamepad_mapping.gamepad_guid());
+        out = std::format_to(out, "gamepad name: {}, ", joystick_to_gamepad_mapping.gamepad_name());
+        out = std::format_to(out, "platform: {}, ", joystick_to_gamepad_mapping.platform());
 
         out = std::format_to(out, "gamepad button by joystick button: {{ ");
         bool wrote_button_mapping = false;
-        for (const auto& [joystick_button, gamepad_button] : mapping.gamepad_button_by_joystick_button()) {
+        for (const auto& [joystick_button, gamepad_button] : joystick_to_gamepad_mapping.gamepad_button_by_joystick_button()) {
             if (wrote_button_mapping) {
                 out = std::format_to(out, ", ");
             }
@@ -1386,7 +1398,7 @@ struct formatter<m03gkcdy62bnz808pmk4uzkjra_glfw::joystick_to_gamepad_mapping_t>
 
         out = std::format_to(out, "gamepad axis by joystick axis: {{ ");
         bool wrote_axis_mapping = false;
-        for (const auto& [joystick_axis, gamepad_axis] : mapping.gamepad_axis_by_joystick_axis()) {
+        for (const auto& [joystick_axis, gamepad_axis] : joystick_to_gamepad_mapping.gamepad_axis_by_joystick_axis()) {
             if (wrote_axis_mapping) {
                 out = std::format_to(out, ", ");
             }
@@ -1398,7 +1410,7 @@ struct formatter<m03gkcdy62bnz808pmk4uzkjra_glfw::joystick_to_gamepad_mapping_t>
 
         out = std::format_to(out, "gamepad hat by joystick hat: {{ ");
         bool wrote_hat_mapping = false;
-        for (const auto& [joystick_hat, gamepad_hat] : mapping.gamepad_hat_by_joystick_hat()) {
+        for (const auto& [joystick_hat, gamepad_hat] : joystick_to_gamepad_mapping.gamepad_hat_by_joystick_hat()) {
             if (wrote_hat_mapping) {
                 out = std::format_to(out, ", ");
             }

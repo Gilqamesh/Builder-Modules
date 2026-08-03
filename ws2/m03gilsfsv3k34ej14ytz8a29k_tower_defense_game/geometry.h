@@ -12,6 +12,11 @@
 
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
+struct index_range_t {
+    std::uint32_t start_index;
+    std::uint32_t index_count;
+};
+
 class geometry_t {
 public:
     geometry_t();

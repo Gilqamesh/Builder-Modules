@@ -11,6 +11,8 @@ monitor handle 1
 
 post-empty-event
 wait-timeout 0
+event-pump show
+event-pump interval 16
 
 # No graphics context is needed for these window-state tests.
 settings preset no-api
@@ -39,7 +41,7 @@ window callbacks 1 status
 window input 1
 window input-delta 1
 window input-history 1
-window input-watch 1 50 16
+watch start window 1 50
 window cursor-visible 1
 window cursor-locked 1
 window cursor-hovered 1
@@ -90,7 +92,7 @@ settings reset
 # joystick delta 1
 # joystick history 1
 # joystick history-size 1 4
-# joystick watch 1 1000 16
+# watch start joystick 1 1000 16
 # gamepad list
 # gamepad show 1
 # gamepad poll 1
@@ -98,4 +100,4 @@ settings reset
 # gamepad delta 1
 # gamepad history 1
 # gamepad history-size 1 4
-# gamepad watch 1 1000 16
+# watch start gamepad 1 1000 16

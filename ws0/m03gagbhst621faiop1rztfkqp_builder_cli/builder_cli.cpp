@@ -69,11 +69,11 @@ static m03gagbhsvr0m5w15urj0o291m_process::command_t build_cli_command(
 }
 
 void create_and_wait_checked(m03gagbhsp2drqq3gkop8pzfrm_workspace_graph::module_name_t module, int argc, const char* const* argv) {
-    m03gagbhsvr0m5w15urj0o291m_process::create_and_wait_checked(build_cli_command(module, std::vector<std::string>(argv, argv + argc)));
+    m03gagbhsvr0m5w15urj0o291m_process::create_and_wait_foreground_checked(build_cli_command(module, std::vector<std::string>(argv, argv + argc)));
 }
 
 void create_and_wait_checked(m03gagbhsp2drqq3gkop8pzfrm_workspace_graph::module_name_t module, std::vector<std::string> args) {
-    m03gagbhsvr0m5w15urj0o291m_process::create_and_wait_checked(build_cli_command(module, args));
+    m03gagbhsvr0m5w15urj0o291m_process::create_and_wait_foreground_checked(build_cli_command(module, args));
 }
 
 } // namespace m03gagbhst621faiop1rztfkqp_builder_cli

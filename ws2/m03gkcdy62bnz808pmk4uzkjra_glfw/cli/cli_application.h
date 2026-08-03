@@ -124,6 +124,7 @@ private:
     );
     bool print_watch_sample(watch_t& watch);
     static std::string_view watch_target_label(watch_target_t target);
+    static bool watch_target_uses_interval(watch_target_t target);
 
     static void require_history_size(
         std::size_t actual_size,
@@ -145,6 +146,7 @@ private:
 private:
     bool m_running = true;
     command_table_t m_commands;
+    std::chrono::milliseconds m_event_pump_interval{16};
 
     glfw_api::window_creation_settings_t m_creation_settings;
 
