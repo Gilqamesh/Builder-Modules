@@ -1,0 +1,101 @@
+# Basic repeatable smoke test.
+# The first observed monitor receives ID 1 and the first window receives ID 1.
+
+help
+self-test
+monitor list
+monitor primary
+monitor show 1
+monitor modes 1
+monitor handle 1
+
+post-empty-event
+wait-timeout 0
+
+# No graphics context is needed for these window-state tests.
+settings preset no-api
+settings set visible true
+settings set decorated true
+settings set resizable true
+settings apply
+settings show
+
+window create windowed "GLFW CLI smoke test" 100 100 800 600
+window list
+window status 1
+window handle 1
+window client-api 1
+window framebuffer-size 1
+window size-limits 1 320 240 1280 960
+window aspect-ratio 1 16 9
+window opacity 1 0.95
+window opacity 1
+window make-context-current 1
+window swap-interval 1 1
+window swap-buffers 1
+pump 100
+
+window callbacks 1 status
+window input 1
+window input-delta 1
+window input-history 1
+window input-watch 1 50 16
+window cursor-visible 1
+window cursor-locked 1
+window cursor-hovered 1
+window cursor-mode 1 true false
+window cursor-raw-motion 1 false
+window cursor-image 1 test
+window cursor-image 1 clear
+
+window title 1 "Renamed GLFW test window"
+window size 1 900 650
+pump 250
+window visible 1 false
+pump 100
+window visible 1 true
+pump 100
+window focus-on-visible 1 false
+window minimize 1
+pump 100
+window restore 1
+pump 100
+window maximize 1
+pump 100
+window restore 1
+window focus 1
+window request-attention 1
+window icon 1 test
+window status 1
+
+window fullscreen 1 1
+pump 500
+window windowed 1 1
+pump 500
+
+window aspect-ratio 1 clear
+window size-limits 1 clear
+window opacity 1 1
+window should-close 1 true
+window should-close 1
+window icon 1 clear
+window destroy 1
+settings reset
+
+# Hardware-dependent commands to run manually when IDs are present:
+# joystick list
+# joystick show 1
+# joystick poll 1
+# joystick state 1
+# joystick delta 1
+# joystick history 1
+# joystick history-size 1 4
+# joystick watch 1 1000 16
+# gamepad list
+# gamepad show 1
+# gamepad poll 1
+# gamepad state 1
+# gamepad delta 1
+# gamepad history 1
+# gamepad history-size 1 4
+# gamepad watch 1 1000 16

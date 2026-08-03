@@ -1,0 +1,12 @@
+# Requires a working desktop OpenGL 3.3 context.
+
+settings preset gl33-core
+window create windowed "GLFW context test" 100 100 800 600
+window client-api 1
+window make-context-current 1
+window proc-address 1 glClear
+window extension-supported 1 GL_ARB_vertex_array_object
+window swap-interval 1 1
+window swap-buffers 1 3
+window destroy 1
+settings reset

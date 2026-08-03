@@ -50,6 +50,12 @@ bool relative_path_t::operator==(const relative_path_t& other) const {
     return m_relative_path == other.m_relative_path;
 }
 
+relative_path_t relative_path_t::operator/(const relative_path_t& other) const {
+    relative_path_t result(to_native_path() / other.to_native_path());
+
+    return result;
+}
+
 relative_path_t relative_path_t::operator+(std::string_view postfix) const {
     relative_path_t result(append_postfix(m_relative_path, postfix));
 
@@ -379,7 +385,7 @@ path_t canonical(const path_t& path) {
 }
 
 void copy(const path_t& src, const path_t& dst) {
-    std::cout << std::format("cp -r {} {}", pretty_path_t(src), pretty_path_t(dst)) << std::endl;
+    // std::cout << std::format("cp -r {} {}", pretty_path_t(src), pretty_path_t(dst)) << std::endl;
 
     const auto parent = dst.parent();
     if (!exists(parent)) {

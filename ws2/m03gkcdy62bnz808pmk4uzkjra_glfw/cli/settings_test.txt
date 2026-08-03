@@ -1,0 +1,57 @@
+# Exercises every window_creation_settings_t setter and all getters through
+# settings show. It does not create a window because some framebuffer/context
+# requests are platform-dependent.
+
+settings reset
+
+settings set resizable false
+settings set visible false
+settings set decorated false
+settings set focused false
+settings set maximized true
+settings set auto-minimize-on-focus-loss false
+settings set always-on-top true
+settings set center-cursor-in-fullscreen false
+settings set transparent-framebuffer true
+settings set focus-on-show false
+settings set scale-to-monitor true
+settings set scale-framebuffer false
+settings set mouse-passthrough true
+
+settings set color-bits 8 8 8 8
+settings set depth-stencil-bits 24 8
+settings set accumulation-bits 0 0 0 0
+settings set auxiliary-buffers 0
+settings set sample-count 4
+settings set stereo false
+settings set srgb-capable true
+settings set double-buffered true
+
+# Exercise every client/context selector, then leave a coherent OpenGL state.
+settings set no-client-api
+settings set opengl-es 2 0
+settings set opengl 3 3 core
+settings set context-creation-api osmesa
+settings set context-creation-api egl
+settings set context-creation-api native
+settings set context-robustness no-reset-notification
+settings set context-robustness lose-context-on-reset
+settings set context-robustness none
+settings set context-release-behavior flush
+settings set context-release-behavior none
+settings set context-release-behavior any
+settings set forward-compatible true
+settings set debug-context true
+
+settings set win32-keyboard-menu true
+settings set win32-show-default true
+settings set cocoa-frame-name glfw-cli-settings-test
+settings set cocoa-graphics-switching true
+settings set wayland-application-id glfw-cli-settings-test
+settings set x11-class-name GlfwCliSettingsTest
+settings set x11-instance-name glfw-cli-settings-test
+
+settings show
+settings apply
+settings reset
+settings show

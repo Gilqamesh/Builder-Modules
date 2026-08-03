@@ -4,8 +4,8 @@
 #include <format>
 #include <iostream>
 #include <unordered_set>
-
-#include <m03gagbht17w4tser1fescqxye_raylib/raylib.h>
+#include <chrono>
+#include <thread>
 
 namespace {
 
@@ -17,7 +17,6 @@ namespace {
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
 game_t::game_t():
-    m_renderer({1600, 1200}),
     m_camera({{-400, 400}, {-300, 300}}, {{0, 400}, {0, 200}})
 {
     std::vector<std::shared_ptr<texture_t>> tile_textures;
@@ -128,16 +127,33 @@ game_t::game_t():
 
         m_entities.push_back(std::move(entity));
     }
+
+    // create window with opengl core profile and renderer
+    m03gkcdy62bnz808pmk4uzkjra_glfw::window_creation_settings_t window_settings;
+    window_settings.opengl(4, 6, m03gkcdy62bnz808pmk4uzkjra_glfw::opengl_profile_t::core);
+    m_window = m03gkcdy62bnz808pmk4uzkjra_glfw::window_t::create("Tower Defense Game", m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 4>{100, 100, 1600, 1200}, window_settings);
+    m_renderer = std::make_shared<renderer3_t>(m_window);
 }
 
 game_t::~game_t() {
 }
 
 void game_t::run() {
-    while (!WindowShouldClose()) {
-        float dt = GetFrameTime();
+    m_window->swap_interval(1);
+
+    auto previous_frame_time = std::chrono::steady_clock::now();
+    while (!m_window->should_close()) {
+        const auto frame_time = std::chrono::steady_clock::now();
+        const auto dt = std::chrono::duration<float>(frame_time - previous_frame_time).count();
+
+        m03gkcdy62bnz808pmk4uzkjra_glfw::poll_events();
+
         update(dt);
         render();
+
+        const auto frame_time_ms = std::chrono::duration<double, std::milli>(frame_time - previous_frame_time);
+        previous_frame_time = frame_time;
+        std::cout << std::format("frame: {:.2f} ms, framebuffer: {}x{}\n", frame_time_ms.count(), m_renderer->width(), m_renderer->height());
     }
 }
 
@@ -161,44 +177,44 @@ void game_t::update(float dt) {
     const auto camera_view_horizontal_speed = std::max(1, static_cast<int>(camera_view_rect_horizontal_length * dt));
     const auto camera_view_vertical_speed = std::max(1, static_cast<int>(camera_view_rect_vertical_length * dt));
 
-    if (IsKeyDown(KEY_W)) {
-        camera_world_dp[1] -= camera_world_vertical_speed;
-    }
-    if (IsKeyDown(KEY_S)) {
-        camera_world_dp[1] += camera_world_vertical_speed;
-    }
-    if (IsKeyDown(KEY_A)) {
-        camera_world_dp[0] -= camera_world_horizontal_speed;
-    }
-    if (IsKeyDown(KEY_D)) {
-        camera_world_dp[0] += camera_world_horizontal_speed;
-    }
+    // if (IsKeyDown(KEY_W)) {
+    //     camera_world_dp[1] -= camera_world_vertical_speed;
+    // }
+    // if (IsKeyDown(KEY_S)) {
+    //     camera_world_dp[1] += camera_world_vertical_speed;
+    // }
+    // if (IsKeyDown(KEY_A)) {
+    //     camera_world_dp[0] -= camera_world_horizontal_speed;
+    // }
+    // if (IsKeyDown(KEY_D)) {
+    //     camera_world_dp[0] += camera_world_horizontal_speed;
+    // }
 
-    if (IsKeyDown(KEY_UP)) {
-        camera_view_dp[1] -= camera_view_vertical_speed;
-    }
-    if (IsKeyDown(KEY_DOWN)) {
-        camera_view_dp[1] += camera_view_vertical_speed;
-    }
-    if (IsKeyDown(KEY_LEFT)) {
-        camera_view_dp[0] -= camera_view_horizontal_speed;
-    }
-    if (IsKeyDown(KEY_RIGHT)) {
-        camera_view_dp[0] += camera_view_horizontal_speed;
-    }
+    // if (IsKeyDown(KEY_UP)) {
+    //     camera_view_dp[1] -= camera_view_vertical_speed;
+    // }
+    // if (IsKeyDown(KEY_DOWN)) {
+    //     camera_view_dp[1] += camera_view_vertical_speed;
+    // }
+    // if (IsKeyDown(KEY_LEFT)) {
+    //     camera_view_dp[0] -= camera_view_horizontal_speed;
+    // }
+    // if (IsKeyDown(KEY_RIGHT)) {
+    //     camera_view_dp[0] += camera_view_horizontal_speed;
+    // }
 
-    if (IsKeyDown(KEY_Q)) {
-        camera_world_lengths_dp += m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>{std::max(1.0f, camera_world_rect_horizontal_length * dt), std::max(1.0f, camera_world_rect_vertical_length * dt)};
-    }
-    if (IsKeyDown(KEY_E)) {
-        camera_world_lengths_dp -= m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>{std::max(1.0f, camera_world_rect_horizontal_length * dt), std::max(1.0f, camera_world_rect_vertical_length * dt)};
-    }
-    if (IsKeyDown(KEY_F)) {
-        camera_view_lengths_dp += m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>{std::max(1, static_cast<int>(camera_view_rect_horizontal_length * dt)), std::max(1, static_cast<int>(camera_view_rect_vertical_length * dt))};
-    }
-    if (IsKeyDown(KEY_R)) {
-        camera_view_lengths_dp -= m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>{std::max(1, static_cast<int>(camera_view_rect_horizontal_length * dt)), std::max(1, static_cast<int>(camera_view_rect_vertical_length * dt))};
-    }
+    // if (IsKeyDown(KEY_Q)) {
+    //     camera_world_lengths_dp += m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>{std::max(1.0f, camera_world_rect_horizontal_length * dt), std::max(1.0f, camera_world_rect_vertical_length * dt)};
+    // }
+    // if (IsKeyDown(KEY_E)) {
+    //     camera_world_lengths_dp -= m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>{std::max(1.0f, camera_world_rect_horizontal_length * dt), std::max(1.0f, camera_world_rect_vertical_length * dt)};
+    // }
+    // if (IsKeyDown(KEY_F)) {
+    //     camera_view_lengths_dp += m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>{std::max(1, static_cast<int>(camera_view_rect_horizontal_length * dt)), std::max(1, static_cast<int>(camera_view_rect_vertical_length * dt))};
+    // }
+    // if (IsKeyDown(KEY_R)) {
+    //     camera_view_lengths_dp -= m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>{std::max(1, static_cast<int>(camera_view_rect_horizontal_length * dt)), std::max(1, static_cast<int>(camera_view_rect_vertical_length * dt))};
+    // }
 
     m_camera.world_rect() += camera_world_dp;
     m_camera.world_rect() = m_camera.world_rect().inflate(camera_world_lengths_dp);
@@ -207,21 +223,22 @@ void game_t::update(float dt) {
 }
 
 void game_t::render() {
-    BeginDrawing();
-    ClearBackground(RAYWHITE);
+    // ClearBackground(RAYWHITE);
 
-    const auto camera_view_rect = m_camera.view_rect();
-    const auto camera_view_top_left = camera_view_rect.corner();
-    const auto camera_view_rect_bounds = camera_view_rect.bounds();
-    const auto camera_view_rect_horizontal_length = camera_view_rect_bounds[0].length();
-    const auto camera_view_rect_vertical_length = camera_view_rect_bounds[1].length();
-    DrawRectangleLines(camera_view_top_left[0], camera_view_top_left[1], camera_view_rect_horizontal_length, camera_view_rect_vertical_length, RED);
+    // const auto camera_view_rect = m_camera.view_rect();
+    // const auto camera_view_top_left = camera_view_rect.corner();
+    // const auto camera_view_rect_bounds = camera_view_rect.bounds();
+    // const auto camera_view_rect_horizontal_length = camera_view_rect_bounds[0].length();
+    // const auto camera_view_rect_vertical_length = camera_view_rect_bounds[1].length();
+    // DrawRectangleLines(camera_view_top_left[0], camera_view_top_left[1], camera_view_rect_horizontal_length, camera_view_rect_vertical_length, RED);
 
-    for (const auto& entity : m_entities) {
-        m_renderer.draw(m_camera, entity);
+    if (m_renderer->begin_frame()) {
+        for (const auto& entity : m_entities) {
+            m_renderer->draw(m_camera, entity);
+        }
+
+        m_renderer->present();
     }
-
-    EndDrawing();
 }
 
 } // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game

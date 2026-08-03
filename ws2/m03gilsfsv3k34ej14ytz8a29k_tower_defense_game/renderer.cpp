@@ -196,7 +196,6 @@ void renderer_t::draw(const camera_t<float, int, 2>& camera, const entity_t<floa
             }
         } break;
         case vertex_primitive_topology_t::triangle_strip: {
-            /* {1, 0, 2}, {2, 1, 3}, {3, 2, 4}, {4, 3, 5}       */ // n-2 triangles are drawn, n == odd -> (n, n + 1, n + 2), n == even -> (n + 1, n, n + 2)
             for (size_t i = 0; i + 2 < indices.size(); ++i) {
                 const auto scaled_position_0 = positions[indices[i]] * scale;
                 const auto translated_position_0 = scaled_position_0 + translation;
@@ -225,7 +224,6 @@ void renderer_t::draw(const camera_t<float, int, 2>& camera, const entity_t<floa
             }
         } break;
         case vertex_primitive_topology_t::triangle_fan: {
-            /* {0, 1, 2}, {0, 2, 3}, {0, 3, 4}, {0, 4, 5}       */
             for (size_t i = 1; i + 1 < indices.size(); ++i) {
                 const auto scaled_position_0 = positions[indices[0]] * scale;
                 const auto translated_position_0 = scaled_position_0 + translation;

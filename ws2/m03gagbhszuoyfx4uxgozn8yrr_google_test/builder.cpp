@@ -1,7 +1,6 @@
 #include <m03gagbhsujjf63n0w3r2w4q6h_build_phases/build_phases.h>
 #include <m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain/cxx_toolchain.h>
 #include <m03gagbhsnusi43zogoacgj2ez_filesystem/filesystem.h>
-
 #include <m03gagbht3svcx3ign454lfup3_cmake/cmake.h>
 #include <m03gagbht7wqhtdg9hwdpmfn5o_download/download.h>
 #include <m03gagbht9a02hx1qrv2qfgnp7_gzip/gzip.h>
@@ -12,8 +11,6 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
-
-namespace m03gagbhszuoyfx4uxgozn8yrr_google_test {
 
 static constexpr auto GOOGLE_TEST_SOURCE_URL = "https://codeload.github.com/google/googletest/tar.gz/refs/tags/v1.15.0";
 static constexpr auto GOOGLE_TEST_SOURCE_SHA256 = "7315acb6bf10e99f332c8a43f00d5fbb1ee6ca48c52f6b936991b216c586aaad";
@@ -97,5 +94,3 @@ extern "C" void phase__library(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::li
 extern "C" void phase__binary(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::binary_phase_t* phase) {
     phase->install_cli({});
 }
-
-} // namespace m03gagbhszuoyfx4uxgozn8yrr_google_test

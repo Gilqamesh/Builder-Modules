@@ -3,11 +3,14 @@
 
 # include "camera.h"
 # include "entity.h"
-# include "renderer.h"
+# include "renderer3.h"
 
 # include <vector>
+# include <memory>
 
 # include <m03ginwy24ng8o487c4beoms6l_vector/api.h>
+# include <m03gkcdy62bnz808pmk4uzkjra_glfw/glfw.h>
+# include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
 
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
@@ -23,7 +26,9 @@ private:
     void render();
 
 private:
-    renderer_t m_renderer;
+    m03gkcdy62bnz808pmk4uzkjra_glfw::glfw_t glfw;
+    std::shared_ptr<m03gkcdy62bnz808pmk4uzkjra_glfw::window_t> m_window;
+    std::shared_ptr<renderer3_t> m_renderer;
     camera_t<float, int, 2> m_camera;
     std::vector<entity_t<float, 2>> m_entities;
 };

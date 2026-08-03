@@ -1,7 +1,7 @@
 #ifndef M03GILSFSV3K34EJ14YTZ8A29K_MATERIAL_H
 # define M03GILSFSV3K34EJ14YTZ8A29K_MATERIAL_H
 
-# include "shader.h"
+# include "shader_program.h"
 # include "texture.h"
 # include "sampler.h"
 
@@ -19,16 +19,16 @@ struct texture_binding_t {
 class material_t {
 public:
     material_t();
-    explicit material_t(std::shared_ptr<shader_t> shader);
+    explicit material_t(std::shared_ptr<shader_program_t> shader_program);
 
-    void shader(std::shared_ptr<shader_t> shader);
-    std::shared_ptr<shader_t> shader() const;
+    std::shared_ptr<shader_program_t>& shader_program();
+    std::shared_ptr<shader_program_t> shader_program() const;
 
-    void set_texture_binding(size_t index, texture_binding_t binding);
+    std::vector<texture_binding_t>& texture_bindings();
     const std::vector<texture_binding_t>& texture_bindings() const;
 
 private:
-    std::shared_ptr<shader_t> m_shader;
+    std::shared_ptr<shader_program_t> m_shader;
     std::vector<texture_binding_t> m_texture_bindings;
 };
 
@@ -59,10 +59,10 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::material_t> {
         out = std::format_to(out, "{{ ");
 
         {
-            if (material.shader()) {
-                out = std::format_to(out, "shader: {}, ", *material.shader());
+            if (material.shader_program()) {
+                out = std::format_to(out, "shader_program: {}, ", *material.shader_program());
             } else {
-                out = std::format_to(out, "shader: -, ");
+                out = std::format_to(out, "shader_program: -, ");
             }
         }
 
