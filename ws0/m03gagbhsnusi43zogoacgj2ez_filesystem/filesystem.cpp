@@ -469,7 +469,7 @@ path_t current_path() {
 }
 
 void current_path(const path_t& path) {
-    std::cout << std::format("cd {}", pretty_path_t(path)) << std::endl;
+    // std::cout << std::format("cd {}", pretty_path_t(path)) << std::endl;
 
     std::error_code ec;
     std::filesystem::current_path(path.to_native_path(), ec);

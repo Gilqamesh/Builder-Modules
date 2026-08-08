@@ -11,6 +11,7 @@
 #include <format>
 #include <stdexcept>
 #include <utility>
+#include <iostream>
 
 #include <sys/wait.h>
 #include <unistd.h>
@@ -135,6 +136,15 @@ void create_and_wait_foreground_checked(const command_t& command) {
         cargs.push_back(const_cast<char*>(arg.c_str()));
     }
     cargs.push_back(nullptr);
+
+    // print out the command being executed for debugging purposes
+    for (size_t i = 0; i < args.size(); ++i) {
+        std::cerr << args[i];
+        if (i + 1 < args.size()) {
+            std::cerr << " ";
+        }
+    }
+    std::cerr << std::endl;
 
     if (execv(cargs[0], cargs.data()) == -1) {
         throw std::runtime_error(std::format("m03gagbhsvr0m5w15urj0o291m_process::exec: execv failed: {}", std::strerror(errno)));

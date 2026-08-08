@@ -1,5 +1,6 @@
 #include <m03gagbhtahg11wzn32idilzte_module_dependency_ir_from_workspace_graph/module_dependency_ir_from_workspace_graph.h>
 
+#include <m03gagbhsujjf63n0w3r2w4q6h_build_phases/build_phases.h>
 #include <m03gagbhsp2drqq3gkop8pzfrm_workspace_graph/workspace_graph.h>
 #include <m03ge9sciyp8y22mzr4nme82tm_module_dependency_ir/module_dependency_ir.h>
 
@@ -24,18 +25,18 @@ m03ge9sciyp8y22mzr4nme82tm_module_dependency_ir::module_dependency_ir_t from_wor
                 continue ;
             }
 
+            const auto dependencies = m03gagbhsujjf63n0w3r2w4q6h_build_phases::discover_module_dependencies(*module);
             m03ge9sciyp8y22mzr4nme82tm_module_dependency_ir::module_t ir_module {
                 .name = module->name().unique_name(),
                 .module_dependencies = {},
                 .builder_dependencies = {}
             };
 
-            for (const auto* dependency : module->dependencies()) {
-                ir_module.module_dependencies.push_back(dependency->name().unique_name());
+            for (const auto& dependency : dependencies.module_dependencies) {
+                ir_module.module_dependencies.push_back(dependency.unique_name());
             }
-
-            for (const auto* dependency : module->builder_dependencies()) {
-                ir_module.builder_dependencies.push_back(dependency->name().unique_name());
+            for (const auto& dependency : dependencies.builder_dependencies) {
+                ir_module.builder_dependencies.push_back(dependency.unique_name());
             }
 
             ir_workspace.modules.push_back(std::move(ir_module));

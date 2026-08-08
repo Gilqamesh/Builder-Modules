@@ -24,11 +24,13 @@ Long-lived application workspace of **Builder**.
    make -f ws0/m03gagbhst621faiop1rztfkqp_builder_cli/bootstrap.mk
    ```
 
-3. **Run a module with optional arguments pass-through**
+3. **Run a module target with optional arguments pass-through**
 
    ```bash
-   ./cli <module-name> [<args>...]
+   ./cli <module-name>[:target] [<args>...]
    ```
+   The default target is `cli`.
+
    ```bash
    ./cli m03ge9zyrjajugagmp61034qhi_module_dependency_ir_svg_renderer m03ge9ij4lbns2mq6722cd8654_function_visualizer out.svg
    ```

@@ -79,42 +79,7 @@ static std::string cli_source(std::string_view module_name) {
 }
 
 static std::string builder_source() {
-    return
-        "#include <m03gagbhsujjf63n0w3r2w4q6h_build_phases/build_phases.h>\n"
-        "#include <m03gagbhsnusi43zogoacgj2ez_filesystem/filesystem.h>\n"
-        "\n"
-        "#include <vector>\n"
-        "\n"
-        "extern \"C\" void phase__source(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::source_phase_t* phase) {\n"
-        "    phase->install_source_tree();\n"
-        "}\n"
-        "\n"
-        "extern \"C\" void phase__interface(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::interface_phase_t* phase) {\n"
-        "    phase->install_headers_from_source();\n"
-        "}\n"
-        "\n"
-        "extern \"C\" void phase__library(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::library_phase_t* phase) {\n"
-        "    const auto sources = phase->install<m03gagbhsujjf63n0w3r2w4q6h_build_phases::source_phase_t>();\n"
-        "    std::vector<m03gagbhsujjf63n0w3r2w4q6h_build_phases::phase_base_t::built_t> source_files;\n"
-        "\n"
-        "    for (const auto& source_file : m03gagbhsnusi43zogoacgj2ez_filesystem::find(sources.root(), m03gagbhsnusi43zogoacgj2ez_filesystem::find_include_predicate_t::cpp_file, m03gagbhsnusi43zogoacgj2ez_filesystem::find_descend_predicate_t::descend_all)) {\n"
-        "        const auto filename = source_file.path().filename();\n"
-        "        if (filename == \"builder.cpp\" || filename == \"cli.cpp\") {\n"
-        "            continue;\n"
-        "        }\n"
-        "\n"
-        "        source_files.push_back(phase->build(source_file));\n"
-        "    }\n"
-        "\n"
-        "    if (!source_files.empty()) {\n"
-        "        const auto library = phase->build_library(source_files, {});\n"
-        "        phase->install_library(library);\n"
-        "    }\n"
-        "}\n"
-        "\n"
-        "extern \"C\" void phase__binary(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::binary_phase_t* phase) {\n"
-        "    phase->install_cli({});\n"
-        "}\n";
+    return "";
 }
 
 m03gagbhsnusi43zogoacgj2ez_filesystem::path_t create(std::string_view workspace, std::string_view friendly_name) {

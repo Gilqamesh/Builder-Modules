@@ -64,10 +64,8 @@ extern "C" void phase__library(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::li
     const auto raylib_source_dir = sources.root() / m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("upstream/raylib-5.5");
     const auto library_build_dir = phase->build_dir();
     const auto cmake_build_dir = library_build_dir / m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("m03gagbht3svcx3ign454lfup3_cmake");
-    const auto shared_libs = phase->library_type() == m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::library_type_t::SHARED;
-
     m03gagbht3svcx3ign454lfup3_cmake::configure(raylib_source_dir, cmake_build_dir, {
-        { "BUILD_SHARED_LIBS", shared_libs ? "ON" : "OFF" },
+        { "BUILD_SHARED_LIBS", "ON" },
         { "BUILD_EXAMPLES", "OFF" },
         { "BUILD_GAMES", "OFF" },
         { "CMAKE_INSTALL_PREFIX", library_build_dir.string() }
@@ -97,7 +95,7 @@ extern "C" void phase__library(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::li
 }
 
 extern "C" void phase__binary(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::binary_phase_t* phase) {
-    phase->install_cli({});
+    phase->install_binary("cli", { phase->source("cli.cpp") });
 }
 
 } // namespace m03gagbht17w4tser1fescqxye_raylib
