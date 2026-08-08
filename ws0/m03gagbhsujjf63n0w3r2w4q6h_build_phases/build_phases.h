@@ -13,6 +13,8 @@
 
 namespace m03gagbhsujjf63n0w3r2w4q6h_build_phases {
 
+struct library_phase_t;
+
 /**
  * Common API available to every phase object.
  */
@@ -113,7 +115,11 @@ private:
     const phase_base_t* previous_phase() const;
 
     template <class phase_t>
+    void run_phase(const phase_t& requested_phase) const;
+
+    template <class phase_t>
     typename phase_t::installed_t install(const phase_t& requested_phase) const;
+    m03gagbhsnusi43zogoacgj2ez_filesystem::path_t install_library_scc(const library_phase_t& requested_phase) const;
 
 private:
     std::string_view m_name;
@@ -203,6 +209,13 @@ struct interface_phase_t : phase_base_t {
  * Phase object for building and publishing the module library.
  */
 struct library_phase_t : phase_base_t {
+    struct validation_t {
+        std::string name;
+        std::vector<phase_base_t::built_t> source_files;
+        std::vector<m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::define_t> defines;
+        std::vector<std::string> arguments;
+    };
+
     class installed_t {
     public:
         explicit installed_t(const m03gagbhsnusi43zogoacgj2ez_filesystem::path_t& root);
@@ -234,6 +247,21 @@ struct library_phase_t : phase_base_t {
      */
     void install_library(const m03gagbhsnusi43zogoacgj2ez_filesystem::path_t& library) const;
     void install_library(const phase_base_t::built_t& library) const;
+
+    /**
+     * Registers a test executable that must pass before this library is marked complete.
+     */
+    void validate_library(
+        std::string_view name,
+        const std::vector<phase_base_t::built_t>& source_files,
+        const std::vector<m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::define_t>& defines = {},
+        const std::vector<std::string>& arguments = {}
+    ) const;
+
+    const std::vector<validation_t>& validations() const;
+
+private:
+    mutable std::vector<validation_t> m_validations;
 };
 
 /**

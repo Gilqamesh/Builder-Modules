@@ -3,6 +3,7 @@
 #include <m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain/cxx_toolchain.h>
 #include <m03gagbhsnusi43zogoacgj2ez_filesystem/filesystem.h>
 #include <m03gagbhsp2drqq3gkop8pzfrm_workspace_graph/workspace_graph.h>
+#include <m03gagbhsvr0m5w15urj0o291m_process/process.h>
 #include <m03gagbhsyhlx2pk5sdabbr1sx_signal_handler/signal_handler.h>
 #include <m03gagbhsx4j5z28bqkac3dhhh_shared_library/shared_library.h>
 #include <m03gn8rf3pe86v64vphnaam6rl_source_dependencies/source_dependencies.h>
@@ -13,7 +14,9 @@
 #include <cstdint>
 #include <format>
 #include <fstream>
+#include <map>
 #include <memory>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -29,6 +32,22 @@ namespace source_dependencies = m03gn8rf3pe86v64vphnaam6rl_source_dependencies;
 namespace workspace_graph = m03gagbhsp2drqq3gkop8pzfrm_workspace_graph;
 
 using module_list_t = std::vector<workspace_graph::module_t*>;
+
+struct module_ptr_less_t {
+    bool operator()(const workspace_graph::module_t* a, const workspace_graph::module_t* b) const {
+        if (a == b) {
+            return false;
+        }
+        if (a->workspace() == b->workspace()) {
+            return a->name() < b->name();
+        }
+        return a->workspace() < b->workspace();
+    }
+};
+
+using module_set_t = std::set<workspace_graph::module_t*, module_ptr_less_t>;
+using module_dependency_map_t = std::map<workspace_graph::module_t*, module_list_t, module_ptr_less_t>;
+using module_library_root_map_t = std::map<workspace_graph::module_t*, filesystem::path_t, module_ptr_less_t>;
 
 static std::vector<m03gagbhsnusi43zogoacgj2ez_filesystem::path_t> include_dirs_from_outputs(const std::vector<interface_phase_t::installed_t>& interfaces) {
     std::vector<m03gagbhsnusi43zogoacgj2ez_filesystem::path_t> include_dirs;
@@ -47,6 +66,51 @@ static std::vector<m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t> compile
 
     for (const auto& source_file : source_files) {
         result.push_back(source_file.rooted_path());
+    }
+
+    return result;
+}
+
+static bool is_library_compile_source_file(const filesystem::rooted_path_t& source_file) {
+    const auto path = source_file.path();
+    const auto relative_path = source_file.relative_path().string();
+
+    if (path.filename() == workspace_graph::BUILDER_CPP || path.filename() == workspace_graph::CLI_CPP) {
+        return false;
+    }
+    if (relative_path.starts_with("cli/") || relative_path.starts_with("test/")) {
+        return false;
+    }
+
+    return true;
+}
+
+static std::vector<m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t> library_compile_source_files(
+    const std::vector<phase_base_t::built_t>& source_files
+) {
+    std::vector<m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t> result;
+
+    for (const auto& source_file : compiler_source_files(source_files)) {
+        if (is_library_compile_source_file(source_file)) {
+            result.push_back(source_file);
+        }
+    }
+
+    return result;
+}
+
+static std::vector<m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t> appended_unique(
+    std::vector<m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t> result,
+    const std::vector<m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t>& files
+) {
+    for (const auto& file : files) {
+        const auto already_present = std::find_if(result.begin(), result.end(), [&](const auto& existing) {
+            return existing.root() == file.root() && existing.relative_path() == file.relative_path();
+        }) != result.end();
+
+        if (!already_present) {
+            result.push_back(file);
+        }
     }
 
     return result;
@@ -141,6 +205,113 @@ static std::vector<filesystem::rooted_path_t> library_dependency_source_files(co
     return source_dependencies::library_source_files(sources.root());
 }
 
+static std::vector<filesystem::rooted_path_t> public_api_validation_source_files(const workspace_graph::module_t& module) {
+    auto& mutable_module = const_cast<workspace_graph::module_t&>(module);
+    const auto phase = phase_base_t::make(mutable_module);
+    const auto sources = phase->install<source_phase_t>();
+    const auto relative_path = filesystem::relative_path_t("test/public_api.cpp");
+    const auto source_path = sources.root() / relative_path;
+
+    if (!filesystem::exists(source_path)) {
+        return {};
+    }
+
+    return {
+        filesystem::rooted_path_t(sources.root(), relative_path)
+    };
+}
+
+static module_list_t direct_library_dependencies(
+    workspace_graph::module_t& module,
+    module_dependency_map_t& direct_dependencies_by_module
+) {
+    if (const auto it = direct_dependencies_by_module.find(&module); it != direct_dependencies_by_module.end()) {
+        return it->second;
+    }
+
+    const auto source_files = library_dependency_source_files(module);
+    auto dependencies = source_dependencies::scan_sources(
+        module,
+        source_files,
+        &module,
+        source_dependencies::dependency_mode_t::MODULE
+    ).dependencies;
+
+    auto [it, inserted] = direct_dependencies_by_module.emplace(&module, std::move(dependencies));
+    (void)inserted;
+    return it->second;
+}
+
+static bool contains_module(const module_list_t& modules, const workspace_graph::module_t& module) {
+    return std::find(modules.begin(), modules.end(), &module) != modules.end();
+}
+
+struct library_scc_search_t {
+    workspace_graph::module_t& root;
+    module_dependency_map_t& direct_dependencies_by_module;
+    std::map<workspace_graph::module_t*, std::size_t, module_ptr_less_t> index_by_module;
+    std::map<workspace_graph::module_t*, std::size_t, module_ptr_less_t> lowlink_by_module;
+    std::vector<workspace_graph::module_t*> stack;
+    module_set_t on_stack;
+    module_list_t root_scc;
+    std::size_t next_index = 0;
+
+    void visit(workspace_graph::module_t& module) {
+        index_by_module.emplace(&module, next_index);
+        lowlink_by_module.emplace(&module, next_index);
+        ++next_index;
+        stack.push_back(&module);
+        on_stack.insert(&module);
+
+        for (auto* dependency : direct_library_dependencies(module, direct_dependencies_by_module)) {
+            if (!index_by_module.contains(dependency)) {
+                visit(*dependency);
+                lowlink_by_module[&module] = std::min(
+                    lowlink_by_module[&module],
+                    lowlink_by_module[dependency]
+                );
+            } else if (on_stack.contains(dependency)) {
+                lowlink_by_module[&module] = std::min(
+                    lowlink_by_module[&module],
+                    index_by_module[dependency]
+                );
+            }
+        }
+
+        if (lowlink_by_module[&module] != index_by_module[&module]) {
+            return ;
+        }
+
+        module_list_t component;
+        while (!stack.empty()) {
+            auto* member = stack.back();
+            stack.pop_back();
+            on_stack.erase(member);
+            component.push_back(member);
+            if (member == &module) {
+                break;
+            }
+        }
+
+        if (contains_module(component, root)) {
+            root_scc = std::move(component);
+        }
+    }
+};
+
+static module_list_t library_scc_modules(
+    workspace_graph::module_t& module,
+    module_dependency_map_t& direct_dependencies_by_module
+) {
+    library_scc_search_t search {
+        .root = module,
+        .direct_dependencies_by_module = direct_dependencies_by_module
+    };
+    search.visit(module);
+    std::sort(search.root_scc.begin(), search.root_scc.end(), module_ptr_less_t());
+    return search.root_scc;
+}
+
 struct source_set_dependencies_t {
     std::vector<interface_phase_t::installed_t> interfaces;
     m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::link_inputs_t link_inputs;
@@ -160,6 +331,19 @@ static std::vector<interface_phase_t::installed_t> install_interfaces_from_modul
     return result;
 }
 
+static void append_libraries_from_root(
+    m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::link_inputs_t& result,
+    const filesystem::path_t& root
+) {
+    if (!filesystem::exists(root)) {
+        return ;
+    }
+
+    for (const auto& library : filesystem::find(root, !filesystem::find_include_predicate_t::is_dir, filesystem::find_descend_predicate_t::descend_all)) {
+        result.libraries.push_back(library.path());
+    }
+}
+
 static m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::link_inputs_t link_inputs_from_modules(
     const module_list_t& modules
 ) {
@@ -167,9 +351,26 @@ static m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::link_inputs_t link_inputs_from_
     for (auto* module : modules) {
         const auto phase = phase_base_t::make(*module);
         const auto libraries = phase->install<library_phase_t>();
-        for (const auto& library : filesystem::find(libraries.root(), !filesystem::find_include_predicate_t::is_dir, filesystem::find_descend_predicate_t::descend_all)) {
-            result.libraries.push_back(library.path());
+        append_libraries_from_root(result, libraries.root());
+    }
+
+    return result;
+}
+
+static m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::link_inputs_t link_inputs_from_modules(
+    const module_list_t& modules,
+    const module_library_root_map_t& staged_library_roots
+) {
+    m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::link_inputs_t result;
+    for (auto* module : modules) {
+        if (const auto staged_it = staged_library_roots.find(module); staged_it != staged_library_roots.end()) {
+            append_libraries_from_root(result, staged_it->second);
+            continue;
         }
+
+        const auto phase = phase_base_t::make(*module);
+        const auto libraries = phase->install<library_phase_t>();
+        append_libraries_from_root(result, libraries.root());
     }
 
     return result;
@@ -237,6 +438,7 @@ static std::string source_set_cache_key(
     const source_set_dependencies_t& dependencies
 ) {
     hash_t hash;
+    hash.add("source-set-cache-v2");
     hash.add(kind);
     hash.add(module.name().unique_name());
     hash.add(name);
@@ -251,19 +453,23 @@ static std::string source_set_cache_key(
 
 static std::string library_phase_cache_key(const workspace_graph::module_t& module) {
     const auto source_files = library_dependency_source_files(module);
+    const auto cache_source_files = appended_unique(
+        source_files,
+        public_api_validation_source_files(module)
+    );
     const auto modules = source_dependencies::dependency_modules(
         module,
-        source_files,
+        cache_source_files,
         false,
         source_dependencies::dependency_mode_t::MODULE,
         library_dependency_source_files
     );
 
     hash_t hash;
-    hash.add("library-phase");
+    hash.add("library-phase-scc-validation-v3");
     hash.add(module.name().unique_name());
     hash.add(source_phase_cache_key(module));
-    hash_files(hash, source_files);
+    hash_files(hash, cache_source_files);
     hash_modules(hash, modules);
     return hash.string();
 }
@@ -715,10 +921,14 @@ m03gagbhsnusi43zogoacgj2ez_filesystem::path_t library_phase_t::build_library(
     const std::vector<phase_base_t::built_t>& source_files,
     const std::vector<m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::define_t>& defines
 ) const {
-    const auto source_file_paths = compiler_source_files(source_files);
+    const auto source_file_paths = library_compile_source_files(source_files);
+    const auto dependency_source_file_paths = appended_unique(
+        source_file_paths,
+        library_dependency_source_files(module())
+    );
     const auto dependencies = install_source_set_dependencies(
         module(),
-        source_file_paths,
+        dependency_source_file_paths,
         false,
         source_dependencies::dependency_mode_t::MODULE,
         false
@@ -756,6 +966,29 @@ void library_phase_t::install_library(const m03gagbhsnusi43zogoacgj2ez_filesyste
 
 void library_phase_t::install_library(const phase_base_t::built_t& library) const {
     install(library);
+}
+
+void library_phase_t::validate_library(
+    std::string_view name,
+    const std::vector<phase_base_t::built_t>& source_files,
+    const std::vector<m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::define_t>& defines,
+    const std::vector<std::string>& arguments
+) const {
+    (void)binary_target_relative_output_path(name);
+    if (source_files.empty()) {
+        throw std::runtime_error(std::format("m03gagbhsujjf63n0w3r2w4q6h_build_phases::library_phase_t::validate_library: validation '{}' has no source files", name));
+    }
+
+    m_validations.push_back(validation_t {
+        .name = std::string(name),
+        .source_files = source_files,
+        .defines = defines,
+        .arguments = arguments
+    });
+}
+
+const std::vector<library_phase_t::validation_t>& library_phase_t::validations() const {
+    return m_validations;
 }
 
 binary_phase_t::binary_phase_t(
@@ -868,12 +1101,12 @@ void binary_phase_t::install_binary(
     }
 }
 
-static bool is_default_library_source_file(const filesystem::path_t& path) {
-    if (path.filename() == workspace_graph::BUILDER_CPP || path.filename() == workspace_graph::CLI_CPP) {
+static bool is_default_library_source_file(const filesystem::rooted_path_t& source_file) {
+    if (!is_library_compile_source_file(source_file)) {
         return false;
     }
 
-    const auto extension = path.extension();
+    const auto extension = source_file.relative_path().extension();
     return extension == ".c" || extension == ".cpp";
 }
 
@@ -891,18 +1124,19 @@ static void install_default_phase(const library_phase_t* phase) {
 
     for (const auto& source_file : filesystem::find(
         sources.root(),
-        filesystem::find_include_predicate_t([](const filesystem::path_t& path) {
-            return is_default_library_source_file(path);
-        }),
+        filesystem::find_include_predicate_t::is_regular,
         filesystem::find_descend_predicate_t::descend_all
     )) {
-        source_files.push_back(phase->build(source_file));
+        if (is_default_library_source_file(source_file)) {
+            source_files.push_back(phase->build(source_file));
+        }
     }
 
     if (!source_files.empty()) {
         const auto library = phase->build_library(source_files, {});
         phase->install_library(library);
     }
+
 }
 
 static void install_default_phase(const binary_phase_t* phase) {
@@ -942,38 +1176,260 @@ discovered_module_dependencies_t discover_module_dependencies(
     };
 }
 
+struct library_scc_member_t {
+    workspace_graph::module_t* module;
+    std::unique_ptr<library_phase_t> phase;
+    filesystem::path_t artifact_dir;
+    filesystem::path_t build_dir;
+    filesystem::path_t install_dir;
+    filesystem::path_t started;
+    filesystem::path_t complete;
+};
+
+static std::unique_ptr<library_phase_t> make_library_phase(workspace_graph::module_t& module) {
+    std::unique_ptr<phase_base_t> phase;
+    phase = std::make_unique<source_phase_t>(module, std::move(phase));
+    phase = std::make_unique<interface_phase_t>(module, std::move(phase));
+    return std::make_unique<library_phase_t>(module, std::move(phase));
+}
+
+static std::vector<library_scc_member_t> make_library_scc_members(const module_list_t& modules) {
+    std::vector<library_scc_member_t> result;
+    result.reserve(modules.size());
+
+    for (auto* module : modules) {
+        auto phase = make_library_phase(*module);
+        const auto artifact_dir = phase_artifact_dir(*module, "library", library_phase_cache_key(*module));
+        result.push_back(library_scc_member_t {
+            .module = module,
+            .phase = std::move(phase),
+            .artifact_dir = artifact_dir,
+            .build_dir = artifact_dir / filesystem::relative_path_t("build"),
+            .install_dir = artifact_dir / filesystem::relative_path_t("install"),
+            .started = artifact_store::started_marker(artifact_dir),
+            .complete = artifact_store::completed_marker(artifact_dir)
+        });
+    }
+
+    return result;
+}
+
+static bool all_library_scc_members_complete(const std::vector<library_scc_member_t>& members) {
+    return std::all_of(members.begin(), members.end(), [](const auto& member) {
+        return filesystem::exists(member.complete);
+    });
+}
+
+static void update_latest_library_scc_members(const std::vector<library_scc_member_t>& members) {
+    for (const auto& member : members) {
+        update_latest_phase(*member.module, "library", member.artifact_dir);
+    }
+}
+
+static void remove_library_scc_members(const std::vector<library_scc_member_t>& members) {
+    for (const auto& member : members) {
+        artifact_store::remove_existing_path(member.artifact_dir);
+    }
+}
+
+static void prepare_library_scc_members(const std::vector<library_scc_member_t>& members) {
+    for (const auto& member : members) {
+        if (filesystem::exists(member.started)) {
+            throw std::runtime_error(std::format(
+                "m03gagbhsujjf63n0w3r2w4q6h_build_phases::prepare_library_scc_members: re-entry detected for library phase of module '{}'",
+                member.module->name()
+            ));
+        }
+    }
+
+    remove_library_scc_members(members);
+
+    for (const auto& member : members) {
+        filesystem::create_directories(member.build_dir);
+        filesystem::create_directories(member.install_dir);
+        filesystem::touch(member.started);
+    }
+}
+
+static module_library_root_map_t staged_library_roots(const std::vector<library_scc_member_t>& members) {
+    module_library_root_map_t result;
+    for (const auto& member : members) {
+        result.emplace(member.module, member.install_dir);
+    }
+    return result;
+}
+
+static bool has_library_validation(const library_phase_t& phase, std::string_view name) {
+    return std::any_of(phase.validations().begin(), phase.validations().end(), [name](const auto& validation) {
+        return validation.name == name;
+    });
+}
+
+static void ensure_public_api_validation(const library_phase_t& phase) {
+    if (has_library_validation(phase, "public_api")) {
+        return ;
+    }
+
+    const auto sources = phase.install<source_phase_t>();
+    const auto public_api_test = sources.root() / filesystem::relative_path_t("test/public_api.cpp");
+    if (filesystem::exists(public_api_test)) {
+        phase.validate_library("public_api", { phase.source("test/public_api.cpp") });
+    }
+}
+
+static void run_library_validation(
+    const library_scc_member_t& member,
+    const library_phase_t::validation_t& validation,
+    const module_library_root_map_t& staged_roots
+) {
+    const auto source_file_paths = compiler_source_files(validation.source_files);
+    const auto dependencies = source_dependencies::dependency_modules(
+        *member.module,
+        source_file_paths,
+        true,
+        source_dependencies::dependency_mode_t::MODULE,
+        library_dependency_source_files
+    );
+    const auto interfaces = install_interfaces_from_modules(dependencies);
+    const auto link_inputs = link_inputs_from_modules(dependencies, staged_roots);
+    const auto validation_name = binary_target_relative_output_path(validation.name);
+    const auto validation_build_dir = member.build_dir
+        / filesystem::relative_path_t("validation")
+        / validation_name;
+    const auto binary = validation_build_dir / filesystem::relative_path_t("runner");
+
+    m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::build_binary(
+        validation_build_dir,
+        include_dirs_from_outputs(interfaces),
+        source_file_paths,
+        validation.defines,
+        link_inputs,
+        binary
+    );
+
+    std::vector<std::string> process_args;
+    process_args.reserve(validation.arguments.size() + 1);
+    process_args.push_back(binary.string());
+    process_args.insert(process_args.end(), validation.arguments.begin(), validation.arguments.end());
+
+    m03gagbhsvr0m5w15urj0o291m_process::create_and_wait_checked(
+        m03gagbhsvr0m5w15urj0o291m_process::command_t(process_args, validation_build_dir)
+    );
+}
+
+static void run_library_scc_validations(const std::vector<library_scc_member_t>& members) {
+    const auto staged_roots = staged_library_roots(members);
+
+    for (const auto& member : members) {
+        for (const auto& validation : member.phase->validations()) {
+            run_library_validation(member, validation, staged_roots);
+        }
+    }
+}
+
+static void complete_library_scc_members(const std::vector<library_scc_member_t>& members) {
+    for (const auto& member : members) {
+        filesystem::touch(member.complete);
+    }
+    for (const auto& member : members) {
+        filesystem::remove(member.started);
+    }
+    update_latest_library_scc_members(members);
+}
+
+template <class phase_t>
+void phase_base_t::run_phase(const phase_t& requested_phase) const {
+    m03gagbhsx4j5z28bqkac3dhhh_shared_library::loader_t loader(
+        requested_phase.builder_plugin(),
+        m03gagbhsx4j5z28bqkac3dhhh_shared_library::lifetime_t::PROCESS,
+        m03gagbhsx4j5z28bqkac3dhhh_shared_library::symbol_resolution_t::LAZY,
+        m03gagbhsx4j5z28bqkac3dhhh_shared_library::symbol_visibility_t::LOCAL
+    );
+    const auto symbol_name = std::format("phase__{}", requested_phase.name());
+    using fn_t = void (*)(const phase_t*);
+    if (const auto symbol = loader.resolve_optional(symbol_name.c_str())) {
+        fn_t fn = *symbol;
+        fn(&requested_phase);
+    } else {
+        install_default_phase(&requested_phase);
+    }
+}
+
+filesystem::path_t phase_base_t::install_library_scc(const library_phase_t& requested_phase) const {
+    module_dependency_map_t direct_dependencies_by_module;
+    auto scc_modules = library_scc_modules(requested_phase.module(), direct_dependencies_by_module);
+    if (!contains_module(scc_modules, requested_phase.module())) {
+        throw std::logic_error(std::format(
+            "m03gagbhsujjf63n0w3r2w4q6h_build_phases::phase_base_t::install_library_scc: SCC for module '{}' did not include the module itself",
+            requested_phase.module().name()
+        ));
+    }
+
+    auto members = make_library_scc_members(scc_modules);
+    for (const auto& member : members) {
+        member.phase->artifact_dir(member.artifact_dir);
+    }
+
+    if (all_library_scc_members_complete(members)) {
+        update_latest_library_scc_members(members);
+        for (const auto& member : members) {
+            if (member.module == &requested_phase.module()) {
+                return member.install_dir;
+            }
+        }
+    }
+
+    try {
+        {
+            m03gagbhsyhlx2pk5sdabbr1sx_signal_handler::scoped_termination_guard_t termination_guard;
+
+            prepare_library_scc_members(members);
+
+            for (const auto& member : members) {
+                run_phase(*member.phase);
+            }
+
+            for (const auto& member : members) {
+                ensure_public_api_validation(*member.phase);
+            }
+
+            run_library_scc_validations(members);
+        }
+
+        complete_library_scc_members(members);
+
+        for (const auto& member : members) {
+            if (member.module == &requested_phase.module()) {
+                return member.install_dir;
+            }
+        }
+    } catch (...) {
+        remove_library_scc_members(members);
+        throw ;
+    }
+
+    throw std::logic_error(std::format(
+        "m03gagbhsujjf63n0w3r2w4q6h_build_phases::phase_base_t::install_library_scc: no installed root for module '{}'",
+        requested_phase.module().name()
+    ));
+}
+
 template <class phase_t>
 typename phase_t::installed_t phase_base_t::install(const phase_t& requested_phase) const {
-    const auto run_phase = [&]() {
-        m03gagbhsx4j5z28bqkac3dhhh_shared_library::loader_t loader(
-            requested_phase.builder_plugin(),
-            m03gagbhsx4j5z28bqkac3dhhh_shared_library::lifetime_t::PROCESS,
-            m03gagbhsx4j5z28bqkac3dhhh_shared_library::symbol_resolution_t::LAZY,
-            m03gagbhsx4j5z28bqkac3dhhh_shared_library::symbol_visibility_t::LOCAL
-        );
-        const auto symbol_name = std::format("phase__{}", requested_phase.name());
-        using fn_t = void (*)(const phase_t*);
-        if (const auto symbol = loader.resolve_optional(symbol_name.c_str())) {
-            fn_t fn = *symbol;
-            fn(&requested_phase);
-        } else {
-            install_default_phase(&requested_phase);
-        }
-    };
 
     if constexpr (std::is_same_v<phase_t, binary_phase_t>) {
         m03gagbhsyhlx2pk5sdabbr1sx_signal_handler::scoped_termination_guard_t termination_guard;
 
-        run_phase();
+        run_phase(requested_phase);
 
         return typename phase_t::installed_t(m_module.artifact_latest_dir() / filesystem::relative_path_t("binary"));
+    } else if constexpr (std::is_same_v<phase_t, library_phase_t>) {
+        return typename phase_t::installed_t(install_library_scc(requested_phase));
     } else {
         if constexpr (std::is_same_v<phase_t, source_phase_t>) {
             requested_phase.artifact_dir(phase_artifact_dir(requested_phase.module(), requested_phase.name(), source_phase_cache_key(requested_phase.module())));
         } else if constexpr (std::is_same_v<phase_t, interface_phase_t>) {
             requested_phase.artifact_dir(phase_artifact_dir(requested_phase.module(), requested_phase.name(), interface_phase_cache_key(requested_phase.module())));
-        } else if constexpr (std::is_same_v<phase_t, library_phase_t>) {
-            requested_phase.artifact_dir(phase_artifact_dir(requested_phase.module(), requested_phase.name(), library_phase_cache_key(requested_phase.module())));
         }
 
         const auto artifact_dir = requested_phase.artifact_dir();
@@ -1005,7 +1461,7 @@ typename phase_t::installed_t phase_base_t::install(const phase_t& requested_pha
                 m03gagbhsnusi43zogoacgj2ez_filesystem::touch(started);
                 m03gagbhsnusi43zogoacgj2ez_filesystem::create_directories(install_dir);
 
-                run_phase();
+                run_phase(requested_phase);
             }
 
             m03gagbhsnusi43zogoacgj2ez_filesystem::touch(complete);
