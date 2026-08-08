@@ -6,6 +6,56 @@
 #include <m03gagbht9a02hx1qrv2qfgnp7_gzip/gzip.h>
 #include <m03gagbhteldyu7ptbgnvootmb_tar/tar.h>
 
+#include <string_view>
+#include <vector>
+
+namespace build_phases = m03gagbhsujjf63n0w3r2w4q6h_build_phases;
+namespace filesystem = m03gagbhsnusi43zogoacgj2ez_filesystem;
+
+namespace {
+
+using built_t = build_phases::phase_base_t::built_t;
+
+bool is_public_library_source(const filesystem::rooted_path_t& source) {
+    const auto relative_path = source.relative_path().string();
+
+    return source.relative_path().extension() == ".cpp"
+        && relative_path != "builder.cpp"
+        && relative_path != "cli.cpp"
+        && !relative_path.starts_with("cli/")
+        && !relative_path.starts_with("test/")
+        && !relative_path.starts_with("upstream/");
+}
+
+bool is_cli_source(const filesystem::rooted_path_t& source) {
+    const auto relative_path = source.relative_path().string();
+
+    return source.relative_path().extension() == ".cpp"
+        && relative_path.starts_with("cli/");
+}
+
+std::vector<built_t> build_sources(
+    const build_phases::phase_base_t* phase,
+    const filesystem::path_t& source_root,
+    bool (*include_source)(const filesystem::rooted_path_t&)
+) {
+    std::vector<built_t> source_files;
+
+    for (const auto& source_file : filesystem::find(
+        source_root,
+        filesystem::find_include_predicate_t::cpp_file,
+        filesystem::find_descend_predicate_t::descend_all
+    )) {
+        if (include_source(source_file)) {
+            source_files.push_back(phase->build(source_file));
+        }
+    }
+
+    return source_files;
+}
+
+} // namespace
+
 extern "C" void phase__source(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::source_phase_t* phase) {
     phase->install_source_tree();
 
@@ -84,30 +134,26 @@ extern "C" void phase__library(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::li
         throw std::runtime_error(std::format("libraries/m03gkcdy62bnz808pmk4uzkjra_glfw: expected glfw library under '{}'", library_build_dir));
     }
 
-    const auto readline_so_as = m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("libreadline.so");
-    const auto readline_so_path = m03gagbhsnusi43zogoacgj2ez_filesystem::path_t("/usr/lib64") / readline_so_as;
-    const auto readline_so = phase->build(readline_so_path, readline_so_as);
-    phase->install_library(readline_so);
-
-    const auto history_so_as = m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("libhistory.so");
-    const auto history_so_path = m03gagbhsnusi43zogoacgj2ez_filesystem::path_t("/usr/lib64") / history_so_as;
-    const auto history_so = phase->build(history_so_path, history_so_as);
-    phase->install_library(history_so);
-
-    std::vector<m03gagbhsujjf63n0w3r2w4q6h_build_phases::phase_base_t::built_t> source_files;
-    for (const auto& source_file : m03gagbhsnusi43zogoacgj2ez_filesystem::find(sources.root(), m03gagbhsnusi43zogoacgj2ez_filesystem::find_include_predicate_t::cpp_file, m03gagbhsnusi43zogoacgj2ez_filesystem::find_descend_predicate_t::descend_all)) {
-        const auto filename = source_file.path().filename();
-        if (filename == "builder.cpp" || filename == "cli.cpp") {
-            continue;
-        }
-
-        source_files.push_back(phase->build(source_file));
-    }
+    const auto source_files = build_sources(phase, sources.root(), is_public_library_source);
 
     const auto library = phase->build_library(source_files, {});
     phase->install_library(library);
 }
 
 extern "C" void phase__binary(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::binary_phase_t* phase) {
-    phase->install_binary("cli", { phase->source("cli.cpp") });
+    const auto sources = phase->install<m03gagbhsujjf63n0w3r2w4q6h_build_phases::source_phase_t>();
+
+    if (phase->should_install_target("cli")) {
+        auto cli_sources = build_sources(phase, sources.root(), is_cli_source);
+
+        std::vector<built_t> cli_binary_sources;
+        cli_binary_sources.reserve(cli_sources.size() + 1);
+        cli_binary_sources.push_back(phase->source("cli.cpp"));
+        cli_binary_sources.insert(cli_binary_sources.end(), cli_sources.begin(), cli_sources.end());
+        phase->install_binary("cli", cli_binary_sources);
+    }
+
+    phase->install_binary("test", {
+        phase->source("test/test.cpp")
+    });
 }

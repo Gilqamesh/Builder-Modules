@@ -322,6 +322,14 @@ public:
     void install_help_command();
 
     /**
+     * @brief Sets a handler for unknown command lines.
+     *
+     * The handler receives the original tokens as arguments and should return
+     * true only when it handled the line.
+     */
+    void fallback(std::function<bool(context_t&)> handler);
+
+    /**
      * @brief Returns true while the application should keep running.
      */
     bool running() const;
@@ -354,10 +362,13 @@ public:
 private:
     std::pair<const command_t*, std::size_t> find(std::span<const std::string> tokens) const;
     std::pair<const command_t*, std::size_t> find_completion_command(std::span<const std::string> prefix) const;
+    bool has_help_topic(std::span<const std::string> prefix) const;
+    std::vector<std::string> postfix_help_topic(std::span<const std::string> prefix) const;
     void validate(const command_t& command, std::span<const std::string> arguments) const;
     std::vector<std::string> complete(std::span<const std::string> prefix, std::string_view partial) const;
     std::vector<std::string> complete_topic(std::span<const std::string> prefix, std::string_view partial) const;
     void help(std::ostream& out, std::span<const std::string> prefix = {}) const;
+    bool run_fallback(std::span<const std::string> tokens, std::ostream& out, std::ostream& err);
     bool run_tokens(std::span<const std::string> tokens, std::ostream& out, std::ostream& err);
 
 private:
@@ -365,6 +376,7 @@ private:
     std::vector<command_t> m_commands;
     std::map<std::vector<std::string>, std::size_t> m_index_by_path;
     std::size_t m_max_path_size;
+    std::function<bool(context_t&)> m_fallback;
 };
 
 } // namespace m03gm33dj5xo77vegpbspger4r_cli

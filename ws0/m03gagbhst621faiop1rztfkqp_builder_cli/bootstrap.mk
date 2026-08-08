@@ -39,8 +39,7 @@ LDFLAGS  ?= -ldl
 
 DEFINES := \
 	-DM03GAGBHSMHR0NAW0ZPCCV4GAQ_CXX_TOOLCHAIN_CXX_COMPILER_PATH=\"$(CXX_COMPILER_PATH)\" \
-	-DM03GAGBHSMHR0NAW0ZPCCV4GAQ_CXX_TOOLCHAIN_CC_COMPILER_PATH=\"$(CC_COMPILER_PATH)\" \
-	-DM03GAGBHSUJJF63N0W3R2W4Q6H_BUILD_PHASES_BOOTSTRAP_BUILDER_PLUGIN_PATH=\"$(BOOTSTRAP_SEED_LATEST_BUILDER_SO)\"
+	-DM03GAGBHSMHR0NAW0ZPCCV4GAQ_CXX_TOOLCHAIN_CC_COMPILER_PATH=\"$(CC_COMPILER_PATH)\"
 
 BOOTSTRAP_INCLUDE_FLAGS := -I$(BOOTSTRAP_INCLUDE_DIR)
 
@@ -55,7 +54,10 @@ BOOTSTRAP_MODULES := \
 	m03gagbhsx4j5z28bqkac3dhhh_shared_library \
 	m03gagbht2l61mj6qitacwbmea_byte_stream \
 	m03gagbhtft23yhjwpp881tfmc_uuid \
-	m03gn7qllwpi68ovctow4jrccj_lexer
+	m03gn7qllwpi68ovctow4jrccj_lexer \
+	m03gn8rf3pe8dkpk1uwsemhhmd_artifact_store \
+	m03gn8rf3peew0re4l1s2vvaw6_bootstrap_seed \
+	m03gn8rf3pe86v64vphnaam6rl_source_dependencies
 
 BOOTSTRAP_INCLUDE_LINKS := $(addprefix $(BOOTSTRAP_INCLUDE_DIR)/,$(BOOTSTRAP_MODULES))
 
@@ -71,6 +73,9 @@ SRC := \
 	$(FOUNDATION_DIR)/m03gagbht2l61mj6qitacwbmea_byte_stream/byte_stream.cpp \
 	$(FOUNDATION_DIR)/m03gagbhtft23yhjwpp881tfmc_uuid/uuid.cpp \
 	$(FOUNDATION_DIR)/m03gn7qllwpi68ovctow4jrccj_lexer/lexer.cpp \
+	$(FOUNDATION_DIR)/m03gn8rf3pe8dkpk1uwsemhhmd_artifact_store/artifact_store.cpp \
+	$(FOUNDATION_DIR)/m03gn8rf3peew0re4l1s2vvaw6_bootstrap_seed/bootstrap_seed.cpp \
+	$(FOUNDATION_DIR)/m03gn8rf3pe86v64vphnaam6rl_source_dependencies/source_dependencies.cpp \
 	$(FOUNDATION_DIR)/m03gagbhst621faiop1rztfkqp_builder_cli/builder_cli.cpp \
 	$(BOOTSTRAP_SEED_DIR)/cli.cpp
 
@@ -86,6 +91,9 @@ BOOTSTRAP_SEED_BUILDER_SRC := \
 	$(FOUNDATION_DIR)/m03gagbht2l61mj6qitacwbmea_byte_stream/byte_stream.cpp \
 	$(FOUNDATION_DIR)/m03gagbhtft23yhjwpp881tfmc_uuid/uuid.cpp \
 	$(FOUNDATION_DIR)/m03gn7qllwpi68ovctow4jrccj_lexer/lexer.cpp \
+	$(FOUNDATION_DIR)/m03gn8rf3pe8dkpk1uwsemhhmd_artifact_store/artifact_store.cpp \
+	$(FOUNDATION_DIR)/m03gn8rf3peew0re4l1s2vvaw6_bootstrap_seed/bootstrap_seed.cpp \
+	$(FOUNDATION_DIR)/m03gn8rf3pe86v64vphnaam6rl_source_dependencies/source_dependencies.cpp \
 	$(FOUNDATION_DIR)/m03gagbhst621faiop1rztfkqp_builder_cli/builder_cli.cpp \
 	$(BOOTSTRAP_SEED_DIR)/builder.cpp
 

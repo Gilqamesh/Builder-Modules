@@ -17,6 +17,8 @@ namespace m03gm33dj5xo77vegpbspger4r_cli {
 
 namespace {
 
+constexpr std::string_view HELP_TOKEN = "help";
+
 enum class quote_t {
     none,
     single,
@@ -117,6 +119,12 @@ std::string render_tokens(std::span<const std::string> tokens) {
         result += quote_token(tokens[index]);
     }
     return result;
+}
+
+std::string render_postfix_help(std::span<const std::string> prefix) {
+    std::vector<std::string> tokens(prefix.begin(), prefix.end());
+    tokens.emplace_back(HELP_TOKEN);
+    return render_tokens(tokens);
 }
 
 std::string render_choice_list(std::span<const std::string> values) {
@@ -558,7 +566,8 @@ application_t::application_t():
     m_running(true),
     m_commands(),
     m_index_by_path(),
-    m_max_path_size(0)
+    m_max_path_size(0),
+    m_fallback()
 {
 }
 
@@ -607,14 +616,16 @@ void application_t::add(command_t command) {
 void application_t::install_help_command() {
     add({
         {"help"},
-        "Show commands or commands below a topic.",
-        {argument_t::custom("topic", [this](std::span<const std::string> arguments, std::string_view partial) {
-            return complete_topic(arguments, partial);
-        }).optional().variadic()},
+        "Show commands and topics.",
         [this](context_t& context) {
-            help(context.out, context.arguments.remaining());
+            context.arguments.expect_end("help");
+            help(context.out);
         }
     });
+}
+
+void application_t::fallback(std::function<bool(context_t&)> handler) {
+    m_fallback = std::move(handler);
 }
 
 bool application_t::running() const {
@@ -700,7 +711,9 @@ std::pair<const command_t*, std::size_t> application_t::find(std::span<const std
             }
             attempted += tokens[index];
         }
-        throw std::invalid_argument(std::format("unknown command '{}'; use 'help {}'", attempted, tokens.front()));
+        const std::vector<std::string> topic{tokens.front()};
+        const std::string help_command = has_help_topic(topic) ? render_postfix_help(topic) : std::string(HELP_TOKEN);
+        throw std::invalid_argument(std::format("unknown command '{}'; use '{}'", attempted, help_command));
     }
     throw std::invalid_argument("empty command");
 }
@@ -715,6 +728,34 @@ std::pair<const command_t*, std::size_t> application_t::find_completion_command(
         }
     }
     return {nullptr, 0};
+}
+
+bool application_t::has_help_topic(std::span<const std::string> prefix) const {
+    if (prefix.empty()) {
+        return true;
+    }
+
+    for (const command_t& command : m_commands) {
+        if (!command.hidden && starts_with(command.path, prefix)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+std::vector<std::string> application_t::postfix_help_topic(std::span<const std::string> prefix) const {
+    if (prefix.empty() || has_help_topic(prefix)) {
+        return {prefix.begin(), prefix.end()};
+    }
+
+    const auto [command, path_size] = find_completion_command(prefix);
+    static_cast<void>(path_size);
+    if (command) {
+        return command->path;
+    }
+
+    return {prefix.begin(), prefix.end()};
 }
 
 void application_t::validate(const command_t& command, std::span<const std::string> arguments) const {
@@ -745,27 +786,34 @@ void application_t::validate(const command_t& command, std::span<const std::stri
 }
 
 std::vector<std::string> application_t::complete(std::span<const std::string> prefix, std::string_view partial) const {
-    if (auto candidates = complete_topic(prefix, partial); !candidates.empty()) {
-        return candidates;
+    std::set<std::string> candidates;
+    for (std::string candidate : complete_topic(prefix, partial)) {
+        candidates.insert(std::move(candidate));
     }
 
     const auto [command, path_size] = find_completion_command(prefix);
-    if (!command) {
-        return {};
+    const bool can_complete_postfix_help = has_help_topic(prefix) || command != nullptr;
+    if (HELP_TOKEN.starts_with(partial) && can_complete_postfix_help) {
+        candidates.emplace(HELP_TOKEN);
     }
 
-    const auto arguments = prefix.subspan(path_size);
-    const argument_t* argument = nullptr;
-    if (arguments.size() < command->arguments.size()) {
-        argument = &command->arguments[arguments.size()];
-    } else if (!command->arguments.empty() && command->arguments.back().is_variadic()) {
-        argument = &command->arguments.back();
+    if (command) {
+        const auto arguments = prefix.subspan(path_size);
+        const argument_t* argument = nullptr;
+        if (arguments.size() < command->arguments.size()) {
+            argument = &command->arguments[arguments.size()];
+        } else if (!command->arguments.empty() && command->arguments.back().is_variadic()) {
+            argument = &command->arguments.back();
+        }
+
+        if (argument) {
+            for (std::string candidate : argument->complete(arguments, partial)) {
+                candidates.insert(std::move(candidate));
+            }
+        }
     }
 
-    if (!argument) {
-        return {};
-    }
-    return argument->complete(arguments, partial);
+    return {candidates.begin(), candidates.end()};
 }
 
 std::vector<std::string> application_t::complete_topic(std::span<const std::string> prefix, std::string_view partial) const {
@@ -805,7 +853,8 @@ void application_t::help(std::ostream& out, std::span<const std::string> prefix)
         if (!topics.empty()) {
             out << "\nTopics:\n";
             for (const std::string& topic : topics) {
-                out << std::format("  {:<16}  Use 'help {}'.\n", topic, topic);
+                const std::vector<std::string> topic_tokens{topic};
+                out << std::format("  {:<16}  Use '{}'.\n", topic, render_postfix_help(topic_tokens));
             }
         }
         return;
@@ -857,18 +906,48 @@ void application_t::help(std::ostream& out, std::span<const std::string> prefix)
         }
         out << "Further help:\n";
         for (const std::string& component : deeper_topics) {
-            std::string topic = render_tokens(prefix);
-            if (!topic.empty()) {
-                topic.push_back(' ');
-            }
-            topic += component;
-            out << std::format("  {:<24}  Use 'help {}'.\n", topic, topic);
+            std::vector<std::string> topic_tokens(prefix.begin(), prefix.end());
+            topic_tokens.push_back(component);
+            out << std::format("  {:<24}  Use '{}'.\n", render_tokens(topic_tokens), render_postfix_help(topic_tokens));
         }
     }
 }
 
+bool application_t::run_fallback(std::span<const std::string> tokens, std::ostream& out, std::ostream& err) {
+    if (!m_fallback) {
+        return false;
+    }
+
+    arguments_t arguments(tokens);
+    context_t context(arguments, out, err);
+    const bool handled = m_fallback(context);
+
+    if (context.stop_requested()) {
+        stop();
+    }
+    return handled;
+}
+
 bool application_t::run_tokens(std::span<const std::string> tokens, std::ostream& out, std::ostream& err) {
-    const auto [command, path_size] = find(tokens);
+    if (!tokens.empty() && tokens.back() == HELP_TOKEN) {
+        const auto prefix = tokens.first(tokens.size() - 1);
+        help(out, postfix_help_topic(prefix));
+        return m_running;
+    }
+
+    const command_t* command = nullptr;
+    std::size_t path_size = 0;
+    try {
+        const auto result = find(tokens);
+        command = result.first;
+        path_size = result.second;
+    } catch (const std::invalid_argument&) {
+        if (run_fallback(tokens, out, err)) {
+            return m_running;
+        }
+        throw;
+    }
+
     const auto argument_values = tokens.subspan(path_size);
     validate(*command, argument_values);
 

@@ -25,8 +25,8 @@ pump 100
 window status 1
 window callbacks 1 status
 window input 1
-window input-reset 1
 window input-delta 1
+window input-history 1
 window cursor-visible 1
 window cursor-locked 1
 window cursor-hovered 1

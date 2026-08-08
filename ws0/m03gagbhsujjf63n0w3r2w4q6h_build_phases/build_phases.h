@@ -197,12 +197,6 @@ struct interface_phase_t : phase_base_t {
      */
     void install_interface(const m03gagbhsnusi43zogoacgj2ez_filesystem::path_t& interface) const;
     void install_interface(const m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t& interface) const;
-
-    /**
-     * Publishes an include path without the module-name prefix.
-     */
-    void install_interface_compatibility(const m03gagbhsnusi43zogoacgj2ez_filesystem::path_t& interface) const;
-    void install_interface_compatibility(const m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t& interface) const;
 };
 
 /**

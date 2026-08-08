@@ -23,8 +23,6 @@ namespace m03gagbhsp2drqq3gkop8pzfrm_workspace_graph {
 
 static constexpr const char* WORKSPACE_ROOT_ENV = "BUILDER_WORKSPACE_ROOT";
 static constexpr const char* ARTIFACT_ROOT_ENV = "BUILDER_ARTIFACT_ROOT";
-static constexpr const char* BOOTSTRAP_SEED_MODULE = "m03gagbhst621faiop1rztfkqp_builder_cli";
-static constexpr const char* BOOTSTRAP_SEED_WORKSPACE = "ws0";
 static void path_env(const char* name, const m03gagbhsnusi43zogoacgj2ez_filesystem::path_t& path) {
     if (setenv(name, path.c_str(), 1) == -1) {
         throw std::runtime_error(std::format("m03gagbhsp2drqq3gkop8pzfrm_workspace_graph: failed to set {}: {}", name, std::strerror(errno)));
@@ -221,9 +219,7 @@ invocation_context_t invocation_context() {
 
 workspace_graph_t::workspace_graph_t(m03gagbhsnusi43zogoacgj2ez_filesystem::path_t workspace_root, m03gagbhsnusi43zogoacgj2ez_filesystem::path_t artifact_dir):
     m_root(std::move(workspace_root)),
-    m_artifact_root(std::move(artifact_dir)),
-    m_bootstrap_seed_workspace(nullptr),
-    m_bootstrap_seed_module(nullptr)
+    m_artifact_root(std::move(artifact_dir))
 {
     for (const auto& workspace_dir : m03gagbhsnusi43zogoacgj2ez_filesystem::find(root(), m03gagbhsnusi43zogoacgj2ez_filesystem::find_include_predicate_t::is_dir, m03gagbhsnusi43zogoacgj2ez_filesystem::find_descend_predicate_t::descend_none)) {
         std::optional<workspace_name_t> maybe_workspace_name;
@@ -270,14 +266,6 @@ const m03gagbhsnusi43zogoacgj2ez_filesystem::path_t& workspace_graph_t::root() c
 
 const m03gagbhsnusi43zogoacgj2ez_filesystem::path_t& workspace_graph_t::artifact_root() const {
     return m_artifact_root;
-}
-
-module_t& workspace_graph_t::bootstrap_seed_module() const {
-    if (m_bootstrap_seed_module == nullptr) {
-        throw std::runtime_error("m03gagbhsp2drqq3gkop8pzfrm_workspace_graph::workspace_graph_t::bootstrap_seed_module: bootstrap seed module has not been discovered");
-    }
-
-    return *m_bootstrap_seed_module;
 }
 
 workspace_t::workspace_t(workspace_graph_t& workspace_graph, workspace_name_t name):
@@ -459,22 +447,7 @@ module_t* workspace_graph_t::discover_module_impl(module_name_t module_name) {
 }
 
 module_t* workspace_graph_t::discover_module(module_name_t module_name) {
-    auto* result = discover_module_impl(module_name);
-
-    const auto bootstrap_module_name = module_name_t(BOOTSTRAP_SEED_MODULE);
-    auto bootstrap_seed_workspace_it = m_workspace_by_module_name.find(bootstrap_module_name);
-    if (bootstrap_seed_workspace_it == m_workspace_by_module_name.end()) {
-        throw std::runtime_error(std::format("m03gagbhsp2drqq3gkop8pzfrm_workspace_graph::discover_module: bootstrap seed workspace '{}' not found in workspace graph", BOOTSTRAP_SEED_WORKSPACE));
-    }
-    auto* bootstrap_seed_module = discover_module_impl(bootstrap_module_name);
-    m_bootstrap_seed_workspace = bootstrap_seed_workspace_it->second;
-    m_bootstrap_seed_module = bootstrap_seed_module;
-
-    if (!(m_bootstrap_seed_workspace->name() == workspace_name_t(BOOTSTRAP_SEED_WORKSPACE))) {
-        throw std::runtime_error(std::format("m03gagbhsp2drqq3gkop8pzfrm_workspace_graph::discover_module: bootstrap seed module '{}' is in workspace '{}', expected '{}'", BOOTSTRAP_SEED_MODULE, m_bootstrap_seed_workspace->name(), BOOTSTRAP_SEED_WORKSPACE));
-    }
-
-    return result;
+    return discover_module_impl(module_name);
 }
 
 } // namespace m03gagbhsp2drqq3gkop8pzfrm_workspace_graph

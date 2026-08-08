@@ -4,10 +4,13 @@
 #include <m03gagbhsp2drqq3gkop8pzfrm_workspace_graph/workspace_graph.h>
 #include <m03gagbhsvr0m5w15urj0o291m_process/process.h>
 #include <m03gagbhsujjf63n0w3r2w4q6h_build_phases/build_phases.h>
+#include <m03gn8rf3peew0re4l1s2vvaw6_bootstrap_seed/bootstrap_seed.h>
 
 #include <string_view>
 
 namespace m03gagbhst621faiop1rztfkqp_builder_cli {
+
+namespace bootstrap_seed = m03gn8rf3peew0re4l1s2vvaw6_bootstrap_seed;
 
 static constexpr std::string_view DEFAULT_TARGET = "cli";
 
@@ -24,7 +27,7 @@ static bool current_cli_is_older_than_bootstrap_seed(m03gagbhsp2drqq3gkop8pzfrm_
     const auto cli_last_write_time = m03gagbhsnusi43zogoacgj2ez_filesystem::last_write_time(cli);
     const auto cli_version = m03gagbhsp2drqq3gkop8pzfrm_workspace_graph::version_t(cli_last_write_time);
 
-    return cli_version.value < workspace_graph.bootstrap_seed_module().version().value;
+    return cli_version.value < bootstrap_seed::version(workspace_graph).value;
 }
 
 static std::string module_target_argument(
@@ -55,7 +58,7 @@ static m03gagbhsvr0m5w15urj0o291m_process::command_t build_cli_command(
     workspace_graph.discover_module(m03gagbhsp2drqq3gkop8pzfrm_workspace_graph::module_name_t("m03gagbhst621faiop1rztfkqp_builder_cli"));
 
     if (current_cli_is_older_than_bootstrap_seed(workspace_graph)) {
-        const auto bootstrap_seed_binary = install_binary_phase(workspace_graph.bootstrap_seed_module(), DEFAULT_TARGET);
+        const auto bootstrap_seed_binary = install_binary_phase(bootstrap_seed::module(workspace_graph), DEFAULT_TARGET);
 
         std::vector<std::string> process_args;
         process_args.push_back(bootstrap_seed_binary.target(DEFAULT_TARGET).string());

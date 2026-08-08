@@ -111,7 +111,7 @@ application_t::application_t():
 bool application_t::repl() {
     std::cout
         << "GLFW abstraction test CLI\n"
-        << "Use 'help' for command groups or 'help window' for one group.\n";
+        << "Use 'help' for command groups or 'window help' for one group.\n";
 
     m03gm491bquimk7j45lpvis1yq_cli_shell::shell_t shell(m_commands, "glfw-test> ");
     shell.idle(std::chrono::milliseconds(1), [this] {

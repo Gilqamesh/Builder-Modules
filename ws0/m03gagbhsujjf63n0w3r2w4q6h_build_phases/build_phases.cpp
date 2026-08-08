@@ -5,61 +5,30 @@
 #include <m03gagbhsp2drqq3gkop8pzfrm_workspace_graph/workspace_graph.h>
 #include <m03gagbhsyhlx2pk5sdabbr1sx_signal_handler/signal_handler.h>
 #include <m03gagbhsx4j5z28bqkac3dhhh_shared_library/shared_library.h>
-#include <m03gn7qllwpi68ovctow4jrccj_lexer/lexer.h>
+#include <m03gn8rf3pe86v64vphnaam6rl_source_dependencies/source_dependencies.h>
+#include <m03gn8rf3pe8dkpk1uwsemhhmd_artifact_store/artifact_store.h>
+#include <m03gn8rf3peew0re4l1s2vvaw6_bootstrap_seed/bootstrap_seed.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
-#include <ctime>
 #include <format>
 #include <fstream>
 #include <memory>
-#include <optional>
-#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 
-#ifndef M03GAGBHSUJJF63N0W3R2W4Q6H_BUILD_PHASES_BOOTSTRAP_BUILDER_PLUGIN_PATH
-# error M03GAGBHSUJJF63N0W3R2W4Q6H_BUILD_PHASES_BOOTSTRAP_BUILDER_PLUGIN_PATH must be defined by bootstrap
-#endif
-
 namespace m03gagbhsujjf63n0w3r2w4q6h_build_phases {
 
+namespace artifact_store = m03gn8rf3pe8dkpk1uwsemhhmd_artifact_store;
+namespace bootstrap_seed = m03gn8rf3peew0re4l1s2vvaw6_bootstrap_seed;
 namespace filesystem = m03gagbhsnusi43zogoacgj2ez_filesystem;
-namespace lexer = m03gn7qllwpi68ovctow4jrccj_lexer;
+namespace source_dependencies = m03gn8rf3pe86v64vphnaam6rl_source_dependencies;
 namespace workspace_graph = m03gagbhsp2drqq3gkop8pzfrm_workspace_graph;
 
-static constexpr const char* BUILDER_BOOTSTRAP_MODULES[] = {
-    "m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain",
-    "m03gagbhsnusi43zogoacgj2ez_filesystem",
-    "m03gagbhsp2drqq3gkop8pzfrm_workspace_graph",
-    "m03gagbhst621faiop1rztfkqp_builder_cli",
-    "m03gagbhsujjf63n0w3r2w4q6h_build_phases",
-    "m03gagbhsvr0m5w15urj0o291m_process",
-    "m03gagbhsyhlx2pk5sdabbr1sx_signal_handler",
-    "m03gagbhsx4j5z28bqkac3dhhh_shared_library",
-    "m03gagbht2l61mj6qitacwbmea_byte_stream",
-    "m03gagbhtft23yhjwpp881tfmc_uuid",
-    "m03gn7qllwpi68ovctow4jrccj_lexer"
-};
-
-static bool is_active_builder_bootstrap_module(const workspace_graph::module_t& module) {
-    const auto& bootstrap_seed = module.workspace().graph().bootstrap_seed_module();
-    if (&module.workspace() != &bootstrap_seed.workspace()) {
-        return false;
-    }
-
-    for (const auto* bootstrap_module : BUILDER_BOOTSTRAP_MODULES) {
-        if (module.name().unique_name() == bootstrap_module) {
-            return true;
-        }
-    }
-
-    return false;
-}
+using module_list_t = std::vector<workspace_graph::module_t*>;
 
 static std::vector<m03gagbhsnusi43zogoacgj2ez_filesystem::path_t> include_dirs_from_outputs(const std::vector<interface_phase_t::installed_t>& interfaces) {
     std::vector<m03gagbhsnusi43zogoacgj2ez_filesystem::path_t> include_dirs;
@@ -164,274 +133,12 @@ static std::vector<filesystem::rooted_path_t> sorted_files(std::vector<filesyste
     return files;
 }
 
-struct module_ptr_less_t {
-    bool operator()(const workspace_graph::module_t* a, const workspace_graph::module_t* b) const {
-        if (a == b) {
-            return false;
-        }
-        if (a->workspace() == b->workspace()) {
-            return a->name() < b->name();
-        }
-        return a->workspace() < b->workspace();
-    }
-};
-
-using module_set_t = std::set<workspace_graph::module_t*, module_ptr_less_t>;
-using module_list_t = std::vector<workspace_graph::module_t*>;
-
-struct source_scan_t {
-    std::vector<filesystem::rooted_path_t> local_files;
-    module_set_t dependencies;
-};
-
-enum class source_dependency_mode_t {
-    MODULE,
-    BUILDER
-};
-
-static std::optional<filesystem::rooted_path_t> rooted_regular_file(
-    const filesystem::path_t& root,
-    const std::filesystem::path& include_path
-) {
-    if (include_path.empty() || include_path.is_absolute()) {
-        return std::nullopt;
-    }
-
-    try {
-        const auto relative_path = filesystem::relative_path_t(include_path);
-        const auto path = root / relative_path;
-
-        if (filesystem::exists(path) && filesystem::is_regular_file(path)) {
-            return filesystem::rooted_path_t(root, relative_path);
-        }
-    } catch (const std::exception&) {
-    }
-
-    return std::nullopt;
-}
-
-static std::optional<filesystem::rooted_path_t> resolve_regular_include(
-    const filesystem::rooted_path_t& current_file,
-    const std::vector<filesystem::path_t>& source_roots,
-    const std::filesystem::path& include_path
-) {
-    if (const auto path = rooted_regular_file(current_file.path().parent(), include_path)) {
-        return path;
-    }
-
-    for (const auto& root : source_roots) {
-        if (const auto path = rooted_regular_file(root, include_path)) {
-            return path;
-        }
-    }
-
-    return std::nullopt;
-}
-
-static workspace_graph::module_t* module_from_include(
-    const workspace_graph::module_t& module,
-    const std::filesystem::path& include_path,
-    source_dependency_mode_t dependency_mode
-) {
-    if (include_path.empty() || include_path.is_absolute()) {
-        return nullptr;
-    }
-
-    const auto path_it = include_path.begin();
-    if (path_it == include_path.end()) {
-        return nullptr;
-    }
-
-    std::optional<workspace_graph::module_name_t> dependency_name;
-    try {
-        dependency_name = workspace_graph::module_name_t(path_it->string());
-    } catch (const std::invalid_argument&) {
-        return nullptr;
-    }
-
-    if (*dependency_name == module.name()) {
-        return nullptr;
-    }
-    if (!module.workspace().graph().module_names().contains(*dependency_name)) {
-        return nullptr;
-    }
-    auto* dependency = module.workspace().graph().discover_module(*dependency_name);
-
-    switch (dependency_mode) {
-        case source_dependency_mode_t::MODULE:
-            if (!(dependency->workspace() <= module.workspace())) {
-                throw std::runtime_error(std::format(
-                    "m03gagbhsujjf63n0w3r2w4q6h_build_phases::module_from_include: module (workspace: {}, module: {}) cannot depend on later workspace module (workspace: {}, module: {})",
-                    module.workspace(),
-                    module,
-                    dependency->workspace(),
-                    *dependency
-                ));
-            }
-            break ;
-        case source_dependency_mode_t::BUILDER: {
-            const bool bootstrap_group_dependency =
-                is_active_builder_bootstrap_module(module)
-                && is_active_builder_bootstrap_module(*dependency);
-            if (!(dependency->workspace() < module.workspace()) && !bootstrap_group_dependency) {
-                throw std::runtime_error(std::format(
-                    "m03gagbhsujjf63n0w3r2w4q6h_build_phases::module_from_include: builder (workspace: {}, module: {}) cannot depend on same or later workspace module (workspace: {}, module: {})",
-                    module.workspace(),
-                    module,
-                    dependency->workspace(),
-                    *dependency
-                ));
-            }
-        } break ;
-    }
-
-    return dependency;
-}
-
-static std::vector<filesystem::path_t> source_roots(const std::vector<filesystem::rooted_path_t>& source_files) {
-    std::vector<filesystem::path_t> result;
-
-    for (const auto& source_file : source_files) {
-        const auto already_present = std::find_if(result.begin(), result.end(), [&](const auto& root) {
-            return root == source_file.root();
-        }) != result.end();
-
-        if (!already_present) {
-            result.push_back(source_file.root());
-        }
-    }
-
-    return result;
-}
-
-static void collect_direct_dependencies(
-    const workspace_graph::module_t& module,
-    const filesystem::rooted_path_t& source_file,
-    const std::vector<filesystem::path_t>& source_roots,
-    const workspace_graph::module_t* excluded_module,
-    source_dependency_mode_t dependency_mode,
-    std::set<std::string>& visited_files,
-    source_scan_t& scan
-) {
-    const auto path = source_file.path();
-    if (!visited_files.insert(path.string()).second) {
-        return ;
-    }
-    scan.local_files.push_back(source_file);
-
-    std::ifstream ifs(path.string());
-    if (!ifs.is_open()) {
-        throw std::runtime_error(std::format("m03gagbhsujjf63n0w3r2w4q6h_build_phases::collect_direct_dependencies: failed to open source file '{}'", path));
-    }
-
-    for (const auto& include_path : lexer::includes(ifs)) {
-        if (auto* dependency = module_from_include(module, include_path, dependency_mode)) {
-            if (dependency != excluded_module) {
-                scan.dependencies.insert(dependency);
-            }
-            continue;
-        }
-
-        if (const auto regular_include = resolve_regular_include(source_file, source_roots, include_path)) {
-            collect_direct_dependencies(module, *regular_include, source_roots, excluded_module, dependency_mode, visited_files, scan);
-        }
-    }
-}
-
-static source_scan_t scan_sources(
-    const workspace_graph::module_t& module,
-    const std::vector<filesystem::rooted_path_t>& source_files,
-    const workspace_graph::module_t* excluded_module,
-    source_dependency_mode_t dependency_mode
-) {
-    source_scan_t result;
-    std::set<std::string> visited_files;
-    const auto roots = source_roots(source_files);
-
-    for (const auto& source_file : source_files) {
-        collect_direct_dependencies(module, source_file, roots, excluded_module, dependency_mode, visited_files, result);
-    }
-
-    return result;
-}
-
-static module_set_t direct_dependencies_from_sources(
-    const workspace_graph::module_t& module,
-    const std::vector<filesystem::rooted_path_t>& source_files,
-    const workspace_graph::module_t* excluded_module,
-    source_dependency_mode_t dependency_mode
-) {
-    return scan_sources(module, source_files, excluded_module, dependency_mode).dependencies;
-}
-
-static bool is_library_dependency_source_file(const filesystem::path_t& path) {
-    if (path.filename() == workspace_graph::BUILDER_CPP || path.filename() == workspace_graph::CLI_CPP) {
-        return false;
-    }
-
-    const auto extension = path.extension();
-    return extension == ".c" || extension == ".cpp" || extension == ".h" || extension == ".hpp";
-}
-
 static std::vector<filesystem::rooted_path_t> library_dependency_source_files(const workspace_graph::module_t& module) {
     auto& mutable_module = const_cast<workspace_graph::module_t&>(module);
     const auto phase = phase_base_t::make(mutable_module);
     const auto sources = phase->install<source_phase_t>();
 
-    return filesystem::find(
-        sources.root(),
-        filesystem::find_include_predicate_t([](const filesystem::path_t& path) {
-            return is_library_dependency_source_file(path);
-        }),
-        filesystem::find_descend_predicate_t::descend_all
-    );
-}
-
-static void collect_library_dependency_closure(
-    module_list_t& result,
-    module_set_t& visited,
-    workspace_graph::module_t* module,
-    const workspace_graph::module_t* excluded_module
-) {
-    if (module == excluded_module || !visited.insert(module).second) {
-        return ;
-    }
-
-    result.push_back(module);
-
-    const auto source_files = library_dependency_source_files(*module);
-    const auto dependencies = direct_dependencies_from_sources(
-        *module,
-        source_files,
-        excluded_module,
-        source_dependency_mode_t::MODULE
-    );
-
-    for (auto* dependency : dependencies) {
-        collect_library_dependency_closure(result, visited, dependency, excluded_module);
-    }
-}
-
-static module_list_t source_dependency_modules(
-    const workspace_graph::module_t& module,
-    const std::vector<filesystem::rooted_path_t>& source_files,
-    bool include_owner,
-    source_dependency_mode_t dependency_mode
-) {
-    module_list_t result;
-    module_set_t visited;
-    const auto excluded_module = include_owner ? nullptr : &module;
-    const auto direct_dependencies = direct_dependencies_from_sources(module, source_files, excluded_module, dependency_mode);
-
-    if (include_owner) {
-        collect_library_dependency_closure(result, visited, const_cast<workspace_graph::module_t*>(&module), excluded_module);
-    }
-
-    for (auto* dependency : direct_dependencies) {
-        collect_library_dependency_closure(result, visited, dependency, excluded_module);
-    }
-
-    return result;
+    return source_dependencies::library_source_files(sources.root());
 }
 
 struct source_set_dependencies_t {
@@ -472,10 +179,16 @@ static source_set_dependencies_t install_source_set_dependencies(
     const workspace_graph::module_t& module,
     const std::vector<filesystem::rooted_path_t>& source_files,
     bool include_owner,
-    source_dependency_mode_t dependency_mode,
+    source_dependencies::dependency_mode_t dependency_mode,
     bool link_libraries
 ) {
-    const auto modules = source_dependency_modules(module, source_files, include_owner, dependency_mode);
+    const auto modules = source_dependencies::dependency_modules(
+        module,
+        source_files,
+        include_owner,
+        dependency_mode,
+        library_dependency_source_files
+    );
     source_set_dependencies_t result {
         .interfaces = install_interfaces_from_modules(modules),
         .link_inputs = {},
@@ -520,7 +233,7 @@ static std::string source_set_cache_key(
     std::string_view name,
     const std::vector<filesystem::rooted_path_t>& source_files,
     const std::vector<m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::define_t>& defines,
-    source_dependency_mode_t dependency_mode,
+    source_dependencies::dependency_mode_t dependency_mode,
     const source_set_dependencies_t& dependencies
 ) {
     hash_t hash;
@@ -528,7 +241,7 @@ static std::string source_set_cache_key(
     hash.add(module.name().unique_name());
     hash.add(name);
 
-    const auto scan = scan_sources(module, source_files, nullptr, dependency_mode);
+    const auto scan = source_dependencies::scan_sources(module, source_files, nullptr, dependency_mode);
     hash_files(hash, scan.local_files);
     hash_defines(hash, defines);
     hash_modules(hash, dependencies.modules);
@@ -538,11 +251,12 @@ static std::string source_set_cache_key(
 
 static std::string library_phase_cache_key(const workspace_graph::module_t& module) {
     const auto source_files = library_dependency_source_files(module);
-    const auto modules = source_dependency_modules(
+    const auto modules = source_dependencies::dependency_modules(
         module,
         source_files,
         false,
-        source_dependency_mode_t::MODULE
+        source_dependencies::dependency_mode_t::MODULE,
+        library_dependency_source_files
     );
 
     hash_t hash;
@@ -574,101 +288,16 @@ static std::string interface_phase_cache_key(const workspace_graph::module_t& mo
     return hash.string();
 }
 
-static std::string utc_version_prefix() {
-    const auto now = std::chrono::system_clock::now();
-    const auto seconds = std::chrono::floor<std::chrono::seconds>(now);
-    const auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(now - seconds).count();
-    const std::time_t time = std::chrono::system_clock::to_time_t(seconds);
-
-    std::tm tm {};
-    gmtime_r(&time, &tm);
-
-    return std::format(
-        "{:04}{:02}{:02}T{:02}{:02}{:02}.{:09}Z",
-        tm.tm_year + 1900,
-        tm.tm_mon + 1,
-        tm.tm_mday,
-        tm.tm_hour,
-        tm.tm_min,
-        tm.tm_sec,
-        nanoseconds
-    );
-}
-
-static bool is_symlink(const filesystem::path_t& path) {
-    std::error_code ec;
-    return std::filesystem::is_symlink(path.to_native_path(), ec);
-}
-
-static bool exists_or_symlink(const filesystem::path_t& path) {
-    return filesystem::exists(path) || is_symlink(path);
-}
-
-static filesystem::path_t completed_marker(const filesystem::path_t& artifact_dir) {
-    return artifact_dir / filesystem::relative_path_t(".complete");
-}
-
-static filesystem::path_t started_marker(const filesystem::path_t& artifact_dir) {
-    return artifact_dir / filesystem::relative_path_t(".started");
-}
-
-static bool artifact_dir_name_matches_hash(std::string_view name, std::string_view hash) {
-    const auto suffix = std::format("-{}", hash);
-    return name.size() > suffix.size() && name.ends_with(suffix);
-}
-
-static std::optional<filesystem::path_t> completed_artifact_dir_by_hash(
-    const filesystem::path_t& root,
-    std::string_view hash
-) {
-    if (!filesystem::exists(root)) {
-        return std::nullopt;
-    }
-
-    std::optional<filesystem::path_t> result;
-    std::string result_name;
-
-    for (const auto& entry : filesystem::find(
-        root,
-        filesystem::find_include_predicate_t::is_dir,
-        filesystem::find_descend_predicate_t::descend_none
-    )) {
-        const auto name = entry.path().filename();
-        if (!artifact_dir_name_matches_hash(name, hash)) {
-            continue;
-        }
-        if (!filesystem::exists(completed_marker(entry.path()))) {
-            continue;
-        }
-        if (!result || result_name < name) {
-            result = entry.path();
-            result_name = name;
-        }
-    }
-
-    return result;
-}
-
-static filesystem::path_t versioned_artifact_dir(
-    const filesystem::path_t& root,
-    std::string_view hash
-) {
-    if (const auto existing = completed_artifact_dir_by_hash(root, hash)) {
-        return *existing;
-    }
-
-    return root / filesystem::relative_path_t(std::format("{}-{}", utc_version_prefix(), hash));
-}
-
 static filesystem::path_t phase_artifact_dir(
     const workspace_graph::module_t& module,
     std::string_view phase_name,
     std::string_view hash
 ) {
-    return versioned_artifact_dir(
-        module.artifact_base_dir() / filesystem::relative_path_t(std::string(phase_name)),
-        hash
-    );
+    return artifact_store::artifact_dir(module, filesystem::relative_path_t(std::string(phase_name)), hash);
+}
+
+static filesystem::relative_path_t binary_target_kind(std::string_view target) {
+    return filesystem::relative_path_t("binary") / binary_target_relative_output_path(target);
 }
 
 static filesystem::path_t binary_target_artifact_dir(
@@ -676,86 +305,7 @@ static filesystem::path_t binary_target_artifact_dir(
     std::string_view target,
     std::string_view hash
 ) {
-    return versioned_artifact_dir(
-        module.artifact_base_dir()
-            / filesystem::relative_path_t("binary")
-            / binary_target_relative_output_path(target),
-        hash
-    );
-}
-
-static filesystem::path_t latest_binary_target_dir(
-    const workspace_graph::module_t& module,
-    std::string_view target
-) {
-    return module.artifact_latest_dir()
-        / filesystem::relative_path_t("binary")
-        / binary_target_relative_output_path(target);
-}
-
-static void remove_existing_path(const filesystem::path_t& path) {
-    if (!exists_or_symlink(path)) {
-        return ;
-    }
-
-    if (is_symlink(path) || !filesystem::is_directory(path)) {
-        filesystem::remove(path);
-        return ;
-    }
-
-    filesystem::remove_all(path);
-}
-
-static void create_latest_parent(const filesystem::path_t& path) {
-    const auto parent = path.parent();
-    if (is_symlink(parent)) {
-        filesystem::remove(parent);
-    }
-    if (filesystem::exists(parent)) {
-        if (!filesystem::is_directory(parent)) {
-            throw std::runtime_error(std::format("m03gagbhsujjf63n0w3r2w4q6h_build_phases::create_latest_parent: latest parent '{}' is not a directory", parent));
-        }
-        return ;
-    }
-
-    filesystem::create_directories(parent);
-}
-
-static bool symlink_points_to(
-    const filesystem::path_t& symlink_path,
-    const filesystem::path_t& target_path
-) {
-    if (!is_symlink(symlink_path)) {
-        return false;
-    }
-
-    std::error_code ec;
-    auto symlink_target = std::filesystem::read_symlink(symlink_path.to_native_path(), ec);
-    if (ec) {
-        return false;
-    }
-    if (symlink_target.is_relative()) {
-        symlink_target = symlink_path.parent().to_native_path() / symlink_target;
-    }
-
-    return filesystem::path_t(symlink_target) == target_path;
-}
-
-static void update_latest_symlink(
-    const filesystem::path_t& latest_path,
-    const filesystem::path_t& artifact_dir
-) {
-    if (symlink_points_to(latest_path, artifact_dir)) {
-        return ;
-    }
-
-    const auto latest_tmp_path = latest_path + "_tmp";
-
-    remove_existing_path(latest_tmp_path);
-    create_latest_parent(latest_path);
-
-    filesystem::create_directory_symlink(artifact_dir, latest_tmp_path);
-    filesystem::rename_replace(latest_tmp_path, latest_path);
+    return artifact_store::artifact_dir(module, binary_target_kind(target), hash);
 }
 
 static void update_latest_phase(
@@ -763,10 +313,7 @@ static void update_latest_phase(
     std::string_view phase_name,
     const filesystem::path_t& artifact_dir
 ) {
-    update_latest_symlink(
-        module.artifact_latest_dir() / filesystem::relative_path_t(std::string(phase_name)),
-        artifact_dir
-    );
+    artifact_store::update_latest(module, filesystem::relative_path_t(std::string(phase_name)), artifact_dir);
 }
 
 static void update_latest_binary_target(
@@ -774,19 +321,7 @@ static void update_latest_binary_target(
     std::string_view target,
     const filesystem::path_t& artifact_dir
 ) {
-    update_latest_symlink(latest_binary_target_dir(module, target), artifact_dir);
-}
-
-static m03gagbhsnusi43zogoacgj2ez_filesystem::path_t bootstrap_builder_plugin_path() {
-    const auto path = m03gagbhsnusi43zogoacgj2ez_filesystem::path_t(M03GAGBHSUJJF63N0W3R2W4Q6H_BUILD_PHASES_BOOTSTRAP_BUILDER_PLUGIN_PATH);
-    if (m03gagbhsnusi43zogoacgj2ez_filesystem::exists(path)) {
-        return path;
-    }
-
-    throw std::runtime_error(std::format(
-        "m03gagbhsujjf63n0w3r2w4q6h_build_phases::bootstrap_builder_plugin_path: compiled bootstrap builder plugin '{}' does not exist; run 'make bootstrap' to recreate bootstrap artifacts",
-        path
-    ));
+    artifact_store::update_latest(module, binary_target_kind(target), artifact_dir);
 }
 
 phase_base_t::built_t::built_t(const m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t& rooted_path):
@@ -982,8 +517,8 @@ void phase_base_t::install(const built_t& built) const {
 }
 
 m03gagbhsnusi43zogoacgj2ez_filesystem::path_t phase_base_t::builder_plugin() const {
-    if (is_active_builder_bootstrap_module(m_module)) {
-        return bootstrap_builder_plugin_path();
+    if (bootstrap_seed::is_module(m_module)) {
+        return bootstrap_seed::builder_plugin_path(m_module.workspace().graph());
     }
 
     const std::vector<m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t> source_files {
@@ -996,7 +531,7 @@ m03gagbhsnusi43zogoacgj2ez_filesystem::path_t phase_base_t::builder_plugin() con
         m_module,
         source_files,
         false,
-        source_dependency_mode_t::BUILDER,
+        source_dependencies::dependency_mode_t::BUILDER,
         true
     );
     const auto cache_key = source_set_cache_key(
@@ -1005,15 +540,15 @@ m03gagbhsnusi43zogoacgj2ez_filesystem::path_t phase_base_t::builder_plugin() con
         "builder",
         source_files,
         {},
-        source_dependency_mode_t::BUILDER,
+        source_dependencies::dependency_mode_t::BUILDER,
         dependencies
     );
     const auto artifact_dir = phase_artifact_dir(m_module, "builder", cache_key);
     const auto build_dir = artifact_dir / m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("build");
     const auto install_dir = artifact_dir / m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("install");
     const auto plugin_path = install_dir / m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("builder.so");
-    const auto started = started_marker(artifact_dir);
-    const auto complete = completed_marker(artifact_dir);
+    const auto started = artifact_store::started_marker(artifact_dir);
+    const auto complete = artifact_store::completed_marker(artifact_dir);
 
     if (m03gagbhsnusi43zogoacgj2ez_filesystem::exists(complete)) {
         if (!m03gagbhsnusi43zogoacgj2ez_filesystem::exists(plugin_path)) {
@@ -1159,14 +694,6 @@ void interface_phase_t::install_interface(const m03gagbhsnusi43zogoacgj2ez_files
     install_interface(interface.path());
 }
 
-void interface_phase_t::install_interface_compatibility(const m03gagbhsnusi43zogoacgj2ez_filesystem::path_t& interface) const {
-    install(interface);
-}
-
-void interface_phase_t::install_interface_compatibility(const m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t& interface) const {
-    install_interface_compatibility(interface.path());
-}
-
 library_phase_t::library_phase_t(
     m03gagbhsp2drqq3gkop8pzfrm_workspace_graph::module_t& module,
     std::unique_ptr<phase_base_t> previous_phase
@@ -1193,7 +720,7 @@ m03gagbhsnusi43zogoacgj2ez_filesystem::path_t library_phase_t::build_library(
         module(),
         source_file_paths,
         false,
-        source_dependency_mode_t::MODULE,
+        source_dependencies::dependency_mode_t::MODULE,
         false
     );
     auto interfaces = std::vector<interface_phase_t::installed_t> {
@@ -1282,7 +809,7 @@ void binary_phase_t::install_binary(
         module(),
         source_file_paths,
         true,
-        source_dependency_mode_t::MODULE,
+        source_dependencies::dependency_mode_t::MODULE,
         true
     );
     const auto cache_key = source_set_cache_key(
@@ -1291,15 +818,15 @@ void binary_phase_t::install_binary(
         target,
         source_file_paths,
         defines,
-        source_dependency_mode_t::MODULE,
+        source_dependencies::dependency_mode_t::MODULE,
         dependencies
     );
     const auto artifact_dir = binary_target_artifact_dir(module(), target, cache_key);
     const auto target_build_dir = artifact_dir / m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("build");
     const auto target_install_dir = artifact_dir / m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("install");
     const auto binary = target_install_dir / relative_output_path;
-    const auto started = started_marker(artifact_dir);
-    const auto complete = completed_marker(artifact_dir);
+    const auto started = artifact_store::started_marker(artifact_dir);
+    const auto complete = artifact_store::completed_marker(artifact_dir);
 
     if (m03gagbhsnusi43zogoacgj2ez_filesystem::exists(complete)) {
         if (!m03gagbhsnusi43zogoacgj2ez_filesystem::exists(binary)) {
@@ -1314,8 +841,8 @@ void binary_phase_t::install_binary(
         throw std::runtime_error(std::format("m03gagbhsujjf63n0w3r2w4q6h_build_phases::binary_phase_t::install_binary: re-entry detected for target binary '{}'", binary));
     }
 
-    if (exists_or_symlink(artifact_dir)) {
-        remove_existing_path(artifact_dir);
+    if (artifact_store::exists_or_symlink(artifact_dir)) {
+        artifact_store::remove_existing_path(artifact_dir);
     }
 
     try {
@@ -1339,17 +866,6 @@ void binary_phase_t::install_binary(
         m03gagbhsnusi43zogoacgj2ez_filesystem::remove_all(artifact_dir);
         throw ;
     }
-}
-
-static std::vector<workspace_graph::module_name_t> module_names(const module_set_t& modules) {
-    std::vector<workspace_graph::module_name_t> result;
-    result.reserve(modules.size());
-
-    for (const auto* module : modules) {
-        result.push_back(module->name());
-    }
-
-    return result;
 }
 
 static bool is_default_library_source_file(const filesystem::path_t& path) {
@@ -1401,11 +917,11 @@ discovered_module_dependencies_t discover_module_dependencies(
     const m03gagbhsp2drqq3gkop8pzfrm_workspace_graph::module_t& module
 ) {
     const auto library_source_files = library_dependency_source_files(module);
-    const auto library_dependencies = scan_sources(
+    const auto library_dependencies = source_dependencies::scan_sources(
         module,
         library_source_files,
         &module,
-        source_dependency_mode_t::MODULE
+        source_dependencies::dependency_mode_t::MODULE
     );
     const std::vector<filesystem::rooted_path_t> builder_source_files {
         filesystem::rooted_path_t(
@@ -1413,16 +929,16 @@ discovered_module_dependencies_t discover_module_dependencies(
             filesystem::relative_path_t(workspace_graph::BUILDER_CPP)
         )
     };
-    const auto builder_dependencies = scan_sources(
+    const auto builder_dependencies = source_dependencies::scan_sources(
         module,
         builder_source_files,
         &module,
-        source_dependency_mode_t::BUILDER
+        source_dependencies::dependency_mode_t::BUILDER
     );
 
     return discovered_module_dependencies_t {
-        .module_dependencies = module_names(library_dependencies.dependencies),
-        .builder_dependencies = module_names(builder_dependencies.dependencies)
+        .module_dependencies = source_dependencies::module_names(library_dependencies.dependencies),
+        .builder_dependencies = source_dependencies::module_names(builder_dependencies.dependencies)
     };
 }
 
@@ -1463,8 +979,8 @@ typename phase_t::installed_t phase_base_t::install(const phase_t& requested_pha
         const auto artifact_dir = requested_phase.artifact_dir();
         const auto build_dir = requested_phase.build_dir();
         const auto install_dir = requested_phase.install_dir();
-        const auto started = started_marker(artifact_dir);
-        const auto complete = completed_marker(artifact_dir);
+        const auto started = artifact_store::started_marker(artifact_dir);
+        const auto complete = artifact_store::completed_marker(artifact_dir);
 
         if (m03gagbhsnusi43zogoacgj2ez_filesystem::exists(complete)) {
             update_latest_phase(requested_phase.module(), requested_phase.name(), artifact_dir);
@@ -1475,8 +991,8 @@ typename phase_t::installed_t phase_base_t::install(const phase_t& requested_pha
             throw std::runtime_error(std::format("m03gagbhsujjf63n0w3r2w4q6h_build_phases::phase_base_t::install: re-entry detected for phase '{}'", requested_phase.name()));
         }
 
-        if (exists_or_symlink(artifact_dir)) {
-            remove_existing_path(artifact_dir);
+        if (artifact_store::exists_or_symlink(artifact_dir)) {
+            artifact_store::remove_existing_path(artifact_dir);
         }
 
         try {

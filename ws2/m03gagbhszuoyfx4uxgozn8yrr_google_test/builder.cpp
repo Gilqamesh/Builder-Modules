@@ -51,8 +51,8 @@ extern "C" void phase__interface(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::
 
     phase->install_interface(gtest_interface);
     phase->install_interface(gmock_interface);
-    phase->install_interface_compatibility(gtest_interface);
-    phase->install_interface_compatibility(gmock_interface);
+    phase->install(gtest_interface);
+    phase->install(gmock_interface);
 }
 
 extern "C" void phase__library(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::library_phase_t* phase) {

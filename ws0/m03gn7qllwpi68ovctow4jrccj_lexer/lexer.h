@@ -7,7 +7,10 @@
 
 namespace m03gn7qllwpi68ovctow4jrccj_lexer {
 
-std::vector<std::filesystem::path> includes(std::istream& ifs);
+/**
+ * @brief Returns the paths named by non-system include directives in ifs.
+ */
+std::vector<std::filesystem::path> include_paths(std::istream& ifs);
 
 } // namespace m03gn7qllwpi68ovctow4jrccj_lexer
 

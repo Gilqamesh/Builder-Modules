@@ -554,13 +554,13 @@ void application_t::register_settings_commands() {
     add_command(
         {"settings", "set"},
         "settings set <name> <arguments...>",
-        "Set one creation setting; use 'help settings set' for names.",
+        "Set one creation setting; use 'settings set help' for names.",
         [](arguments_t& arguments) {
             if (arguments.empty()) {
                 command_error("usage: settings set <name> <arguments...>");
             }
             command_error(std::format(
-                "unknown creation setting '{}'; use 'help settings set'",
+                "unknown creation setting '{}'; use 'settings set help'",
                 arguments.pop("name")
             ));
         },

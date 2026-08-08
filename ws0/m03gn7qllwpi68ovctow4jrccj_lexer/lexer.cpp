@@ -115,7 +115,7 @@ static std::filesystem::path read_path(std::istream& ifs, std::istream::char_typ
     return result;
 }
 
-std::vector<std::filesystem::path> includes(std::istream& ifs) {
+std::vector<std::filesystem::path> include_paths(std::istream& ifs) {
     std::vector<std::filesystem::path> result;
 
     while (!is_at_end(ifs)) {

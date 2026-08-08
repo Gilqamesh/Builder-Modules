@@ -240,12 +240,7 @@ public:
     const m03gagbhsnusi43zogoacgj2ez_filesystem::path_t& artifact_root() const;
 
     /**
-     * Module used as the active Builder bootstrap seed.
-     */
-    module_t& bootstrap_seed_module() const;
-
-    /**
-     * Discovers module_name and validates the bootstrap seed.
+     * Discovers module_name.
      */
     module_t* discover_module(module_name_t module_name);
 
@@ -269,8 +264,6 @@ private:
     std::map<module_name_t, workspace_t*> m_workspace_by_module_name;
     m03gagbhsnusi43zogoacgj2ez_filesystem::path_t m_root;
     m03gagbhsnusi43zogoacgj2ez_filesystem::path_t m_artifact_root;
-    workspace_t* m_bootstrap_seed_workspace;
-    module_t* m_bootstrap_seed_module;
 };
 
 /**
