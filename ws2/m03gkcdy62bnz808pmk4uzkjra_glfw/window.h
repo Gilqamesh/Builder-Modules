@@ -13,6 +13,7 @@
 # include <memory>
 # include <optional>
 # include <unordered_map>
+# include <vector>
 
 # include <m03ginwy24ng8o487c4beoms6l_vector/api.h>
 # include <m03gli1rb5p56mncplipxpf3he_ring_buffer/api.h>
@@ -46,6 +47,13 @@ struct image_t {
  * glfw_t must outlive the window, and the window must be used and destroyed on the main thread.
  */
 class window_t {
+public:
+    using input_states_t = m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<
+        input_state_t,
+        m03gli1rb5p56mncplipxpf3he_ring_buffer::staging_policy_t::dedicated,
+        m03gli1rb5p56mncplipxpf3he_ring_buffer::commit_policy_t::copy_with_advance
+    >;
+
 public:
     /**
      * @brief Creates a windowed window after applying the specified settings.
@@ -85,8 +93,8 @@ public:
      *
      * Copy the latest published snapshot into stage before processing events and publish stage afterwards.
      */
-    m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<input_state_t>& input_states();
-    const m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<input_state_t>& input_states() const;
+    input_states_t& input_states();
+    const input_states_t& input_states() const;
 
     /**
      * @brief Replaces the custom cursor image using a hotspot inside the image.
@@ -436,7 +444,7 @@ private:
 
 private:
     GLFWwindow* m_handle;
-    m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<input_state_t> m_input_states;
+    input_states_t m_input_states;
     GLFWcursor* m_cursor_image;
 
     std::function<void(window_t*, int, int)> m_position_callback;

@@ -439,11 +439,11 @@ GLFWwindow* window_t::handle() const {
     return m_handle;
 }
 
-m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<input_state_t>& window_t::input_states() {
+window_t::input_states_t& window_t::input_states() {
     return m_input_states;
 }
 
-const m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<input_state_t>& window_t::input_states() const {
+const window_t::input_states_t& window_t::input_states() const {
     return m_input_states;
 }
 

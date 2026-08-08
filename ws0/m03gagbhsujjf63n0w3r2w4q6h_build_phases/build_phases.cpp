@@ -614,15 +614,17 @@ const m03gagbhsnusi43zogoacgj2ez_filesystem::path_t& binary_phase_t::installed_t
 }
 
 void binary_phase_t::install_cli(
+    const std::vector<phase_base_t::built_t>& additional_source_files,
     const std::vector<m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain::define_t>& defines
 ) const {
     const auto sources = install<source_phase_t>();
-    const std::vector<phase_base_t::built_t> source_files {
+    std::vector<phase_base_t::built_t> source_files {
         build(m03gagbhsnusi43zogoacgj2ez_filesystem::rooted_path_t(
             sources.root(),
             m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t(m03gagbhsp2drqq3gkop8pzfrm_workspace_graph::CLI_CPP)
         ))
     };
+    source_files.insert(source_files.end(), additional_source_files.begin(), additional_source_files.end());
     const auto interfaces = install_closure<interface_phase_t>();
     const auto link_inputs = binary_link_inputs(
         module(),

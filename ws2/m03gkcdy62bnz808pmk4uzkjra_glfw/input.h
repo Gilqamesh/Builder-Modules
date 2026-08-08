@@ -238,7 +238,11 @@ private:
  */
 class joystick_t {
 public:
-    using joystick_states_t = m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<joystick_state_t>;
+    using joystick_states_t = m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<
+        joystick_state_t,
+        m03gli1rb5p56mncplipxpf3he_ring_buffer::staging_policy_t::overlapping,
+        m03gli1rb5p56mncplipxpf3he_ring_buffer::commit_policy_t::advance
+    >;
 
 public:
     /**
@@ -386,7 +390,12 @@ private:
  */
 class gamepad_t {
 public:
-    using gamepad_states_t = m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<gamepad_state_t>;
+    using gamepad_states_t = m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<
+        gamepad_state_t,
+        m03gli1rb5p56mncplipxpf3he_ring_buffer::staging_policy_t::overlapping,
+        m03gli1rb5p56mncplipxpf3he_ring_buffer::commit_policy_t::advance
+    >;
+
 
 public:
     /**

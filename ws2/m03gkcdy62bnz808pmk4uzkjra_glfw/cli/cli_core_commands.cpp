@@ -16,11 +16,7 @@ namespace m03gkcdy62bnz808pmk4uzkjra_glfw_cli {
 namespace {
 
 void initialize_input_state(glfw_api::input_state_t& state) {
-    for (
-        std::size_t index = 0;
-        index < static_cast<std::size_t>(glfw_api::button_t::_button_count);
-        ++index
-    ) {
+    for (std::size_t index = 0; index < static_cast<std::size_t>(glfw_api::button_t::_button_count); ++index) {
         auto& button = state.button_state(static_cast<glfw_api::button_t>(index));
         button.transition_count() = 0;
         button.repeat_count() = 0;
@@ -52,18 +48,15 @@ void run_interface_self_test() {
     current_input.cursor_position() = {3.0, 4.0};
     current_input.scroll_offset() = {1.0, -2.0};
 
-    const glfw_api::input_state_change_t input_change(
-        previous_input,
-        current_input
-    );
-    if (
-        input_change.press_delta(glfw_api::button_t::button_a) != 1 ||
-        input_change.release_delta(glfw_api::button_t::button_a) != 0 ||
-        input_change.cursor_position_delta()[0] != 3.0 ||
-        input_change.cursor_position_delta()[1] != 4.0 ||
-        input_change.scroll_offset_delta()[0] != 1.0 ||
-        input_change.scroll_offset_delta()[1] != -2.0
-    ) {
+    const glfw_api::input_state_change_t input_change(previous_input, current_input);
+    const bool input_change_valid =
+        input_change.press_delta(glfw_api::button_t::button_a) == 1 &&
+        input_change.release_delta(glfw_api::button_t::button_a) == 0 &&
+        input_change.cursor_position_delta()[0] == 3.0 &&
+        input_change.cursor_position_delta()[1] == 4.0 &&
+        input_change.scroll_offset_delta()[0] == 1.0 &&
+        input_change.scroll_offset_delta()[1] == -2.0;
+    if (!input_change_valid) {
         throw std::logic_error("input_state_change_t smoke test failed");
     }
 
@@ -77,35 +70,24 @@ void run_interface_self_test() {
     current_joystick.buttons() = {true};
     current_joystick.hats() = {{1, 0}};
 
-    const glfw_api::joystick_state_change_t joystick_change(
-        previous_joystick,
-        current_joystick
-    );
-    if (
-        joystick_change.axis_delta(0) != 0.5f ||
-        !joystick_change.was_pressed(0) ||
-        joystick_change.hat_delta(0)[0] != 1 ||
-        joystick_change.hat_delta(0)[1] != 0
-    ) {
+    const glfw_api::joystick_state_change_t joystick_change(previous_joystick, current_joystick);
+    const bool joystick_change_valid =
+        joystick_change.axis_delta(0) == 0.5f &&
+        joystick_change.was_pressed(0) &&
+        joystick_change.hat_delta(0)[0] == 1 &&
+        joystick_change.hat_delta(0)[1] == 0;
+    if (!joystick_change_valid) {
         throw std::logic_error("joystick_state_change_t smoke test failed");
     }
 
     glfw_api::gamepad_state_t previous_gamepad;
     glfw_api::gamepad_state_t current_gamepad;
-    for (
-        std::size_t index = 0;
-        index < static_cast<std::size_t>(glfw_api::gamepad_button_t::_button_count);
-        ++index
-    ) {
+    for (std::size_t index = 0; index < static_cast<std::size_t>(glfw_api::gamepad_button_t::_button_count); ++index) {
         const auto button = static_cast<glfw_api::gamepad_button_t>(index);
         previous_gamepad.button_state(button) = false;
         current_gamepad.button_state(button) = false;
     }
-    for (
-        std::size_t index = 0;
-        index < static_cast<std::size_t>(glfw_api::gamepad_axis_t::_axis_count);
-        ++index
-    ) {
+    for (std::size_t index = 0; index < static_cast<std::size_t>(glfw_api::gamepad_axis_t::_axis_count); ++index) {
         const auto axis = static_cast<glfw_api::gamepad_axis_t>(index);
         previous_gamepad.axis_state(axis) = 0.0f;
         current_gamepad.axis_state(axis) = 0.0f;
@@ -114,14 +96,11 @@ void run_interface_self_test() {
     current_gamepad.button_state(glfw_api::gamepad_button_t::button_a) = true;
     current_gamepad.axis_state(glfw_api::gamepad_axis_t::axis_left_x) = 0.5f;
 
-    const glfw_api::gamepad_state_change_t gamepad_change(
-        previous_gamepad,
-        current_gamepad
-    );
-    if (
-        !gamepad_change.was_pressed(glfw_api::gamepad_button_t::button_a) ||
-        gamepad_change.axis_delta(glfw_api::gamepad_axis_t::axis_left_x) != 0.5f
-    ) {
+    const glfw_api::gamepad_state_change_t gamepad_change(previous_gamepad, current_gamepad);
+    const bool gamepad_change_valid =
+        gamepad_change.was_pressed(glfw_api::gamepad_button_t::button_a) &&
+        gamepad_change.axis_delta(glfw_api::gamepad_axis_t::axis_left_x) == 0.5f;
+    if (!gamepad_change_valid) {
         throw std::logic_error("gamepad_state_change_t smoke test failed");
     }
 
@@ -140,63 +119,38 @@ void validate_event_pump_interval(std::chrono::milliseconds interval) {
         command_error("milliseconds must be positive");
     }
     if (interval.count() > std::numeric_limits<int>::max()) {
-        command_error(std::format(
-            "milliseconds must be no greater than {}",
-            std::numeric_limits<int>::max()
-        ));
+        command_error(std::format("milliseconds must be no greater than {}", std::numeric_limits<int>::max()));
     }
 }
 
 } // namespace
 
 void application_t::register_core_commands() {
-    m_commands.add(
-        {"help"},
-        "help [topic ...]",
-        "Show core commands or commands below a topic.",
-        [this](arguments_t& arguments) {
-            m_commands.print_help(arguments.remaining());
-        },
-        [this](const completion_context_t& context) {
-            return completion_result_t{
-                .candidates = m_commands.complete_next_component(
-                    context.arguments,
-                    context.partial
-                )
-            };
-        },
-        false
-    );
-
-    const auto exit_handler = [this](arguments_t& arguments) {
-        arguments.expect_end("exit");
-        m_running = false;
-        std::cout << "Exiting.\n";
+    const auto add_exit_command = [this](std::string name) {
+        add_command(
+            {name},
+            name,
+            "Exit the test CLI.",
+            [this, name](arguments_t& arguments) {
+                arguments.expect_end(name);
+                m_commands.stop();
+                std::cout << "Exiting.\n";
+            },
+            false
+        );
     };
 
-    m_commands.add(
-        {"exit"},
-        "exit",
-        "Exit the test CLI.",
-        exit_handler,
-        false
-    );
-    m_commands.add(
-        {"quit"},
-        "quit",
-        "Exit the test CLI.",
-        exit_handler,
-        false
-    );
+    add_exit_command("exit");
+    add_exit_command("quit");
 
-    m_commands.add(
+    add_command(
         {"poll"},
         "poll [count]",
         "Poll events and commit window, joystick and gamepad snapshots.",
         [this](arguments_t& arguments) {
             const std::size_t count = arguments.empty()
                 ? 1
-                : arguments.pop_size("count");
+                : arguments.pop<std::size_t>("count");
             arguments.expect_end("poll [count]");
 
             for (std::size_t index = 0; index < count; ++index) {
@@ -206,12 +160,12 @@ void application_t::register_core_commands() {
             std::cout << std::format("Polled events {} time(s).\n", count);
         },
         {
-            command_table_t::argument("count")
+            argument("count")
         },
         false
     );
 
-    m_commands.add(
+    add_command(
         {"wait"},
         "wait",
         "Block until an event arrives, then commit all input snapshots.",
@@ -224,12 +178,12 @@ void application_t::register_core_commands() {
         false
     );
 
-    m_commands.add(
+    add_command(
         {"wait-timeout"},
         "wait-timeout <seconds>",
         "Wait for an event up to a non-negative timeout in seconds.",
         [this](arguments_t& arguments) {
-            const double timeout = arguments.pop_double("seconds");
+            const double timeout = arguments.pop<double>("seconds");
             arguments.expect_end("wait-timeout <seconds>");
             if (timeout < 0.0) {
                 command_error("seconds must be non-negative");
@@ -239,12 +193,12 @@ void application_t::register_core_commands() {
             std::cout << std::format("Wait completed after at most {} second(s).\n", timeout);
         },
         {
-            command_table_t::argument("seconds")
+            argument("seconds")
         },
         false
     );
 
-    m_commands.add(
+    add_command(
         {"post-empty-event"},
         "post-empty-event",
         "Post an empty event and process it in the automatic poll.",
@@ -255,7 +209,7 @@ void application_t::register_core_commands() {
         }
     );
 
-    m_commands.add(
+    add_command(
         {"event-pump", "show"},
         "event-pump show",
         "Show the automatic non-blocking event-pump interval.",
@@ -269,46 +223,38 @@ void application_t::register_core_commands() {
         false
     );
 
-    m_commands.add(
+    add_command(
         {"event-pump", "interval"},
         "event-pump interval <milliseconds>",
         "Set the automatic non-blocking event-pump interval.",
         [this](arguments_t& arguments) {
-            const auto interval = std::chrono::milliseconds(
-                arguments.pop_long_long("milliseconds")
-            );
+            const auto interval = std::chrono::milliseconds(arguments.pop<long long>("milliseconds"));
             arguments.expect_end("event-pump interval <milliseconds>");
             validate_event_pump_interval(interval);
 
             m_event_pump_interval = interval;
+            m_next_idle_time = std::chrono::steady_clock::now() + m_event_pump_interval;
             std::cout << std::format(
                 "event-pump interval_ms={}.\n",
                 m_event_pump_interval.count()
             );
         },
         {
-            command_table_t::argument("milliseconds")
+            argument("milliseconds")
         },
         false
     );
 
-    m_commands.add(
+    add_command(
         {"watch", "start", "window"},
         "watch start window <window-id> <milliseconds>",
         "Start a non-blocking window input watch on each event-pump cycle.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
-            const auto duration = std::chrono::milliseconds(
-                arguments.pop_long_long("milliseconds")
-            );
+            const id_t id = arguments.pop<id_t>("window-id");
+            const auto duration = std::chrono::milliseconds(arguments.pop<long long>("milliseconds"));
             arguments.expect_end("watch start window <window-id> <milliseconds>");
 
-            const id_t watch_id = start_watch(
-                watch_target_t::window_input,
-                id,
-                duration,
-                std::chrono::milliseconds(0)
-            );
+            const id_t watch_id = start_watch(watch_target_t::window_input, id, duration, std::chrono::milliseconds(0));
             std::cout << std::format(
                 "Started watch {} for window {} for {} ms on each event-pump cycle.\n",
                 watch_id,
@@ -318,50 +264,29 @@ void application_t::register_core_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::argument("milliseconds")
+            argument("milliseconds")
         }
     );
 
-    const auto add_interval_watch_start = [this](
-        std::string target_name,
-        watch_target_t target,
-        argument_spec_t id_argument
-    ) {
+    const auto add_interval_watch_start = [this](std::string target_name, watch_target_t target, argument_spec_t id_argument) {
         const std::string id_name = target_name + "-id";
-        const std::string usage = std::format(
-            "watch start {} <{}> <milliseconds> [interval-ms]",
-            target_name,
-            id_name
-        );
+        const std::string usage = std::format("watch start {} <{}> <milliseconds> [interval-ms]", target_name, id_name);
 
-        m_commands.add(
+        add_command(
             {"watch", "start", std::string_view(target_name)},
             usage,
-            "Start a non-blocking device watch that prints retained adjacent changes.",
-            [
-                this,
-                target_name,
-                target,
-                id_name,
-                usage
-            ](arguments_t& arguments) {
-                const id_t id = arguments.pop_id(id_name);
-                const auto duration = std::chrono::milliseconds(
-                    arguments.pop_long_long("milliseconds")
-                );
+            "Start a non-blocking device watch that prints retained state history.",
+            [this, target_name, target, id_name, usage](arguments_t& arguments) {
+                const id_t id = arguments.pop<id_t>(id_name);
+                const auto duration = std::chrono::milliseconds(arguments.pop<long long>("milliseconds"));
                 const auto interval = std::chrono::milliseconds(
                     arguments.empty()
                         ? m_event_pump_interval.count()
-                        : arguments.pop_long_long("interval-ms")
+                        : arguments.pop<long long>("interval-ms")
                 );
                 arguments.expect_end(usage);
 
-                const id_t watch_id = start_watch(
-                    target,
-                    id,
-                    duration,
-                    interval
-                );
+                const id_t watch_id = start_watch(target, id, duration, interval);
                 std::cout << std::format(
                     "Started watch {} for {} {} for {} ms at {} ms intervals.\n",
                     watch_id,
@@ -373,24 +298,16 @@ void application_t::register_core_commands() {
             },
             {
                 std::move(id_argument),
-                command_table_t::argument("milliseconds"),
-                command_table_t::argument("interval-ms")
+                argument("milliseconds"),
+                argument("interval-ms")
             }
         );
     };
 
-    add_interval_watch_start(
-        "joystick",
-        watch_target_t::joystick,
-        connected_joystick_id_argument("joystick-id")
-    );
-    add_interval_watch_start(
-        "gamepad",
-        watch_target_t::gamepad,
-        connected_gamepad_id_argument("gamepad-id")
-    );
+    add_interval_watch_start("joystick", watch_target_t::joystick, connected_joystick_id_argument("joystick-id"));
+    add_interval_watch_start("gamepad", watch_target_t::gamepad, connected_gamepad_id_argument("gamepad-id"));
 
-    m_commands.add(
+    add_command(
         {"watch", "list"},
         "watch list",
         "List active non-blocking watches.",
@@ -418,7 +335,7 @@ void application_t::register_core_commands() {
                     "{}: target={}, object_id={}, polls={}, interval={}, "
                     "remaining_ms={}, next_poll_ms={}\n",
                     id,
-                    watch_target_label(watch.target),
+                    watch.target,
                     watch.object_id,
                     watch.poll_count,
                     interval,
@@ -430,15 +347,13 @@ void application_t::register_core_commands() {
         false
     );
 
-    m_commands.add(
+    add_command(
         {"watch", "set-interval"},
         "watch set-interval <watch-id> <interval-ms>",
         "Set the interval for an active interval-based watch.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("watch-id");
-            const auto interval = std::chrono::milliseconds(
-                arguments.pop_long_long("interval-ms")
-            );
+            const id_t id = arguments.pop<id_t>("watch-id");
+            const auto interval = std::chrono::milliseconds(arguments.pop<long long>("interval-ms"));
             arguments.expect_end("watch set-interval <watch-id> <interval-ms>");
 
             if (interval.count() <= 0) {
@@ -467,18 +382,18 @@ void application_t::register_core_commands() {
             );
         },
         {
-            command_table_t::argument(
+            argument(
                 "watch-id",
-                [this](const completion_context_t& context) {
-                    return complete_watch_ids(context.partial, false);
+                [this](std::span<const std::string>, std::string_view partial) {
+                    return complete_watch_ids(partial, false);
                 }
             ),
-            command_table_t::argument("interval-ms")
+            argument("interval-ms")
         },
         false
     );
 
-    m_commands.add(
+    add_command(
         {"watch", "stop"},
         "watch stop <watch-id>|all",
         "Stop one or every active non-blocking watch.",
@@ -506,18 +421,16 @@ void application_t::register_core_commands() {
         false
     );
 
-    m_commands.add(
+    add_command(
         {"pump"},
         "pump <milliseconds> [interval-ms]",
         "Poll repeatedly for a bounded period.",
         [this](arguments_t& arguments) {
-            const auto duration = std::chrono::milliseconds(
-                arguments.pop_long_long("milliseconds")
-            );
+            const auto duration = std::chrono::milliseconds(arguments.pop<long long>("milliseconds"));
             const auto interval = std::chrono::milliseconds(
                 arguments.empty()
                     ? m_event_pump_interval.count()
-                    : arguments.pop_long_long("interval-ms")
+                    : arguments.pop<long long>("interval-ms")
             );
             arguments.expect_end("pump <milliseconds> [interval-ms]");
 
@@ -549,28 +462,28 @@ void application_t::register_core_commands() {
             std::cout << std::format("Pumped events {} time(s).\n", poll_count);
         },
         {
-            command_table_t::argument("milliseconds"),
-            command_table_t::argument("interval-ms")
+            argument("milliseconds"),
+            argument("interval-ms")
         },
         false
     );
 
-    m_commands.add(
+    add_command(
         {"source"},
         "source <file>",
         "Execute a repeatable command script.",
         [this](arguments_t& arguments) {
-            const std::filesystem::path path(arguments.pop("file"));
+            const std::filesystem::path path = arguments.pop<std::filesystem::path>("file");
             arguments.expect_end("source <file>");
             run_script(path);
         },
         {
-            command_table_t::files_argument("file")
+            files_argument("file")
         },
         false
     );
 
-    m_commands.add(
+    add_command(
         {"self-test"},
         "self-test",
         "Run safe construction and reset checks that need no window.",

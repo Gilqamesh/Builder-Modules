@@ -167,11 +167,11 @@ const std::string& joystick_t::guid() const {
     return m_guid;
 }
 
-m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<joystick_state_t>& joystick_t::joystick_states() {
+joystick_t::joystick_states_t& joystick_t::joystick_states() {
     return m_joystick_states;
 }
 
-const m03gli1rb5p56mncplipxpf3he_ring_buffer::ring_buffer_t<joystick_state_t>& joystick_t::joystick_states() const {
+const joystick_t::joystick_states_t& joystick_t::joystick_states() const {
     return m_joystick_states;
 }
 

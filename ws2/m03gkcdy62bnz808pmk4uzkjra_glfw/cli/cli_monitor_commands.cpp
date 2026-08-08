@@ -8,7 +8,7 @@
 namespace m03gkcdy62bnz808pmk4uzkjra_glfw_cli {
 
 void application_t::register_monitor_commands() {
-    m_commands.add(
+    add_command(
         {"monitor", "refresh"},
         "monitor refresh",
         "Refresh stable monitor IDs and report connection changes.",
@@ -20,7 +20,7 @@ void application_t::register_monitor_commands() {
         false
     );
 
-    m_commands.add(
+    add_command(
         {"monitor", "list"},
         "monitor list",
         "List connected monitors and retained disconnected snapshots.",
@@ -39,28 +39,18 @@ void application_t::register_monitor_commands() {
             }
 
             for (const auto& [id, entry] : m_monitors.entries()) {
-                const auto video_mode = entry.object->video_mode();
                 std::cout << std::format(
-                    "{}{}: {}, name={}, handle={}, mode={}x{}@{}Hz, "
-                    "position={}, physical_size={}, content_scale={}, work_area={}\n",
+                    "monitor {}{} [{}]: {}\n",
                     id,
                     primary_id == id ? " (primary)" : "",
                     entry.connected ? "connected" : "disconnected snapshot",
-                    quote_token(entry.object->name()),
-                    static_cast<void*>(entry.object->handle()),
-                    video_mode.width,
-                    video_mode.height,
-                    video_mode.refresh_rate,
-                    entry.object->virtual_position(),
-                    entry.object->physical_size(),
-                    entry.object->content_scale(),
-                    entry.object->work_area()
+                    *entry.object
                 );
             }
         }
     );
 
-    m_commands.add(
+    add_command(
         {"monitor", "primary"},
         "monitor primary",
         "Show the current primary monitor and its stable CLI ID.",
@@ -79,12 +69,12 @@ void application_t::register_monitor_commands() {
         }
     );
 
-    m_commands.add(
+    add_command(
         {"monitor", "show"},
         "monitor show <monitor-id>",
         "Show every cached or live property of one monitor.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("monitor-id");
+            const id_t id = arguments.pop<id_t>("monitor-id");
             arguments.expect_end("monitor show <monitor-id>");
 
             const auto& entry = m_monitors.require(id, false);
@@ -100,12 +90,12 @@ void application_t::register_monitor_commands() {
         }
     );
 
-    m_commands.add(
+    add_command(
         {"monitor", "modes"},
         "monitor modes <monitor-id>",
         "List all currently available video modes for a connected monitor.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("monitor-id");
+            const id_t id = arguments.pop<id_t>("monitor-id");
             arguments.expect_end("monitor modes <monitor-id>");
 
             const auto& entry = m_monitors.require(id, true);
@@ -120,12 +110,12 @@ void application_t::register_monitor_commands() {
         }
     );
 
-    m_commands.add(
+    add_command(
         {"monitor", "handle"},
         "monitor handle <monitor-id>",
         "Show the current native monitor handle, including null after disconnect.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("monitor-id");
+            const id_t id = arguments.pop<id_t>("monitor-id");
             arguments.expect_end("monitor handle <monitor-id>");
 
             const auto& entry = m_monitors.require(id, false);

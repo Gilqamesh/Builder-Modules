@@ -33,15 +33,15 @@ int main() {
                         context.out << ' ';
                     }
                     context.out << values[index];
-                }
-                context.out << '\n';
-            }},
-            {{"math", "add"}, "Add two integers.", {cli::argument_t::integer("left"), cli::argument_t::integer("right")}, [](cli::context_t& context) {
-                auto& arguments = context.arguments;
-                const long long left = arguments.pop_long_long("left");
-                const long long right = arguments.pop_long_long("right");
-                context.out << std::format("{}\n", left + right);
-            }},
+            }
+            context.out << '\n';
+        }},
+        {{"math", "add"}, "Add two integers.", {cli::argument_t::integer("left"), cli::argument_t::integer("right")}, [](cli::context_t& context) {
+            auto& arguments = context.arguments;
+            const long long left = arguments.pop<long long>("left");
+            const long long right = arguments.pop<long long>("right");
+            context.out << std::format("{}\n", left + right);
+        }},
             {{"set", "mode"}, "Exercise choice completion.", {cli::argument_t::choice("mode", {"fast", "safe", "verbose"})}, [](cli::context_t& context) {
                 context.out << std::format("mode={}\n", context.arguments.pop("mode"));
             }}

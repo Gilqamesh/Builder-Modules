@@ -1,5 +1,4 @@
 #include "cli_application.h"
-#include "cli_history.h"
 
 #include <exception>
 #include <format>
@@ -15,18 +14,14 @@
 namespace m03gkcdy62bnz808pmk4uzkjra_glfw_cli {
 
 void application_t::register_window_commands() {
-    const auto add_query = [this](
-        std::string name,
-        std::string description,
-        auto getter
-    ) {
+    const auto add_query = [this](std::string name, std::string description, auto getter) {
         const std::string usage = "window " + name + " <window-id>";
-        m_commands.add(
+        add_command(
             {"window", name},
             usage,
             std::move(description),
             [this, getter, usage](arguments_t& arguments) {
-                const id_t id = arguments.pop_id("window-id");
+                const id_t id = arguments.pop<id_t>("window-id");
                 arguments.expect_end(usage);
                 std::cout << std::format("{}\n", getter(*require_window(id)));
             },
@@ -36,18 +31,14 @@ void application_t::register_window_commands() {
         );
     };
 
-    const auto add_action = [this](
-        std::string name,
-        std::string description,
-        auto action
-    ) {
+    const auto add_action = [this](std::string name, std::string description, auto action) {
         const std::string usage = "window " + name + " <window-id>";
-        m_commands.add(
+        add_command(
             {"window", name},
             usage,
             std::move(description),
             [this, action, usage](arguments_t& arguments) {
-                const id_t id = arguments.pop_id("window-id");
+                const id_t id = arguments.pop<id_t>("window-id");
                 arguments.expect_end(usage);
                 action(*require_window(id));
                 std::cout << "ok\n";
@@ -58,29 +49,24 @@ void application_t::register_window_commands() {
         );
     };
 
-    const auto add_bool_property = [this](
-        std::string name,
-        std::string description,
-        auto getter,
-        auto setter
-    ) {
+    const auto add_bool_property = [this](std::string name, std::string description, auto getter, auto setter) {
         const std::string usage = "window " + name + " <window-id> [bool]";
-        m_commands.add(
+        add_command(
             {"window", name},
             usage,
             std::move(description),
             [this, getter, setter, usage](arguments_t& arguments) {
-                const id_t id = arguments.pop_id("window-id");
+                const id_t id = arguments.pop<id_t>("window-id");
                 auto window = require_window(id);
                 if (!arguments.empty()) {
-                    setter(*window, arguments.pop_bool("value"));
+                    setter(*window, arguments.pop<bool>("value"));
                 }
                 arguments.expect_end(usage);
                 std::cout << std::format("{}\n", getter(*window));
             },
             {
                 window_id_argument(),
-                command_table_t::values_argument(
+                choice_argument(
                     "bool",
                     {"true", "false", "on", "off", "yes", "no", "1", "0"}
                 )
@@ -88,50 +74,35 @@ void application_t::register_window_commands() {
         );
     };
 
-    const auto add_string_property = [this](
-        std::string name,
-        std::string description,
-        auto getter,
-        auto setter
-    ) {
+    const auto add_string_property = [this](std::string name, std::string description, auto getter, auto setter) {
         const std::string usage = "window " + name + " <window-id> [value]";
-        m_commands.add(
+        add_command(
             {"window", name},
             usage,
             std::move(description),
             [this, getter, setter, usage](arguments_t& arguments) {
-                const id_t id = arguments.pop_id("window-id");
+                const id_t id = arguments.pop<id_t>("window-id");
                 auto window = require_window(id);
                 if (!arguments.empty()) {
-                    setter(*window, std::string(arguments.pop("value")));
+                    setter(*window, arguments.pop<std::string>("value"));
                 }
                 arguments.expect_end(usage);
                 std::cout << quote_token(getter(*window)) << '\n';
             },
             {
                 window_id_argument(),
-                command_table_t::argument("value")
+                argument("value")
             }
         );
     };
 
-    const auto make_input_change = [](
-        const glfw_api::input_state_t& previous,
-        const glfw_api::input_state_t& current
-    ) {
-        return glfw_api::input_state_change_t(previous, current);
-    };
-
-    const auto resize_window_input_history = [](
-        glfw_api::window_t& window,
-        std::size_t sample_count
-    ) {
+    const auto resize_window_input_history = [](glfw_api::window_t& window, std::size_t sample_count) {
         if (sample_count == 0) {
             command_error("sample-count must be positive");
         }
 
         auto& history = window.input_states();
-        const glfw_api::input_state_t snapshot = history.size() == 0
+        const glfw_api::input_state_t snapshot = history.history_size() == 0
             ? history.stage()
             : history.history(0);
 
@@ -142,21 +113,21 @@ void application_t::register_window_commands() {
         history.stage() = history.history(0);
     };
 
-    m_commands.add(
+    add_command(
         {"window", "create"},
         "window create windowed <title> <x> <y> <width> <height> | "
         "window create fullscreen <title> <monitor-id> [video-mode-index]",
         "Create a window with the current creation settings.",
         [this](arguments_t& arguments) {
-            const std::string mode(arguments.pop("windowed or fullscreen"));
-            const std::string title(arguments.pop("title"));
+            const std::string mode = arguments.pop<std::string>("windowed or fullscreen");
+            const std::string title = arguments.pop<std::string>("title");
             std::shared_ptr<glfw_api::window_t> window;
 
             if (mode == "windowed") {
-                const int x = arguments.pop_int("x");
-                const int y = arguments.pop_int("y");
-                const int width = arguments.pop_int("width");
-                const int height = arguments.pop_int("height");
+                const int x = arguments.pop<int>("x");
+                const int y = arguments.pop<int>("y");
+                const int width = arguments.pop<int>("width");
+                const int height = arguments.pop<int>("height");
                 arguments.expect_end(
                     "window create windowed <title> <x> <y> <width> <height>"
                 );
@@ -175,12 +146,12 @@ void application_t::register_window_commands() {
                     m_creation_settings
                 );
             } else if (mode == "fullscreen") {
-                const id_t monitor_id = arguments.pop_id("monitor-id");
+                const id_t monitor_id = arguments.pop<id_t>("monitor-id");
                 auto& monitor = *m_monitors.require(monitor_id, true).object;
                 glfw_api::video_mode_t video_mode = monitor.video_mode();
 
                 if (!arguments.empty()) {
-                    const std::size_t mode_index = arguments.pop_size("video-mode-index");
+                    const std::size_t mode_index = arguments.pop<std::size_t>("video-mode-index");
                     const auto video_modes = monitor.video_modes();
                     if (mode_index >= video_modes.size()) {
                         command_error(std::format(
@@ -219,41 +190,43 @@ void application_t::register_window_commands() {
                 quote_token(title)
             );
         },
-        [this](const completion_context_t& context) {
-            if (context.arguments.empty()) {
-                return command_table_t::values_completion(
+        [this](std::span<const std::string> arguments, std::string_view partial) {
+            if (arguments.empty()) {
+                static const auto modes = cli::argument_t::choice(
+                    "windowed or fullscreen",
                     {"windowed", "fullscreen"}
-                )(context);
+                );
+                return modes.complete(arguments, partial);
             }
 
-            if (context.arguments.front() != "fullscreen") {
-                return completion_result_t{};
+            if (arguments.front() != "fullscreen") {
+                return std::vector<std::string>();
             }
 
-            if (context.arguments.size() == 2) {
-                return complete_monitor_ids(context.partial, true);
+            if (arguments.size() == 2) {
+                return complete_monitor_ids(partial, true);
             }
 
-            if (context.arguments.size() == 3) {
+            if (arguments.size() == 3) {
                 try {
                     const id_t monitor_id = parse_integer<id_t>(
-                        context.arguments[2],
+                        arguments[2],
                         "monitor-id"
                     );
                     return complete_monitor_video_mode_indices(
                         monitor_id,
-                        context.partial
+                        partial
                     );
                 } catch (const std::exception&) {
-                    return completion_result_t{};
+                    return std::vector<std::string>();
                 }
             }
 
-            return completion_result_t{};
+            return std::vector<std::string>();
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "list"},
         "window list",
         "List every window currently owned by the CLI.",
@@ -282,17 +255,14 @@ void application_t::register_window_commands() {
         }
     );
 
-    const auto add_status_command = [this](
-        std::string_view name,
-        std::string description
-    ) {
+    const auto add_status_command = [this](std::string_view name, std::string description) {
         const std::string usage = std::format("window {} <window-id>", name);
-        m_commands.add(
+        add_command(
             {"window", name},
             usage,
             std::move(description),
             [this, usage](arguments_t& arguments) {
-                const id_t id = arguments.pop_id("window-id");
+                const id_t id = arguments.pop<id_t>("window-id");
                 arguments.expect_end(usage);
                 print_window_status(id, *require_window(id));
             },
@@ -311,12 +281,12 @@ void application_t::register_window_commands() {
         "Alias for window show."
     );
 
-    m_commands.add(
+    add_command(
         {"window", "destroy"},
         "window destroy <window-id>",
         "Destroy one window while GLFW is still initialized.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             arguments.expect_end("window destroy <window-id>");
             if (m_windows.erase(id) == 0) {
                 command_error(std::format("no window with ID {}", id));
@@ -329,7 +299,7 @@ void application_t::register_window_commands() {
         false
     );
 
-    m_commands.add(
+    add_command(
         {"window", "destroy-all"},
         "window destroy-all",
         "Destroy every window owned by the CLI.",
@@ -479,12 +449,12 @@ void application_t::register_window_commands() {
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "handle"},
         "window handle <window-id>",
         "Show the native GLFWwindow pointer.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             arguments.expect_end("window handle <window-id>");
             std::cout << std::format(
                 "window {} handle: {}\n",
@@ -497,12 +467,12 @@ void application_t::register_window_commands() {
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "client-api"},
         "window client-api <window-id>",
         "Show the window client API.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             arguments.expect_end("window client-api <window-id>");
             std::cout << std::format("{}\n", require_window(id)->client_api());
         },
@@ -511,20 +481,20 @@ void application_t::register_window_commands() {
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "size"},
         "window size <window-id> [width height]",
         "Get or set the content-area size in screen coordinates.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             auto window = require_window(id);
 
             if (!arguments.empty()) {
                 if (arguments.size() != 2) {
                     command_error("usage: window size <window-id> [width height]");
                 }
-                const int width = arguments.pop_int("width");
-                const int height = arguments.pop_int("height");
+                const int width = arguments.pop<int>("width");
+                const int height = arguments.pop<int>("height");
                 if (width <= 0 || height <= 0) {
                     command_error(std::format(
                         "window dimensions must be positive, got {}x{}",
@@ -540,18 +510,18 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::argument("width"),
-            command_table_t::argument("height")
+            argument("width"),
+            argument("height")
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "size-limits"},
         "window size-limits <window-id> clear | "
         "<min-width|none> <min-height|none> <max-width|none> <max-height|none>",
         "Set or clear window size limits.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             auto window = require_window(id);
             const std::string_view first = arguments.pop("clear or min-width");
 
@@ -597,31 +567,31 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::values_argument(
+            suggested_values_argument(
                 "clear or min-width",
                 {"clear", "none", "any", "no-limit", "no-preference", "dont-care"}
             ),
-            command_table_t::values_argument(
+            suggested_values_argument(
                 "min-height",
                 {"none", "any", "no-limit", "no-preference", "dont-care"}
             ),
-            command_table_t::values_argument(
+            suggested_values_argument(
                 "max-width",
                 {"none", "any", "no-limit", "no-preference", "dont-care"}
             ),
-            command_table_t::values_argument(
+            suggested_values_argument(
                 "max-height",
                 {"none", "any", "no-limit", "no-preference", "dont-care"}
             )
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "aspect-ratio"},
         "window aspect-ratio <window-id> clear | <numerator> <denominator>",
         "Set or clear the required content-area aspect ratio.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             auto window = require_window(id);
             const std::string_view first = arguments.pop("clear or numerator");
 
@@ -633,7 +603,7 @@ void application_t::register_window_commands() {
             }
 
             const int numerator = parse_integer<int>(first, "numerator");
-            const int denominator = arguments.pop_int("denominator");
+            const int denominator = arguments.pop<int>("denominator");
             arguments.expect_end(
                 "window aspect-ratio <window-id> <numerator> <denominator>"
             );
@@ -651,21 +621,21 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::values_argument("clear or numerator", {"clear"}),
-            command_table_t::argument("denominator")
+            suggested_values_argument("clear or numerator", {"clear"}),
+            argument("denominator")
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "fullscreen"},
         "window fullscreen <window-id> [monitor-id]",
         "Get fullscreen state or enter fullscreen mode on a monitor.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             auto window = require_window(id);
 
             if (!arguments.empty()) {
-                const id_t monitor_id = arguments.pop_id("monitor-id");
+                const id_t monitor_id = arguments.pop<id_t>("monitor-id");
                 window->fullscreen(*m_monitors.require(monitor_id, true).object);
             }
 
@@ -678,23 +648,23 @@ void application_t::register_window_commands() {
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "windowed"},
         "window windowed <window-id> | <window-id> <monitor-id> | "
         "<window-id> <x> <y> <width> <height>",
         "Get windowed state or enter windowed mode using a monitor work area or rectangle.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             auto window = require_window(id);
 
             if (arguments.size() == 1) {
-                const id_t monitor_id = arguments.pop_id("monitor-id");
+                const id_t monitor_id = arguments.pop<id_t>("monitor-id");
                 window->windowed(m_monitors.require(monitor_id, true).object->work_area());
             } else if (arguments.size() == 4) {
-                const int x = arguments.pop_int("x");
-                const int y = arguments.pop_int("y");
-                const int width = arguments.pop_int("width");
-                const int height = arguments.pop_int("height");
+                const int x = arguments.pop<int>("x");
+                const int y = arguments.pop<int>("y");
+                const int width = arguments.pop<int>("width");
+                const int height = arguments.pop<int>("height");
                 if (width <= 0 || height <= 0) {
                     command_error(std::format(
                         "window dimensions must be positive, got {}x{}",
@@ -712,27 +682,27 @@ void application_t::register_window_commands() {
 
             std::cout << std::format("{}\n", window->windowed());
         },
-        [this](const completion_context_t& context) {
-            if (context.arguments.empty()) {
-                return complete_window_ids(context.partial);
+        [this](std::span<const std::string> arguments, std::string_view partial) {
+            if (arguments.empty()) {
+                return complete_window_ids(partial);
             }
-            if (context.arguments.size() == 1) {
-                return complete_monitor_ids(context.partial, true);
+            if (arguments.size() == 1) {
+                return complete_monitor_ids(partial, true);
             }
-            return completion_result_t{};
+            return std::vector<std::string>();
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "opacity"},
         "window opacity <window-id> [0..1]",
         "Get or set window opacity.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             auto window = require_window(id);
 
             if (!arguments.empty()) {
-                const float opacity = arguments.pop_float("opacity");
+                const float opacity = arguments.pop<float>("opacity");
                 if (opacity < 0.0f || opacity > 1.0f) {
                     command_error(std::format(
                         "opacity must be between 0 and 1, got {}",
@@ -747,18 +717,18 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::values_argument("opacity", {"0", "0.5", "1"})
+            suggested_values_argument("opacity", {"0", "0.5", "1"})
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "cursor-mode"},
         "window cursor-mode <window-id> <visible> <locked>",
         "Set cursor visibility and locking together.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
-            const bool visible = arguments.pop_bool("visible");
-            const bool locked = arguments.pop_bool("locked");
+            const id_t id = arguments.pop<id_t>("window-id");
+            const bool visible = arguments.pop<bool>("visible");
+            const bool locked = arguments.pop<bool>("locked");
             arguments.expect_end(
                 "window cursor-mode <window-id> <visible> <locked>"
             );
@@ -773,28 +743,28 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::values_argument(
+            choice_argument(
                 "visible",
                 {"true", "false", "on", "off", "yes", "no", "1", "0"}
             ),
-            command_table_t::values_argument(
+            choice_argument(
                 "locked",
                 {"true", "false", "on", "off", "yes", "no", "1", "0"}
             )
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "cursor-raw-motion"},
         "window cursor-raw-motion <window-id> [bool]",
         "Get or request raw mouse motion.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             auto window = require_window(id);
 
             if (!arguments.empty()) {
                 const bool supported = window->cursor_raw_motion(
-                    arguments.pop_bool("value")
+                    arguments.pop<bool>("value")
                 );
                 std::cout << std::format("request_supported={}\n", supported);
             }
@@ -804,19 +774,19 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::values_argument(
+            choice_argument(
                 "bool",
                 {"true", "false", "on", "off", "yes", "no", "1", "0"}
             )
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "cursor-image"},
         "window cursor-image <window-id> test|clear",
         "Install a generated cursor image or restore the default cursor.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             const std::string_view operation = arguments.pop("test or clear");
             arguments.expect_end("window cursor-image <window-id> test|clear");
 
@@ -833,21 +803,21 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::values_argument("operation", {"test", "clear"})
+            choice_argument("operation", {"test", "clear"})
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "input"},
         "window input <window-id>",
         "Show the newest committed input snapshot.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             arguments.expect_end("window input <window-id>");
 
             const auto window = require_window(id);
             const auto& history = window->input_states();
-            require_history_size(history.size(), 1, std::format("window {} input", id));
+            require_history_size(history.history_size(), 1, std::format("window {} input", id));
             std::cout << std::format("{}\n", history.history(0));
         },
         {
@@ -855,17 +825,17 @@ void application_t::register_window_commands() {
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "input-delta"},
         "window input-delta <window-id>",
         "Show the change from input history[1] to history[0].",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             arguments.expect_end("window input-delta <window-id>");
 
             const auto window = require_window(id);
             const auto& history = window->input_states();
-            require_history_size(history.size(), 2, std::format("window {} input", id));
+            require_history_size(history.history_size(), 2, std::format("window {} input", id));
             const glfw_api::input_state_change_t change(
                 history.history(1),
                 history.history(0)
@@ -877,33 +847,28 @@ void application_t::register_window_commands() {
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "input-history"},
         "window input-history <window-id>",
-        "Show every retained input snapshot and every adjacent change.",
-        [this, make_input_change](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+        "Show every retained input snapshot.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("window-id");
             arguments.expect_end("window input-history <window-id>");
             const auto window = require_window(id);
-            const std::string heading = std::format("window {} input history", id);
-            m03gkcdy62bnz808pmk4uzkjra_glfw_cli::print_history(
-                heading,
-                window->input_states(),
-                make_input_change
-            );
+            std::cout << std::format("window {} input history: {}\n", id, window->input_states());
         },
         {
             window_id_argument()
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "input-history-size"},
         "window input-history-size <window-id> <sample-count>",
         "Replace retained input history with a new sample capacity.",
         [this, resize_window_input_history](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
-            const std::size_t sample_count = arguments.pop_size("sample-count");
+            const id_t id = arguments.pop<id_t>("window-id");
+            const std::size_t sample_count = arguments.pop<std::size_t>("sample-count");
             arguments.expect_end("window input-history-size <window-id> <sample-count>");
 
             auto window = require_window(id);
@@ -913,23 +878,23 @@ void application_t::register_window_commands() {
             std::cout << std::format(
                 "window {} input history capacity set to {}; samples={}\n",
                 id,
-                history.capacity(),
-                history.size()
+                history.history_capacity(),
+                history.history_size()
             );
         },
         {
             window_id_argument(),
-            command_table_t::argument("sample-count")
+            argument("sample-count")
         },
         false
     );
 
-    m_commands.add(
+    add_command(
         {"window", "make-context-current"},
         "window make-context-current <window-id>",
         "Make this window's OpenGL or OpenGL ES context current.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             arguments.expect_end("window make-context-current <window-id>");
             std::cout << std::format("{}\n", require_window(id)->context_current(true));
         },
@@ -938,32 +903,32 @@ void application_t::register_window_commands() {
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "swap-interval"},
         "window swap-interval <window-id> <interval>",
         "Set the swap interval for the window context.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
-            const int interval = arguments.pop_int("interval");
+            const id_t id = arguments.pop<id_t>("window-id");
+            const int interval = arguments.pop<int>("interval");
             arguments.expect_end("window swap-interval <window-id> <interval>");
             require_window(id)->swap_interval(interval);
             std::cout << std::format("Swap interval requested: {}.\n", interval);
         },
         {
             window_id_argument(),
-            command_table_t::argument("interval")
+            argument("interval")
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "swap-buffers"},
         "window swap-buffers <window-id> [count]",
         "Swap the window's buffers one or more times.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             const std::size_t count = arguments.empty()
                 ? 1
-                : arguments.pop_size("count");
+                : arguments.pop<std::size_t>("count");
             arguments.expect_end("window swap-buffers <window-id> [count]");
 
             const auto window = require_window(id);
@@ -974,17 +939,17 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::argument("count")
+            argument("count")
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "extension-supported"},
         "window extension-supported <window-id> <extension-name>",
         "Check an OpenGL or OpenGL ES extension on the window context.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
-            const std::string extension_name(arguments.pop("extension-name"));
+            const id_t id = arguments.pop<id_t>("window-id");
+            const std::string extension_name = arguments.pop<std::string>("extension-name");
             arguments.expect_end(
                 "window extension-supported <window-id> <extension-name>"
             );
@@ -1000,17 +965,17 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::argument("extension-name")
+            argument("extension-name")
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "proc-address"},
         "window proc-address <window-id> <function-name>",
         "Check whether a context function address can be resolved.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
-            const std::string function_name(arguments.pop("function-name"));
+            const id_t id = arguments.pop<id_t>("window-id");
+            const std::string function_name = arguments.pop<std::string>("function-name");
             arguments.expect_end(
                 "window proc-address <window-id> <function-name>"
             );
@@ -1026,16 +991,16 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::argument("function-name")
+            argument("function-name")
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "icon"},
         "window icon <window-id> test|clear",
         "Install generated window icons or restore the default icon.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             const std::string_view operation = arguments.pop("test or clear");
             arguments.expect_end("window icon <window-id> test|clear");
 
@@ -1052,16 +1017,16 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::values_argument("operation", {"test", "clear"})
+            choice_argument("operation", {"test", "clear"})
         }
     );
 
-    m_commands.add(
+    add_command(
         {"window", "callbacks"},
         "window callbacks <window-id> install|clear|status",
         "Install, clear or inspect logging callbacks for every callback API.",
         [this](arguments_t& arguments) {
-            const id_t id = arguments.pop_id("window-id");
+            const id_t id = arguments.pop<id_t>("window-id");
             const std::string_view operation = arguments.pop("operation");
             arguments.expect_end(
                 "window callbacks <window-id> install|clear|status"
@@ -1082,7 +1047,7 @@ void application_t::register_window_commands() {
         },
         {
             window_id_argument(),
-            command_table_t::values_argument(
+            choice_argument(
                 "operation",
                 {"install", "clear", "status"}
             )

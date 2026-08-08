@@ -1,125 +1,81 @@
 #include "cli_application.h"
-#include "cli_history.h"
 
-#include <cerrno>
-#include <cctype>
-#include <cstdlib>
-#include <cstring>
+#include <m03gm491bquimk7j45lpvis1yq_cli_shell/api.h>
+
+#include <chrono>
 #include <exception>
 #include <format>
-#include <fstream>
 #include <iostream>
+#include <initializer_list>
 #include <optional>
-#include <stdexcept>
+#include <set>
+#include <span>
 #include <string>
 #include <string_view>
-#include <span>
 #include <utility>
 #include <vector>
-
-#if defined(__unix__) || defined(__APPLE__)
-# include <poll.h>
-# include <readline/history.h>
-# include <readline/readline.h>
-# include <unistd.h>
-#endif
 
 namespace m03gkcdy62bnz808pmk4uzkjra_glfw_cli {
 
 namespace {
 
-#if defined(__unix__) || defined(__APPLE__)
-
-application_t* g_readline_application = nullptr;
-std::string g_readline_completion_line;
-std::size_t g_readline_completion_start = 0;
-std::vector<std::string> g_readline_completion_candidates;
-std::size_t g_readline_completion_index = 0;
-char g_readline_word_break_characters[] = " \t\n";
-char g_readline_quote_characters[] = "\"'";
-
-std::vector<std::string> tokenize_completion_prefix(std::string_view line) {
-    enum class quote_t {
-        none,
-        single,
-        double_quote
-    };
-
-    std::vector<std::string> tokens;
-    std::string token;
-    quote_t quote = quote_t::none;
-    bool token_started = false;
-
-    for (std::size_t index = 0; index < line.size(); ++index) {
-        const char character = line[index];
-
-        if (quote == quote_t::none && character == '#' && !token_started) {
-            break;
+std::vector<std::string> complete_strings(std::span<const std::string> values, std::string_view partial) {
+    std::set<std::string> candidates;
+    for (const std::string& value : values) {
+        if (value.starts_with(partial)) {
+            candidates.insert(value);
         }
-
-        if (character == '\\') {
-            if (index + 1 < line.size()) {
-                token.push_back(line[++index]);
-            }
-            token_started = true;
-            continue;
-        }
-
-        if (quote == quote_t::none) {
-            if (character == '\'') {
-                quote = quote_t::single;
-                token_started = true;
-                continue;
-            }
-            if (character == '"') {
-                quote = quote_t::double_quote;
-                token_started = true;
-                continue;
-            }
-            if (std::isspace(static_cast<unsigned char>(character)) != 0) {
-                if (token_started) {
-                    tokens.push_back(std::move(token));
-                    token.clear();
-                    token_started = false;
-                }
-                continue;
-            }
-        } else if (
-            (quote == quote_t::single && character == '\'') ||
-            (quote == quote_t::double_quote && character == '"')
-        ) {
-            quote = quote_t::none;
-            continue;
-        }
-
-        token.push_back(character);
-        token_started = true;
     }
-
-    if (token_started) {
-        tokens.push_back(std::move(token));
-    }
-
-    return tokens;
+    return {candidates.begin(), candidates.end()};
 }
 
-#endif
-
-command_table_t::completion_result_t complete_ids(
-    std::vector<id_t> ids,
-    std::string_view partial
-) {
+std::vector<std::string> complete_ids(std::vector<id_t> ids, std::string_view partial) {
     std::vector<std::string> values;
     values.reserve(ids.size());
     for (const id_t id : ids) {
         values.push_back(std::to_string(id));
     }
-    return command_table_t::complete_values(values, partial);
+    return complete_strings(values, partial);
+}
+
+std::vector<std::string> own_path(std::initializer_list<std::string_view> path) {
+    std::vector<std::string> result;
+    result.reserve(path.size());
+    for (const std::string_view component : path) {
+        result.emplace_back(component);
+    }
+    return result;
 }
 
 } // namespace
 
+application_t::watch_t::watch_t():
+    id(0),
+    target(watch_target_t::window_input),
+    object_id(0),
+    deadline(),
+    next_poll_time(),
+    interval(0),
+    poll_count(0)
+{
+}
+
+application_t::watch_t::watch_t(id_t id, watch_target_t target, id_t object_id, std::chrono::steady_clock::time_point deadline, std::chrono::steady_clock::time_point next_poll_time, std::chrono::milliseconds interval, std::size_t poll_count):
+    id(id),
+    target(target),
+    object_id(object_id),
+    deadline(deadline),
+    next_poll_time(next_poll_time),
+    interval(interval),
+    poll_count(poll_count)
+{
+}
+
 application_t::application_t():
+    m_commands(),
+    m_event_pump_interval(16),
+    m_next_idle_time(std::chrono::steady_clock::now()),
+    m_creation_settings(),
     m_monitors(
         "monitor",
         [](const glfw_api::monitor_t& monitor) -> std::optional<std::uintptr_t> {
@@ -140,8 +96,13 @@ application_t::application_t():
         [](const glfw_api::gamepad_t& gamepad) {
             return gamepad.id();
         }
-    )
+    ),
+    m_windows(),
+    m_next_window_id(1),
+    m_watches(),
+    m_next_watch_id(1)
 {
+    m_commands.install_help_command();
     refresh_all(false);
     sample_all_devices();
     register_commands();
@@ -152,232 +113,64 @@ bool application_t::repl() {
         << "GLFW abstraction test CLI\n"
         << "Use 'help' for command groups or 'help window' for one group.\n";
 
-#if defined(__unix__) || defined(__APPLE__)
-    g_readline_application = this;
-    rl_attempted_completion_function = &application_t::readline_completion;
-    rl_basic_word_break_characters = g_readline_word_break_characters;
-    rl_completer_quote_characters = g_readline_quote_characters;
-    rl_callback_handler_install("glfw-test> ", &application_t::readline_line_handler);
-
-    struct readline_cleanup_t {
-        ~readline_cleanup_t() {
-            rl_callback_handler_remove();
-            g_readline_application = nullptr;
-            g_readline_completion_candidates.clear();
-            g_readline_completion_index = 0;
-        }
-    } readline_cleanup;
-
-    while (m_running) {
-        poll_once();
-
-        pollfd descriptor{
-            .fd = STDIN_FILENO,
-            .events = POLLIN,
-            .revents = 0
-        };
-
-        const int result = ::poll(
-            &descriptor,
-            1,
-            static_cast<int>(m_event_pump_interval.count())
-        );
-        if (result < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            throw std::runtime_error(std::format(
-                "poll(stdin) failed: {}",
-                std::strerror(errno)
-            ));
-        }
-
-        if (result == 0 || (descriptor.revents & (POLLIN | POLLHUP | POLLERR)) == 0) {
-            continue;
-        }
-
-        rl_callback_read_char();
-    }
-#else
-    while (m_running) {
-        std::cout << "glfw-test> " << std::flush;
-
-        std::string line;
-        if (!std::getline(std::cin, line)) {
-            std::cout << '\n';
-            break;
-        }
-
-        execute_safely(line);
-    }
-#endif
+    m03gm491bquimk7j45lpvis1yq_cli_shell::shell_t shell(m_commands, "glfw-test> ");
+    shell.idle(std::chrono::milliseconds(1), [this] {
+        idle_once();
+    });
+    shell.run();
 
     return true;
 }
 
-#if defined(__unix__) || defined(__APPLE__)
-
-void application_t::readline_line_handler(char* line) {
-    if (!g_readline_application) {
-        std::free(line);
-        return;
-    }
-
-    application_t& application = *g_readline_application;
-    if (!line) {
-        std::cout << '\n';
-        application.m_running = false;
-        return;
-    }
-
-    std::string command(line);
-    std::free(line);
-
-    if (!command.empty()) {
-        add_history(command.c_str());
-    }
-
-    application.execute_safely(command);
-}
-
-char** application_t::readline_completion(const char* text, int start, int end) {
-    static_cast<void>(end);
-
-    g_readline_completion_line = rl_line_buffer ? rl_line_buffer : "";
-    g_readline_completion_start = start < 0
-        ? 0
-        : static_cast<std::size_t>(start);
-
-    const auto result = g_readline_application
-        ? g_readline_application->complete_command_line(
-            g_readline_completion_line,
-            g_readline_completion_start,
-            text ? text : ""
-        )
-        : completion_result_t{};
-    g_readline_completion_candidates = result.candidates;
-    g_readline_completion_index = 0;
-
-    if (result.use_files && g_readline_completion_candidates.empty()) {
-        rl_attempted_completion_over = 0;
-        return nullptr;
-    }
-
-    rl_attempted_completion_over = 1;
-    return rl_completion_matches(
-        text ? text : "",
-        &application_t::readline_completion_generator
-    );
-}
-
-char* application_t::readline_completion_generator(const char* text, int state) {
-    static_cast<void>(text);
-
-    if (state == 0) {
-        g_readline_completion_index = 0;
-    }
-
-    if (g_readline_completion_candidates.size() <= g_readline_completion_index) {
-        return nullptr;
-    }
-
-    return ::strdup(g_readline_completion_candidates[g_readline_completion_index++].c_str());
-}
-
-command_table_t::completion_result_t application_t::complete_command_line(
-    std::string_view line,
-    std::size_t word_start,
-    std::string_view partial
-) const {
-    if (line.size() < word_start) {
-        word_start = line.size();
-    }
-
-    std::vector<std::string> prefix = tokenize_completion_prefix(
-        line.substr(0, word_start)
-    );
-    std::span<const std::string> command_prefix(prefix.data(), prefix.size());
-
-    return m_commands.complete(command_prefix, partial);
-}
-
-#endif
-
 application_t::argument_spec_t application_t::window_id_argument(std::string name) const {
-    return command_table_t::argument(
-        std::move(name),
-        [this](const completion_context_t& context) {
-            return complete_window_ids(context.partial);
-        }
-    );
+    return cli::argument_t::custom(std::move(name), [this](std::span<const std::string>, std::string_view partial) {
+        return complete_window_ids(partial);
+    }).optional();
 }
 
 application_t::argument_spec_t application_t::connected_monitor_id_argument(std::string name) const {
-    return command_table_t::argument(
-        std::move(name),
-        [this](const completion_context_t& context) {
-            return complete_monitor_ids(context.partial, true);
-        }
-    );
+    return cli::argument_t::custom(std::move(name), [this](std::span<const std::string>, std::string_view partial) {
+        return complete_monitor_ids(partial, true);
+    }).optional();
 }
 
 application_t::argument_spec_t application_t::monitor_id_argument(std::string name) const {
-    return command_table_t::argument(
-        std::move(name),
-        [this](const completion_context_t& context) {
-            return complete_monitor_ids(context.partial, false);
-        }
-    );
+    return cli::argument_t::custom(std::move(name), [this](std::span<const std::string>, std::string_view partial) {
+        return complete_monitor_ids(partial, false);
+    }).optional();
 }
 
 application_t::argument_spec_t application_t::connected_joystick_id_argument(std::string name) const {
-    return command_table_t::argument(
-        std::move(name),
-        [this](const completion_context_t& context) {
-            return complete_joystick_ids(context.partial, true);
-        }
-    );
+    return cli::argument_t::custom(std::move(name), [this](std::span<const std::string>, std::string_view partial) {
+        return complete_joystick_ids(partial, true);
+    }).optional();
 }
 
 application_t::argument_spec_t application_t::joystick_id_argument(std::string name) const {
-    return command_table_t::argument(
-        std::move(name),
-        [this](const completion_context_t& context) {
-            return complete_joystick_ids(context.partial, false);
-        }
-    );
+    return cli::argument_t::custom(std::move(name), [this](std::span<const std::string>, std::string_view partial) {
+        return complete_joystick_ids(partial, false);
+    }).optional();
 }
 
 application_t::argument_spec_t application_t::connected_gamepad_id_argument(std::string name) const {
-    return command_table_t::argument(
-        std::move(name),
-        [this](const completion_context_t& context) {
-            return complete_gamepad_ids(context.partial, true);
-        }
-    );
+    return cli::argument_t::custom(std::move(name), [this](std::span<const std::string>, std::string_view partial) {
+        return complete_gamepad_ids(partial, true);
+    }).optional();
 }
 
 application_t::argument_spec_t application_t::gamepad_id_argument(std::string name) const {
-    return command_table_t::argument(
-        std::move(name),
-        [this](const completion_context_t& context) {
-            return complete_gamepad_ids(context.partial, false);
-        }
-    );
+    return cli::argument_t::custom(std::move(name), [this](std::span<const std::string>, std::string_view partial) {
+        return complete_gamepad_ids(partial, false);
+    }).optional();
 }
 
 application_t::argument_spec_t application_t::watch_id_or_all_argument(std::string name) const {
-    return command_table_t::argument(
-        std::move(name),
-        [this](const completion_context_t& context) {
-            return complete_watch_ids(context.partial, true);
-        }
-    );
+    return cli::argument_t::custom(std::move(name), [this](std::span<const std::string>, std::string_view partial) {
+        return complete_watch_ids(partial, true);
+    }).optional();
 }
 
-application_t::completion_result_t application_t::complete_window_ids(
-    std::string_view partial
-) const {
+std::vector<std::string> application_t::complete_window_ids(std::string_view partial) const {
     std::vector<id_t> ids;
     ids.reserve(m_windows.size());
     for (const auto& [id, window] : m_windows) {
@@ -388,10 +181,7 @@ application_t::completion_result_t application_t::complete_window_ids(
     return complete_ids(std::move(ids), partial);
 }
 
-application_t::completion_result_t application_t::complete_monitor_ids(
-    std::string_view partial,
-    bool require_connected
-) const {
+std::vector<std::string> application_t::complete_monitor_ids(std::string_view partial, bool require_connected) const {
     std::vector<id_t> ids;
     ids.reserve(m_monitors.entries().size());
     for (const auto& [id, entry] : m_monitors.entries()) {
@@ -402,10 +192,7 @@ application_t::completion_result_t application_t::complete_monitor_ids(
     return complete_ids(std::move(ids), partial);
 }
 
-application_t::completion_result_t application_t::complete_joystick_ids(
-    std::string_view partial,
-    bool require_connected
-) const {
+std::vector<std::string> application_t::complete_joystick_ids(std::string_view partial, bool require_connected) const {
     std::vector<id_t> ids;
     ids.reserve(m_joysticks.entries().size());
     for (const auto& [id, entry] : m_joysticks.entries()) {
@@ -416,10 +203,7 @@ application_t::completion_result_t application_t::complete_joystick_ids(
     return complete_ids(std::move(ids), partial);
 }
 
-application_t::completion_result_t application_t::complete_gamepad_ids(
-    std::string_view partial,
-    bool require_connected
-) const {
+std::vector<std::string> application_t::complete_gamepad_ids(std::string_view partial, bool require_connected) const {
     std::vector<id_t> ids;
     ids.reserve(m_gamepads.entries().size());
     for (const auto& [id, entry] : m_gamepads.entries()) {
@@ -430,10 +214,7 @@ application_t::completion_result_t application_t::complete_gamepad_ids(
     return complete_ids(std::move(ids), partial);
 }
 
-application_t::completion_result_t application_t::complete_watch_ids(
-    std::string_view partial,
-    bool include_all
-) const {
+std::vector<std::string> application_t::complete_watch_ids(std::string_view partial, bool include_all) const {
     std::vector<std::string> values;
     values.reserve(m_watches.size() + (include_all ? 1 : 0));
     if (include_all) {
@@ -443,19 +224,12 @@ application_t::completion_result_t application_t::complete_watch_ids(
         static_cast<void>(watch);
         values.push_back(std::to_string(id));
     }
-    return command_table_t::complete_values(values, partial);
+    return complete_strings(values, partial);
 }
 
-application_t::completion_result_t application_t::complete_monitor_video_mode_indices(
-    id_t monitor_id,
-    std::string_view partial
-) const {
+std::vector<std::string> application_t::complete_monitor_video_mode_indices(id_t monitor_id, std::string_view partial) const {
     const auto iterator = m_monitors.entries().find(monitor_id);
-    if (
-        iterator == m_monitors.entries().end() ||
-        !iterator->second.object ||
-        !iterator->second.connected
-    ) {
+    if (iterator == m_monitors.entries().end() || !iterator->second.object || !iterator->second.connected) {
         return {};
     }
 
@@ -465,86 +239,88 @@ application_t::completion_result_t application_t::complete_monitor_video_mode_in
     for (std::size_t index = 0; index < modes.size(); ++index) {
         values.push_back(std::to_string(index));
     }
-    return command_table_t::complete_values(values, partial);
+    return complete_strings(values, partial);
+}
+
+application_t::argument_spec_t application_t::argument(std::string name) {
+    return cli::argument_t::token(std::move(name)).optional();
+}
+
+application_t::argument_spec_t application_t::argument(std::string name, completion_handler_t complete) {
+    return cli::argument_t::custom(std::move(name), std::move(complete)).optional();
+}
+
+application_t::argument_spec_t application_t::choice_argument(std::string name, std::initializer_list<std::string_view> values) {
+    return cli::argument_t::choice(std::move(name), values).optional();
+}
+
+application_t::argument_spec_t application_t::suggested_values_argument(std::string name, std::initializer_list<std::string_view> values) {
+    std::vector<std::string> owned_values;
+    owned_values.reserve(values.size());
+    for (const std::string_view value : values) {
+        owned_values.emplace_back(value);
+    }
+    return cli::argument_t::custom(std::move(name), [values = std::move(owned_values)](std::span<const std::string>, std::string_view partial) {
+        return complete_strings(values, partial);
+    }).optional();
+}
+
+application_t::argument_spec_t application_t::files_argument(std::string name) {
+    return cli::argument_t::file(std::move(name)).optional();
+}
+
+void application_t::add_command(std::initializer_list<std::string_view> path, std::string usage, std::string description, handler_t handler, bool poll_after) {
+    add_command(
+        path,
+        std::move(usage),
+        std::move(description),
+        std::move(handler),
+        std::vector<argument_spec_t>{},
+        poll_after
+    );
+}
+
+void application_t::add_command(std::initializer_list<std::string_view> path, std::string usage, std::string description, handler_t handler, std::vector<argument_spec_t> arguments, bool poll_after) {
+    cli::command_t command(
+        own_path(path),
+        std::move(usage),
+        std::move(description),
+        std::move(arguments),
+        [this, handler = std::move(handler), poll_after](cli::context_t& context) {
+            handler(context.arguments);
+            if (m_commands.running() && poll_after) {
+                poll_once();
+            }
+        }
+    );
+    m_commands.add(std::move(command));
+}
+
+void application_t::add_command(std::initializer_list<std::string_view> path, std::string usage, std::string description, handler_t handler, completion_handler_t complete_arguments, bool poll_after) {
+    add_command(
+        path,
+        std::move(usage),
+        std::move(description),
+        std::move(handler),
+        {
+            cli::argument_t::custom("argument", [complete_arguments = std::move(complete_arguments)](std::span<const std::string> arguments, std::string_view partial) {
+                return complete_arguments(arguments, partial);
+            }).optional().variadic()
+        },
+        poll_after
+    );
 }
 
 bool application_t::run_command(std::string_view command) {
-    execute(command);
-    return m_running;
+    return m_commands.run_command(command, std::cout, std::cerr);
 }
 
-bool application_t::run_script(
-    const std::filesystem::path& path,
-    bool echo_commands
-) {
-    std::ifstream input(path);
-    if (!input) {
-        command_error(std::format("cannot open script '{}'", path.string()));
-    }
-
-    std::string line;
-    std::size_t line_number = 0;
-    while (m_running && std::getline(input, line)) {
-        ++line_number;
-
-        try {
-            const std::vector<std::string> tokens = tokenize(line);
-            if (tokens.empty()) {
-                continue;
-            }
-
-            if (echo_commands) {
-                std::cout << std::format(
-                    "{}:{}> {}\n",
-                    path.string(),
-                    line_number,
-                    line
-                );
-            }
-
-            execute_tokens(tokens);
-        } catch (const std::exception& exception) {
-            command_error(std::format(
-                "{}:{}: {}",
-                path.string(),
-                line_number,
-                exception.what()
-            ));
-        }
-    }
-
-    return m_running;
+bool application_t::run_script(const std::filesystem::path& path, bool echo_commands) {
+    return m_commands.run_script(path, std::cout, std::cerr, echo_commands);
 }
 
 std::vector<std::shared_ptr<glfw_api::monitor_t>> application_t::retained_monitors() const {
     return m_monitors.retained_objects();
-}
-
-void application_t::execute_safely(std::string_view line) {
-    try {
-        execute(line);
-    } catch (const command_error_t& exception) {
-        std::cerr << std::format("error: {}\n", exception.what());
-    } catch (const std::exception& exception) {
-        std::cerr << std::format("exception: {}\n", exception.what());
-    }
-}
-
-void application_t::execute(std::string_view line) {
-    const std::vector<std::string> tokens = tokenize(line);
-    if (!tokens.empty()) {
-        execute_tokens(tokens);
-    }
-}
-
-void application_t::execute_tokens(std::span<const std::string> tokens) {
-    const command_table_t::command_t& command = m_commands.find(tokens);
-    arguments_t arguments(tokens.subspan(command.path.size()));
-
-    command.handler(arguments);
-    if (m_running && command.poll_after) {
-        poll_once();
-    }
 }
 
 void application_t::register_commands() {
@@ -587,34 +363,32 @@ void application_t::after_event_dispatch() {
     service_watches();
 }
 
+void application_t::idle_once() {
+    const auto now = std::chrono::steady_clock::now();
+    if (now < m_next_idle_time) {
+        return;
+    }
+
+    poll_once();
+    m_next_idle_time = now + m_event_pump_interval;
+}
+
 void application_t::sample_all_devices() {
     for (auto& [id, entry] : m_joysticks.entries()) {
         static_cast<void>(id);
         if (entry.connected && entry.object) {
-            sample_joystick(*entry.object);
+            glfw_api::poll_joystick(*entry.object);
+            entry.object->joystick_states().commit();
         }
     }
 
     for (auto& [id, entry] : m_gamepads.entries()) {
         static_cast<void>(id);
         if (entry.connected && entry.object) {
-            sample_gamepad(*entry.object);
+            glfw_api::poll_gamepad(*entry.object);
+            entry.object->gamepad_states().commit();
         }
     }
-}
-
-void application_t::sample_joystick(glfw_api::joystick_t& joystick) {
-    glfw_api::poll_joystick(joystick);
-
-    auto& history = joystick.joystick_states();
-    history.commit();
-}
-
-void application_t::sample_gamepad(glfw_api::gamepad_t& gamepad) {
-    glfw_api::poll_gamepad(gamepad);
-
-    auto& history = gamepad.gamepad_states();
-    history.commit();
 }
 
 void application_t::advance_window_inputs() {
@@ -627,12 +401,7 @@ void application_t::advance_window_inputs() {
     }
 }
 
-id_t application_t::start_watch(
-    watch_target_t target,
-    id_t object_id,
-    std::chrono::milliseconds duration,
-    std::chrono::milliseconds interval
-) {
+id_t application_t::start_watch(watch_target_t target, id_t object_id, std::chrono::milliseconds duration, std::chrono::milliseconds interval) {
     if (duration.count() < 0) {
         command_error("milliseconds must be non-negative");
     }
@@ -640,10 +409,7 @@ id_t application_t::start_watch(
         command_error("interval-ms must be positive");
     }
     if (!watch_target_uses_interval(target) && interval.count() != 0) {
-        command_error(std::format(
-            "{} watches follow the event-pump interval",
-            watch_target_label(target)
-        ));
+        command_error(std::format("{} watches follow the event-pump interval", target));
     }
 
     switch (target) {
@@ -660,15 +426,7 @@ id_t application_t::start_watch(
 
     const auto now = std::chrono::steady_clock::now();
     const id_t watch_id = m_next_watch_id++;
-    m_watches.emplace(watch_id, watch_t{
-        .id = watch_id,
-        .target = target,
-        .object_id = object_id,
-        .deadline = now + duration,
-        .next_poll_time = now,
-        .interval = interval,
-        .poll_count = 0
-    });
+    m_watches.emplace(watch_id, watch_t(watch_id, target, object_id, now + duration, now, interval, 0));
     return watch_id;
 }
 
@@ -738,34 +496,23 @@ bool application_t::print_watch_sample(watch_t& watch) {
             return false;
         }
 
-        const auto make_input_change = [](
-            const glfw_api::input_state_t& previous,
-            const glfw_api::input_state_t& current
-        ) {
-            return glfw_api::input_state_change_t(previous, current);
-        };
-
         std::cout << std::format(
             "[watch {}] window {} input poll {}:\n",
             watch.id,
             watch.object_id,
             watch.poll_count
         );
-        m03gkcdy62bnz808pmk4uzkjra_glfw_cli::print_history_changes(
-            std::format("[window {}] retained input history", watch.object_id),
-            iterator->second->input_states(),
-            make_input_change
+        std::cout << std::format(
+            "[window {}] retained input history: {}\n",
+            watch.object_id,
+            iterator->second->input_states()
         );
         return true;
     }
 
     case watch_target_t::joystick: {
         const auto iterator = m_joysticks.entries().find(watch.object_id);
-        if (
-            iterator == m_joysticks.entries().end() ||
-            !iterator->second.object ||
-            !iterator->second.connected
-        ) {
+        if (iterator == m_joysticks.entries().end() || !iterator->second.object || !iterator->second.connected) {
             std::cout << std::format(
                 "[watch {}] joystick {} disconnected; stopping.\n",
                 watch.id,
@@ -774,34 +521,23 @@ bool application_t::print_watch_sample(watch_t& watch) {
             return false;
         }
 
-        const auto make_joystick_change = [](
-            const glfw_api::joystick_state_t& previous,
-            const glfw_api::joystick_state_t& current
-        ) {
-            return glfw_api::joystick_state_change_t(previous, current);
-        };
-
         std::cout << std::format(
             "[watch {}] joystick {} poll {}:\n",
             watch.id,
             watch.object_id,
             watch.poll_count
         );
-        m03gkcdy62bnz808pmk4uzkjra_glfw_cli::print_history_changes(
-            std::format("[joystick {}] retained history", watch.object_id),
-            iterator->second.object->joystick_states(),
-            make_joystick_change
+        std::cout << std::format(
+            "[joystick {}] retained history: {}\n",
+            watch.object_id,
+            iterator->second.object->joystick_states()
         );
         return true;
     }
 
     case watch_target_t::gamepad: {
         const auto iterator = m_gamepads.entries().find(watch.object_id);
-        if (
-            iterator == m_gamepads.entries().end() ||
-            !iterator->second.object ||
-            !iterator->second.connected
-        ) {
+        if (iterator == m_gamepads.entries().end() || !iterator->second.object || !iterator->second.connected) {
             std::cout << std::format(
                 "[watch {}] gamepad {} disconnected; stopping.\n",
                 watch.id,
@@ -810,42 +546,22 @@ bool application_t::print_watch_sample(watch_t& watch) {
             return false;
         }
 
-        const auto make_gamepad_change = [](
-            const glfw_api::gamepad_state_t& previous,
-            const glfw_api::gamepad_state_t& current
-        ) {
-            return glfw_api::gamepad_state_change_t(previous, current);
-        };
-
         std::cout << std::format(
             "[watch {}] gamepad {} poll {}:\n",
             watch.id,
             watch.object_id,
             watch.poll_count
         );
-        m03gkcdy62bnz808pmk4uzkjra_glfw_cli::print_history_changes(
-            std::format("[gamepad {}] retained history", watch.object_id),
-            iterator->second.object->gamepad_states(),
-            make_gamepad_change
+        std::cout << std::format(
+            "[gamepad {}] retained history: {}\n",
+            watch.object_id,
+            iterator->second.object->gamepad_states()
         );
         return true;
     }
     }
 
     throw std::logic_error("application_t::print_watch_sample: unknown watch target");
-}
-
-std::string_view application_t::watch_target_label(watch_target_t target) {
-    switch (target) {
-    case watch_target_t::window_input:
-        return "window";
-    case watch_target_t::joystick:
-        return "joystick";
-    case watch_target_t::gamepad:
-        return "gamepad";
-    }
-
-    throw std::logic_error("application_t::watch_target_label: unknown watch target");
 }
 
 bool application_t::watch_target_uses_interval(watch_target_t target) {
@@ -860,11 +576,7 @@ bool application_t::watch_target_uses_interval(watch_target_t target) {
     throw std::logic_error("application_t::watch_target_uses_interval: unknown watch target");
 }
 
-void application_t::require_history_size(
-    std::size_t actual_size,
-    std::size_t required_size,
-    std::string_view owner
-) {
+void application_t::require_history_size(std::size_t actual_size, std::size_t required_size, std::string_view owner) {
     if (actual_size < required_size) {
         command_error(std::format(
             "{} has {} committed sample(s), but {} are required",

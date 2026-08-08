@@ -2,19 +2,49 @@
 # define M03GM33DJ5XO77VEGPBSPGER4R_CLI_API_H
 
 # include <algorithm>
+# include <charconv>
 # include <cctype>
+# include <cmath>
+# include <concepts>
 # include <cstddef>
+# include <filesystem>
 # include <format>
 # include <functional>
 # include <initializer_list>
 # include <iosfwd>
 # include <map>
 # include <span>
+# include <stdexcept>
 # include <string>
 # include <string_view>
+# include <system_error>
+# include <type_traits>
+# include <utility>
 # include <vector>
 
 namespace m03gm33dj5xo77vegpbspger4r_cli {
+
+template <typename T>
+struct argument_parser_t;
+
+template <>
+struct argument_parser_t<std::string_view>;
+
+template <>
+struct argument_parser_t<std::string>;
+
+template <>
+struct argument_parser_t<std::filesystem::path>;
+
+template <>
+struct argument_parser_t<bool>;
+
+template <std::integral T>
+requires (!std::same_as<T, bool>)
+struct argument_parser_t<T>;
+
+template <std::floating_point T>
+struct argument_parser_t<T>;
 
 /**
  * @brief Maintains a cursor over command arguments.
@@ -42,41 +72,19 @@ public:
     std::span<const std::string> remaining() const;
 
     /**
-     * @brief Pops the next argument.
+     * @brief Pops the next argument as T.
      */
-    std::string_view pop(std::string_view name);
+    template <typename T = std::string_view>
+    T pop(std::string_view name);
 
     /**
-     * @brief Pops the next argument as int.
+     * @brief Throws if arguments remain.
      */
-    int pop_int(std::string_view name);
-
-    /**
-     * @brief Pops the next argument as long long.
-     */
-    long long pop_long_long(std::string_view name);
-
-    /**
-     * @brief Pops the next argument as size_t.
-     */
-    std::size_t pop_size(std::string_view name);
-
-    /**
-     * @brief Pops the next argument as float.
-     */
-    float pop_float(std::string_view name);
-
-    /**
-     * @brief Pops the next argument as double.
-     */
-    double pop_double(std::string_view name);
-
-    /**
-     * @brief Pops the next argument as bool.
-     */
-    bool pop_bool(std::string_view name);
+    void expect_end(std::string_view usage) const;
 
 private:
+    std::string_view pop_token(std::string_view name);
+
     std::span<const std::string> m_values;
     std::size_t m_index;
 };
@@ -263,6 +271,16 @@ struct command_t {
     std::vector<std::string> path;
 
     /**
+     * @brief Additional dispatch paths hidden from help and completion.
+     */
+    std::vector<std::vector<std::string>> aliases;
+
+    /**
+     * @brief Excludes the command from help and command completion.
+     */
+    bool hidden;
+
+    /**
      * @brief Short help text.
      */
     std::string description;
@@ -324,13 +342,18 @@ public:
     bool run_arguments(std::span<const std::string> arguments, std::ostream& out, std::ostream& err);
 
     /**
+     * @brief Runs commands from a script file.
+     */
+    bool run_script(const std::filesystem::path& path, std::ostream& out, std::ostream& err, bool echo_commands = true);
+
+    /**
      * @brief Completes a command line at cursor.
      */
     std::vector<std::string> complete_line(std::string_view line, std::size_t cursor = std::string_view::npos) const;
 
 private:
-    const command_t& find(std::span<const std::string> tokens) const;
-    const command_t* find_completion_command(std::span<const std::string> prefix) const;
+    std::pair<const command_t*, std::size_t> find(std::span<const std::string> tokens) const;
+    std::pair<const command_t*, std::size_t> find_completion_command(std::span<const std::string> prefix) const;
     void validate(const command_t& command, std::span<const std::string> arguments) const;
     std::vector<std::string> complete(std::span<const std::string> prefix, std::string_view partial) const;
     std::vector<std::string> complete_topic(std::span<const std::string> prefix, std::string_view partial) const;
@@ -349,6 +372,89 @@ private:
 namespace std {
 
 template <>
+struct formatter<m03gm33dj5xo77vegpbspger4r_cli::argument_t>;
+
+template <>
+struct formatter<m03gm33dj5xo77vegpbspger4r_cli::command_t>;
+
+} // namespace std
+
+namespace m03gm33dj5xo77vegpbspger4r_cli {
+
+template <>
+struct argument_parser_t<std::string_view> {
+    static std::string_view parse(std::string_view value, std::string_view) {
+        return value;
+    }
+};
+
+template <>
+struct argument_parser_t<std::string> {
+    static std::string parse(std::string_view value, std::string_view) {
+        return std::string(value);
+    }
+};
+
+template <>
+struct argument_parser_t<std::filesystem::path> {
+    static std::filesystem::path parse(std::string_view value, std::string_view) {
+        return std::filesystem::path(std::string(value));
+    }
+};
+
+template <>
+struct argument_parser_t<bool> {
+    static bool parse(std::string_view value, std::string_view name) {
+        if (value == "true" || value == "on" || value == "yes" || value == "1") {
+            return true;
+        }
+        if (value == "false" || value == "off" || value == "no" || value == "0") {
+            return false;
+        }
+        throw std::invalid_argument(std::format("{} must be true/false, on/off, yes/no or 1/0, got '{}'", name, value));
+    }
+};
+
+template <std::integral T>
+requires (!std::same_as<T, bool>)
+struct argument_parser_t<T> {
+    static T parse(std::string_view value, std::string_view name) {
+        T result{};
+        const char* const begin = value.data();
+        const char* const end = begin + value.size();
+        const auto [position, error] = std::from_chars(begin, end, result);
+        if (error != std::errc{} || position != end) {
+            throw std::invalid_argument(std::format("{} must be an integer, got '{}'", name, value));
+        }
+        return result;
+    }
+};
+
+template <std::floating_point T>
+struct argument_parser_t<T> {
+    static T parse(std::string_view value, std::string_view name) {
+        T result{};
+        const char* const begin = value.data();
+        const char* const end = begin + value.size();
+        const auto [position, error] = std::from_chars(begin, end, result);
+        if (error != std::errc{} || position != end || !std::isfinite(result)) {
+            throw std::invalid_argument(std::format("{} must be a finite number, got '{}'", name, value));
+        }
+        return result;
+    }
+};
+
+template <typename T>
+T arguments_t::pop(std::string_view name) {
+    static_assert(std::same_as<T, std::remove_cvref_t<T>>, "arguments_t::pop<T>: T must not be cv-qualified or a reference.");
+    return argument_parser_t<T>::parse(pop_token(name), name);
+}
+
+} // namespace m03gm33dj5xo77vegpbspger4r_cli
+
+namespace std {
+
+template <>
 struct formatter<m03gm33dj5xo77vegpbspger4r_cli::argument_t> {
     constexpr auto parse(format_parse_context& ctx) {
         return ctx.begin();
@@ -356,20 +462,25 @@ struct formatter<m03gm33dj5xo77vegpbspger4r_cli::argument_t> {
 
     auto format(const m03gm33dj5xo77vegpbspger4r_cli::argument_t& argument, auto& ctx) const {
         auto out = ctx.out();
+
         if (argument.is_optional()) {
             out = format_to(out, "[");
         }
+
         if (!argument.usage().empty()) {
             out = format_to(out, "{}", argument.usage());
         } else {
             out = format_to(out, "<{}>", argument.name());
         }
+
         if (argument.is_variadic()) {
             out = format_to(out, "...");
         }
+        
         if (argument.is_optional()) {
             out = format_to(out, "]");
         }
+
         return out;
     }
 };
@@ -382,6 +493,7 @@ struct formatter<m03gm33dj5xo77vegpbspger4r_cli::command_t> {
 
     auto format(const m03gm33dj5xo77vegpbspger4r_cli::command_t& command, auto& ctx) const {
         auto out = ctx.out();
+
         if (!command.usage.empty()) {
             return format_to(out, "{}", command.usage);
         }
@@ -392,8 +504,9 @@ struct formatter<m03gm33dj5xo77vegpbspger4r_cli::command_t> {
                 out = format_to(out, " ");
             }
             first = false;
-            out = format_token(component, out);
+            out = format_to(out, "{}", component);
         }
+
         for (const m03gm33dj5xo77vegpbspger4r_cli::argument_t& argument : command.arguments) {
             if (!first) {
                 out = format_to(out, " ");
@@ -401,28 +514,8 @@ struct formatter<m03gm33dj5xo77vegpbspger4r_cli::command_t> {
             first = false;
             out = format_to(out, "{}", argument);
         }
+
         return out;
-    }
-
-private:
-    template <typename OutputIterator>
-    static OutputIterator format_token(std::string_view token, OutputIterator out) {
-        const bool needs_quotes = token.empty() || std::ranges::any_of(token, [](char character) {
-            return std::isspace(static_cast<unsigned char>(character)) != 0 || character == '\'' || character == '"' || character == '\\' || character == '#';
-        });
-
-        if (!needs_quotes) {
-            return format_to(out, "{}", token);
-        }
-
-        out = format_to(out, "\"");
-        for (const char character : token) {
-            if (character == '"' || character == '\\') {
-                out = format_to(out, "\\");
-            }
-            out = format_to(out, "{}", character);
-        }
-        return format_to(out, "\"");
     }
 };
 

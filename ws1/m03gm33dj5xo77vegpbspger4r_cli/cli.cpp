@@ -3,7 +3,6 @@
 #include <exception>
 #include <filesystem>
 #include <format>
-#include <fstream>
 #include <iostream>
 #include <span>
 #include <stdexcept>
@@ -38,8 +37,8 @@ int main(int argc, char** argv) {
         }},
         {{"math", "add"}, "Add two integers.", {cli::argument_t::integer("left"), cli::argument_t::integer("right")}, [](cli::context_t& context) {
             auto& arguments = context.arguments;
-            const long long left = arguments.pop_long_long("left");
-            const long long right = arguments.pop_long_long("right");
+            const long long left = arguments.pop<long long>("left");
+            const long long right = arguments.pop<long long>("right");
             context.out << std::format("{}\n", left + right);
         }},
         {{"set", "mode"}, "Exercise choice validation and completion.", {cli::argument_t::choice("mode", {"fast", "safe", "verbose"})}, [](cli::context_t& context) {
@@ -63,28 +62,13 @@ int main(int argc, char** argv) {
             app.run_command(context.arguments.pop("command"), context.out, context.err);
         }},
         {{"--script"}, "Run commands from a script file.", {cli::argument_t::file("file")}, [&app](cli::context_t& context) {
-            const std::filesystem::path path(std::string(context.arguments.pop("file")));
-            std::ifstream input(path);
-            if (!input) {
-                throw std::invalid_argument(std::format("cannot open script '{}'", path.string()));
-            }
-
-            std::string line;
-            std::size_t line_number = 0;
-            while (app.running() && std::getline(input, line)) {
-                ++line_number;
-                try {
-                    context.out << std::format("{}:{}> {}\n", path.string(), line_number, line);
-                    app.run_command(line, context.out, context.err);
-                } catch (const std::exception& exception) {
-                    throw std::invalid_argument(std::format("{}:{}: {}", path.string(), line_number, exception.what()));
-                }
-            }
+            const std::filesystem::path path = context.arguments.pop<std::filesystem::path>("file");
+            app.run_script(path, context.out, context.err);
         }},
         {{"--complete"}, "Complete a command line.", {cli::argument_t::token("line"), cli::argument_t::unsigned_integer("cursor").optional()}, [&app](cli::context_t& context) {
             auto& arguments = context.arguments;
             const std::string_view line = arguments.pop("line");
-            const std::size_t cursor = arguments.empty() ? std::string_view::npos : arguments.pop_size("cursor");
+            const std::size_t cursor = arguments.empty() ? std::string_view::npos : arguments.pop<std::size_t>("cursor");
             for (const std::string& candidate : app.complete_line(line, cursor)) {
                 context.out << candidate << '\n';
             }

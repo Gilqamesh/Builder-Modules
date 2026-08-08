@@ -1,20 +1,10 @@
 #include "cli/cli_application.h"
 
-// binary_phase_t::install_cli currently compiles only cli.cpp. Keep the CLI
-// implementation split by responsibility in source control while compiling it
-// as one translation unit. builder.cpp excludes these files from the library.
-#include "cli/cli_application.cpp"
-#include "cli/cli_core_commands.cpp"
-#include "cli/cli_monitor_commands.cpp"
-#include "cli/cli_device_commands.cpp"
-#include "cli/cli_window_commands.cpp"
-#include "cli/cli_settings_commands.cpp"
-#include "cli/cli_window_callbacks.cpp"
-
 #include <exception>
 #include <format>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 #include <string_view>
 #include <vector>
 
@@ -84,7 +74,7 @@ int main(int argc, char** argv) {
         }
 
         return 0;
-    } catch (const glfw_cli::command_error_t& exception) {
+    } catch (const std::invalid_argument& exception) {
         std::cerr << std::format("error: {}\n", exception.what());
         return 2;
     } catch (const std::exception& exception) {

@@ -19,10 +19,10 @@ namespace {
 
 std::string_view action_name(int action) {
     switch (action) {
-        case GLFW_PRESS: return "press";
-        case GLFW_RELEASE: return "release";
-        case GLFW_REPEAT: return "repeat";
-        default: return "unknown";
+    case GLFW_PRESS: return "press";
+    case GLFW_RELEASE: return "release";
+    case GLFW_REPEAT: return "repeat";
+    default: return "unknown";
     }
 }
 
@@ -62,21 +62,11 @@ void application_t::install_window_callbacks(id_t id, glfw_api::window_t& window
     });
 
     window.framebuffer_size_callback([id](glfw_api::window_t*, int width, int height) {
-        print_event(std::format(
-            "[event window {}] framebuffer size: {}x{}",
-            id,
-            width,
-            height
-        ));
+        print_event(std::format("[event window {}] framebuffer size: {}x{}", id, width, height));
     });
 
     window.content_scale_callback([id](glfw_api::window_t*, float xscale, float yscale) {
-        print_event(std::format(
-            "[event window {}] content scale: {}, {}",
-            id,
-            xscale,
-            yscale
-        ));
+        print_event(std::format("[event window {}] content scale: {}, {}", id, xscale, yscale));
     });
 
     window.mouse_button_callback([id](glfw_api::window_t*, int button, int action, int mods) {
@@ -99,12 +89,7 @@ void application_t::install_window_callbacks(id_t id, glfw_api::window_t& window
     });
 
     window.scroll_callback([id](glfw_api::window_t*, double xoffset, double yoffset) {
-        print_event(std::format(
-            "[event window {}] scroll: {}, {}",
-            id,
-            xoffset,
-            yoffset
-        ));
+        print_event(std::format("[event window {}] scroll: {}, {}", id, xoffset, yoffset));
     });
 
     window.key_callback([id](glfw_api::window_t*, int key, int scancode, int action, int mods) {
@@ -202,7 +187,7 @@ void application_t::print_window_status(id_t id, glfw_api::window_t& window) {
     );
 
     const auto& input_history = window.input_states();
-    if (input_history.size() != 0) {
+    if (input_history.history_size() != 0) {
         std::cout << std::format(
             "  input history[0]: {}\n",
             input_history.history(0)
@@ -216,16 +201,11 @@ void application_t::print_window_status(id_t id, glfw_api::window_t& window) {
 }
 
 std::vector<unsigned char> application_t::make_test_pixels(int size) {
-    std::vector<unsigned char> pixels(
-        static_cast<std::size_t>(size) * static_cast<std::size_t>(size) * 4
-    );
+    std::vector<unsigned char> pixels(static_cast<std::size_t>(size) * static_cast<std::size_t>(size) * 4);
 
     for (int y = 0; y < size; ++y) {
         for (int x = 0; x < size; ++x) {
-            const bool alternate = (
-                (x / std::max(1, size / 4)) +
-                (y / std::max(1, size / 4))
-            ) % 2 != 0;
+            const bool alternate = ((x / std::max(1, size / 4)) + (y / std::max(1, size / 4))) % 2 != 0;
             const std::size_t offset = static_cast<std::size_t>(y * size + x) * 4;
 
             pixels[offset + 0] = alternate ? 235 : 35;

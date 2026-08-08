@@ -1,5 +1,5 @@
 #define GLAD_GL_IMPLEMENTATION
-#include "opengl_renderer.h"
+#include "api.h"
 
 #include <stdexcept>
 #include <format>
@@ -14,7 +14,7 @@ opengl_renderer_t::opengl_renderer_t(std::shared_ptr<m03gkcdy62bnz808pmk4uzkjra_
         throw std::runtime_error(std::format("opengl_renderer_t: expected window client API to be {}, got {}", expected_client_api, window->client_api()));
     }
 
-    if (!window->make_context_current()) {
+    if (!window->context_current(true)) {
         throw std::runtime_error("opengl_renderer_t: failed to make the OpenGL context current");
     }
 

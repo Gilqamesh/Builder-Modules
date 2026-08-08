@@ -3,8 +3,10 @@
 
 # include <m03gm33dj5xo77vegpbspger4r_cli/api.h>
 
+# include <chrono>
 # include <cstddef>
 # include <filesystem>
+# include <functional>
 # include <iosfwd>
 # include <optional>
 # include <string>
@@ -32,6 +34,11 @@ public:
     void history_file(std::filesystem::path path);
 
     /**
+     * @brief Calls callback while waiting for input.
+     */
+    void idle(std::chrono::milliseconds interval, std::function<void()> callback);
+
+    /**
      * @brief Runs the shell with standard streams.
      */
     int run();
@@ -46,6 +53,8 @@ private:
     std::string m_prompt;
     std::optional<std::size_t> m_history_size;
     std::optional<std::filesystem::path> m_history_file;
+    std::optional<std::chrono::milliseconds> m_idle_interval;
+    std::function<void()> m_idle_callback;
 };
 
 } // namespace m03gm491bquimk7j45lpvis1yq_cli_shell

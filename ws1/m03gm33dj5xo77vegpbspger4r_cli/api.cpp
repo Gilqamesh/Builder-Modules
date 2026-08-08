@@ -4,6 +4,7 @@
 #include <cmath>
 #include <concepts>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <optional>
 #include <ostream>
@@ -307,6 +308,17 @@ bool starts_with(std::span<const std::string> path, std::span<const std::string>
     return true;
 }
 
+void validate_command_path(std::span<const std::string> path, std::string_view name) {
+    if (path.empty()) {
+        throw std::logic_error(std::format("{} must not be empty", name));
+    }
+    for (const std::string& component : path) {
+        if (component.empty()) {
+            throw std::logic_error(std::format("{} component must not be empty", name));
+        }
+    }
+}
+
 void sort_commands(std::vector<const command_t*>& commands) {
     std::ranges::sort(commands, {}, [](const command_t* command) {
         return render_usage(*command);
@@ -352,39 +364,17 @@ std::span<const std::string> arguments_t::remaining() const {
     return m_values.subspan(m_index);
 }
 
-std::string_view arguments_t::pop(std::string_view name) {
+std::string_view arguments_t::pop_token(std::string_view name) {
     if (empty()) {
         throw std::invalid_argument(std::format("missing {}", name));
     }
     return m_values[m_index++];
 }
 
-int arguments_t::pop_int(std::string_view name) {
-    return parse_integer<int>(pop(name), name);
-}
-
-long long arguments_t::pop_long_long(std::string_view name) {
-    return parse_integer<long long>(pop(name), name);
-}
-
-std::size_t arguments_t::pop_size(std::string_view name) {
-    const auto value = parse_integer<unsigned long long>(pop(name), name);
-    if (value > std::numeric_limits<std::size_t>::max()) {
-        throw std::invalid_argument(std::format("{} is too large", name));
+void arguments_t::expect_end(std::string_view usage) const {
+    if (!empty()) {
+        throw std::invalid_argument(std::format("usage: {}", usage));
     }
-    return static_cast<std::size_t>(value);
-}
-
-float arguments_t::pop_float(std::string_view name) {
-    return parse_floating<float>(pop(name), name);
-}
-
-double arguments_t::pop_double(std::string_view name) {
-    return parse_floating<double>(pop(name), name);
-}
-
-bool arguments_t::pop_bool(std::string_view name) {
-    return parse_bool(pop(name), name);
 }
 
 argument_t::argument_t():
@@ -529,6 +519,8 @@ bool context_t::stop_requested() const {
 
 command_t::command_t():
     path(),
+    aliases(),
+    hidden(false),
     description(),
     arguments(),
     handler(),
@@ -553,6 +545,8 @@ command_t::command_t(std::vector<std::string> path, std::string usage, std::stri
 
 command_t::command_t(std::vector<std::string> path, std::string usage, std::string description, std::vector<argument_t> arguments, std::function<void(context_t&)> handler):
     path(std::move(path)),
+    aliases(),
+    hidden(false),
     description(std::move(description)),
     arguments(std::move(arguments)),
     handler(std::move(handler)),
@@ -569,17 +563,21 @@ application_t::application_t():
 }
 
 void application_t::add(command_t command) {
-    if (command.path.empty()) {
-        throw std::logic_error("command path must not be empty");
-    }
     if (!command.handler) {
         throw std::logic_error("command handler must not be empty");
     }
 
-    for (const std::string& component : command.path) {
-        if (component.empty()) {
-            throw std::logic_error("command path component must not be empty");
+    std::set<std::vector<std::string>> command_paths;
+    const auto add_path = [&](const std::vector<std::string>& path, std::string_view name) {
+        validate_command_path(path, name);
+        if (!command_paths.insert(path).second || m_index_by_path.contains(path)) {
+            throw std::logic_error(std::format("duplicate command path '{}'", render_tokens(path)));
         }
+    };
+
+    add_path(command.path, "command path");
+    for (const std::vector<std::string>& alias : command.aliases) {
+        add_path(alias, "command alias");
     }
 
     bool saw_optional = false;
@@ -597,13 +595,12 @@ void application_t::add(command_t command) {
         saw_optional = saw_optional || argument.is_optional();
     }
 
-    const auto [iterator, inserted] = m_index_by_path.emplace(command.path, m_commands.size());
-    if (!inserted) {
-        static_cast<void>(iterator);
-        throw std::logic_error(std::format("duplicate command path '{}'", render_tokens(command.path)));
+    const std::size_t command_index = m_commands.size();
+    for (const std::vector<std::string>& path : command_paths) {
+        m_index_by_path.emplace(path, command_index);
+        m_max_path_size = std::max(m_max_path_size, path.size());
     }
 
-    m_max_path_size = std::max(m_max_path_size, command.path.size());
     m_commands.push_back(std::move(command));
 }
 
@@ -640,18 +637,57 @@ bool application_t::run_arguments(std::span<const std::string> arguments, std::o
     return m_running;
 }
 
+bool application_t::run_script(
+    const std::filesystem::path& path,
+    std::ostream& out,
+    std::ostream& err,
+    bool echo_commands
+) {
+    std::ifstream input(path);
+    if (!input) {
+        throw std::invalid_argument(std::format("cannot open script '{}'", path.string()));
+    }
+
+    std::string line;
+    std::size_t line_number = 0;
+    while (m_running && std::getline(input, line)) {
+        ++line_number;
+
+        try {
+            const std::vector<std::string> tokens = tokenize(line);
+            if (tokens.empty()) {
+                continue;
+            }
+
+            if (echo_commands) {
+                out << std::format("{}:{}> {}\n", path.string(), line_number, line);
+            }
+            run_tokens(tokens, out, err);
+        } catch (const std::exception& exception) {
+            throw std::invalid_argument(std::format(
+                "{}:{}: {}",
+                path.string(),
+                line_number,
+                exception.what()
+            ));
+        }
+    }
+
+    return m_running;
+}
+
 std::vector<std::string> application_t::complete_line(std::string_view line, std::size_t cursor) const {
     const completion_line_t completion = parse_completion_line(line, cursor);
     return complete(completion.prefix, completion.partial);
 }
 
-const command_t& application_t::find(std::span<const std::string> tokens) const {
+std::pair<const command_t*, std::size_t> application_t::find(std::span<const std::string> tokens) const {
     const std::size_t longest = std::min(tokens.size(), m_max_path_size);
     for (std::size_t size = longest; size > 0; --size) {
         std::vector<std::string> key(tokens.begin(), tokens.begin() + static_cast<std::ptrdiff_t>(size));
         const auto iterator = m_index_by_path.find(key);
         if (iterator != m_index_by_path.end()) {
-            return m_commands[iterator->second];
+            return {&m_commands[iterator->second], size};
         }
     }
 
@@ -669,16 +705,16 @@ const command_t& application_t::find(std::span<const std::string> tokens) const 
     throw std::invalid_argument("empty command");
 }
 
-const command_t* application_t::find_completion_command(std::span<const std::string> prefix) const {
+std::pair<const command_t*, std::size_t> application_t::find_completion_command(std::span<const std::string> prefix) const {
     const std::size_t longest = std::min(prefix.size(), m_max_path_size);
     for (std::size_t size = longest; size > 0; --size) {
         std::vector<std::string> key(prefix.begin(), prefix.begin() + static_cast<std::ptrdiff_t>(size));
         const auto iterator = m_index_by_path.find(key);
         if (iterator != m_index_by_path.end()) {
-            return &m_commands[iterator->second];
+            return {&m_commands[iterator->second], size};
         }
     }
-    return nullptr;
+    return {nullptr, 0};
 }
 
 void application_t::validate(const command_t& command, std::span<const std::string> arguments) const {
@@ -713,12 +749,12 @@ std::vector<std::string> application_t::complete(std::span<const std::string> pr
         return candidates;
     }
 
-    const command_t* command = find_completion_command(prefix);
+    const auto [command, path_size] = find_completion_command(prefix);
     if (!command) {
         return {};
     }
 
-    const auto arguments = prefix.subspan(command->path.size());
+    const auto arguments = prefix.subspan(path_size);
     const argument_t* argument = nullptr;
     if (arguments.size() < command->arguments.size()) {
         argument = &command->arguments[arguments.size()];
@@ -735,7 +771,7 @@ std::vector<std::string> application_t::complete(std::span<const std::string> pr
 std::vector<std::string> application_t::complete_topic(std::span<const std::string> prefix, std::string_view partial) const {
     std::set<std::string> candidates;
     for (const command_t& command : m_commands) {
-        if (command.path.size() <= prefix.size() || !starts_with(command.path, prefix)) {
+        if (command.hidden || command.path.size() <= prefix.size() || !starts_with(command.path, prefix)) {
             continue;
         }
 
@@ -752,6 +788,9 @@ void application_t::help(std::ostream& out, std::span<const std::string> prefix)
         std::vector<const command_t*> commands;
         std::set<std::string> topics;
         for (const command_t& command : m_commands) {
+            if (command.hidden) {
+                continue;
+            }
             if (command.path.size() == 1) {
                 commands.push_back(&command);
             } else {
@@ -776,6 +815,9 @@ void application_t::help(std::ostream& out, std::span<const std::string> prefix)
     std::vector<const command_t*> direct_commands;
     std::set<std::string> deeper_topics;
     for (const command_t& command : m_commands) {
+        if (command.hidden) {
+            continue;
+        }
         if (!starts_with(command.path, prefix)) {
             continue;
         }
@@ -826,13 +868,13 @@ void application_t::help(std::ostream& out, std::span<const std::string> prefix)
 }
 
 bool application_t::run_tokens(std::span<const std::string> tokens, std::ostream& out, std::ostream& err) {
-    const command_t& command = find(tokens);
-    const auto argument_values = tokens.subspan(command.path.size());
-    validate(command, argument_values);
+    const auto [command, path_size] = find(tokens);
+    const auto argument_values = tokens.subspan(path_size);
+    validate(*command, argument_values);
 
     arguments_t arguments(argument_values);
     context_t context(arguments, out, err);
-    command.handler(context);
+    command->handler(context);
 
     if (context.stop_requested()) {
         stop();

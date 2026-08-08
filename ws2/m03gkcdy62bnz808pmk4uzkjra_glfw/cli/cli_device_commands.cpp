@@ -1,5 +1,4 @@
 #include "cli_application.h"
-#include "cli_history.h"
 
 #include <cstddef>
 #include <filesystem>
@@ -8,372 +7,429 @@
 #include <iostream>
 #include <iterator>
 #include <string>
-#include <string_view>
 #include <utility>
 
 namespace m03gkcdy62bnz808pmk4uzkjra_glfw_cli {
 
-namespace {
-
-template <typename Mapping>
-concept supports_direct_gamepad_mapping_update = requires(const Mapping& mapping) {
-    glfw_api::update_joystick_to_gamepad_mapping(mapping);
-};
-
-template <typename Mapping>
-requires supports_direct_gamepad_mapping_update<Mapping>
-void update_gamepad_mapping_impl(const Mapping& mapping) {
-    glfw_api::update_joystick_to_gamepad_mapping(mapping);
-}
-
-template <typename Mapping>
-requires (!supports_direct_gamepad_mapping_update<Mapping>)
-void update_gamepad_mapping_impl(const Mapping& mapping) {
-    glfw_api::update_joystick_to_gamepad_mapping(
-        glfw_api::joystick_to_gamepad_mapping_t(std::string(mapping))
-    );
-}
-
-void update_gamepad_mapping(std::string mapping) {
-    if (mapping.empty()) {
-        command_error("mapping string must not be empty");
-    }
-
-    update_gamepad_mapping_impl(mapping);
-}
-
-std::string read_gamepad_mapping_file(const std::filesystem::path& path) {
-    std::ifstream input(path);
-    if (!input) {
-        command_error(std::format("cannot open gamepad mapping file '{}'", path.string()));
-    }
-
-    std::string contents{
-        std::istreambuf_iterator<char>(input),
-        std::istreambuf_iterator<char>()
-    };
-    if (input.bad()) {
-        command_error(std::format("failed to read gamepad mapping file '{}'", path.string()));
-    }
-
-    return contents;
-}
-
-} // namespace
-
 void application_t::register_device_commands() {
-    const auto register_group = [this](
-        std::string group,
-        auto& registry,
-        auto enumerate,
-        auto poll_device,
-        auto history_of,
-        auto resize_history,
-        auto make_change
-    ) {
-        auto* const registry_pointer = &registry;
-        const argument_spec_t retained_device_id_argument =
-            group == "joystick"
-                ? joystick_id_argument(group + "-id")
-                : gamepad_id_argument(group + "-id");
-        const argument_spec_t connected_device_id_argument =
-            group == "joystick"
-                ? connected_joystick_id_argument(group + "-id")
-                : connected_gamepad_id_argument(group + "-id");
-
-        const auto print_complete_history = [group, history_of, make_change](
-            id_t id,
-            auto& device
-        ) {
-            const std::string heading = std::format("{} {} history", group, id);
-            m03gkcdy62bnz808pmk4uzkjra_glfw_cli::print_history(
-                heading,
-                history_of(device),
-                make_change
-            );
-        };
-
-        m_commands.add(
-            {group, "refresh"},
-            group + " refresh",
-            "Refresh stable IDs and report connection changes.",
-            [registry_pointer, enumerate, group](arguments_t& arguments) {
-                arguments.expect_end(group + " refresh");
-                registry_pointer->refresh(enumerate(), true);
-                std::cout << std::format("{} registry refreshed.\n", group);
-            },
-            false
-        );
-
-        m_commands.add(
-            {group, "list"},
-            group + " list",
-            "List connected devices and retained disconnected snapshots.",
-            [registry_pointer, enumerate, history_of, group](arguments_t& arguments) {
-                arguments.expect_end(group + " list");
-                registry_pointer->refresh(enumerate(), false);
-
-                if (registry_pointer->entries().empty()) {
-                    std::cout << std::format("No {} objects have been observed.\n", group);
-                    return;
-                }
-
-                for (const auto& [id, entry] : registry_pointer->entries()) {
-                    const auto& history = history_of(*entry.object);
-                    const std::string native_id = entry.object->id()
-                        ? std::to_string(*entry.object->id())
-                        : "null";
-                    std::cout << std::format(
-                        "{}: {}, native_id={}, name={}, samples={}/{}\n",
-                        id,
-                        entry.connected ? "connected" : "disconnected snapshot",
-                        native_id,
-                        quote_token(entry.object->name()),
-                        history.size(),
-                        history.capacity()
-                    );
-                }
-            }
-        );
-
-        m_commands.add(
-            {group, "show"},
-            group + " show <" + group + "-id>",
-            "Show the complete device object, including retained history.",
-            [registry_pointer, group](arguments_t& arguments) {
-                const id_t id = arguments.pop_id(group + "-id");
-                arguments.expect_end(group + " show <" + group + "-id>");
-
-                const auto& entry = registry_pointer->require(id, false);
-                std::cout << std::format(
-                    "{} {} [{}]: {}\n",
-                    group,
-                    id,
-                    entry.connected ? "connected" : "disconnected snapshot",
-                    *entry.object
-                );
-            },
-            {
-                retained_device_id_argument
-            }
-        );
-
-        m_commands.add(
-            {group, "poll"},
-            group + " poll <" + group + "-id>",
-            "Poll and commit one state snapshot immediately.",
-            [registry_pointer, poll_device, history_of, group](arguments_t& arguments) {
-                const id_t id = arguments.pop_id(group + "-id");
-                arguments.expect_end(group + " poll <" + group + "-id>");
-
-                auto& device = *registry_pointer->require(id, true).object;
-                poll_device(device);
-                auto& history = history_of(device);
-                history.commit();
-
-                std::cout << std::format(
-                    "{} {} history[0]: {}\n",
-                    group,
-                    id,
-                    history.history(0)
-                );
-            },
-            {
-                connected_device_id_argument
-            },
-            false
-        );
-
-        m_commands.add(
-            {group, "state"},
-            group + " state <" + group + "-id>",
-            "Show the newest committed state.",
-            [registry_pointer, history_of, group](arguments_t& arguments) {
-                const id_t id = arguments.pop_id(group + "-id");
-                arguments.expect_end(group + " state <" + group + "-id>");
-
-                const auto& history = history_of(*registry_pointer->require(id, false).object);
-                require_history_size(history.size(), 1, std::format("{} {}", group, id));
-                std::cout << std::format("{}\n", history.history(0));
-            },
-            {
-                retained_device_id_argument
-            }
-        );
-
-        const auto print_latest_delta = [
-            registry_pointer,
-            history_of,
-            make_change,
-            group
-        ](id_t id) {
-            const auto& history = history_of(*registry_pointer->require(id, false).object);
-            require_history_size(history.size(), 2, std::format("{} {}", group, id));
-            const auto change = make_change(history.history(1), history.history(0));
-            std::cout << std::format("{}\n", change);
-        };
-
-        m_commands.add(
-            {group, "state-delta"},
-            group + " state-delta <" + group + "-id>",
-            "Show the change from history[1] to history[0].",
-            [print_latest_delta, group](arguments_t& arguments) {
-                const id_t id = arguments.pop_id(group + "-id");
-                arguments.expect_end(group + " state-delta <" + group + "-id>");
-                print_latest_delta(id);
-            },
-            {
-                retained_device_id_argument
-            }
-        );
-
-        m_commands.add(
-            {group, "delta"},
-            group + " delta <" + group + "-id>",
-            "Alias for state-delta.",
-            [print_latest_delta, group](arguments_t& arguments) {
-                const id_t id = arguments.pop_id(group + "-id");
-                arguments.expect_end(group + " delta <" + group + "-id>");
-                print_latest_delta(id);
-            },
-            {
-                retained_device_id_argument
-            }
-        );
-
-        m_commands.add(
-            {group, "history"},
-            group + " history <" + group + "-id>",
-            "Show every retained state and every adjacent change.",
-            [registry_pointer, print_complete_history, group](arguments_t& arguments) {
-                const id_t id = arguments.pop_id(group + "-id");
-                arguments.expect_end(group + " history <" + group + "-id>");
-                print_complete_history(id, *registry_pointer->require(id, false).object);
-            },
-            {
-                retained_device_id_argument
-            }
-        );
-
-        m_commands.add(
-            {group, "history-size"},
-            group + " history-size <" + group + "-id> <sample-count>",
-            "Replace retained state history with a new sample capacity.",
-            [
-                registry_pointer,
-                poll_device,
-                history_of,
-                resize_history,
-                group
-            ](arguments_t& arguments) {
-                const id_t id = arguments.pop_id(group + "-id");
-                const std::size_t sample_count = arguments.pop_size("sample-count");
-                arguments.expect_end(
-                    group + " history-size <" + group + "-id> <sample-count>"
-                );
-
-                if (sample_count == 0) {
-                    command_error("sample-count must be positive");
-                }
-
-                auto& device = *registry_pointer->require(id, true).object;
-                resize_history(device, sample_count);
-
-                auto& history = history_of(device);
-                poll_device(device);
-                history.commit();
-
-                std::cout << std::format(
-                    "{} {} history capacity set to {}; samples={}\n",
-                    group,
-                    id,
-                    history.capacity(),
-                    history.size()
-                );
-            },
-            {
-                connected_device_id_argument,
-                command_table_t::argument("sample-count")
-            },
-            false
+    const auto print_joystick_delta = [this](id_t id) {
+        const auto& history = m_joysticks.require(id, false).object->joystick_states();
+        require_history_size(history.history_size(), 2, std::format("joystick {}", id));
+        std::cout << std::format(
+            "{}\n",
+            glfw_api::joystick_state_change_t(history.history(1), history.history(0))
         );
     };
 
-    register_group(
-        "joystick",
-        m_joysticks,
-        [] {
-            return glfw_api::joysticks();
-        },
-        [](glfw_api::joystick_t& joystick) {
-            glfw_api::poll_joystick(joystick);
-        },
-        [](auto& joystick) -> auto& {
-            return joystick.joystick_states();
-        },
-        [](glfw_api::joystick_t& joystick, std::size_t sample_count) {
-            joystick.joystick_states() = glfw_api::joystick_t::joystick_states_t(sample_count);
-        },
-        [](const auto& previous, const auto& current) {
-            return glfw_api::joystick_state_change_t(previous, current);
-        }
-    );
-
-    register_group(
-        "gamepad",
-        m_gamepads,
-        [] {
-            return glfw_api::gamepads();
-        },
-        [](glfw_api::gamepad_t& gamepad) {
-            glfw_api::poll_gamepad(gamepad);
-        },
-        [](auto& gamepad) -> auto& {
-            return gamepad.gamepad_states();
-        },
-        [](glfw_api::gamepad_t& gamepad, std::size_t sample_count) {
-            gamepad.gamepad_states() = glfw_api::gamepad_t::gamepad_states_t(sample_count);
-        },
-        [](const auto& previous, const auto& current) {
-            return glfw_api::gamepad_state_change_t(previous, current);
-        }
-    );
+    const auto print_gamepad_delta = [this](id_t id) {
+        const auto& history = m_gamepads.require(id, false).object->gamepad_states();
+        require_history_size(history.history_size(), 2, std::format("gamepad {}", id));
+        std::cout << std::format(
+            "{}\n",
+            glfw_api::gamepad_state_change_t(history.history(1), history.history(0))
+        );
+    };
 
     const auto apply_gamepad_mapping = [this](std::string mapping) {
-        update_gamepad_mapping(std::move(mapping));
+        if (mapping.empty()) {
+            command_error("mapping string must not be empty");
+        }
+
+        glfw_api::update_joystick_to_gamepad_mapping(glfw_api::joystick_to_gamepad_mapping_t(mapping));
         refresh_all(true);
         sample_all_devices();
         std::cout << "Gamepad mapping updated.\n";
     };
 
-    m_commands.add(
+    add_command(
+        {"joystick", "refresh"},
+        "joystick refresh",
+        "Refresh stable IDs and report connection changes.",
+        [this](arguments_t& arguments) {
+            arguments.expect_end("joystick refresh");
+            m_joysticks.refresh(glfw_api::joysticks(), true);
+            std::cout << "joystick registry refreshed.\n";
+        },
+        false
+    );
+
+    add_command(
+        {"joystick", "list"},
+        "joystick list",
+        "List connected devices and retained disconnected snapshots.",
+        [this](arguments_t& arguments) {
+            arguments.expect_end("joystick list");
+            m_joysticks.refresh(glfw_api::joysticks(), false);
+
+            if (m_joysticks.entries().empty()) {
+                std::cout << "No joystick objects have been observed.\n";
+                return;
+            }
+
+            for (const auto& [id, entry] : m_joysticks.entries()) {
+                std::cout << std::format(
+                    "joystick {} [{}]: {}\n",
+                    id,
+                    entry.connected ? "connected" : "disconnected snapshot",
+                    *entry.object
+                );
+            }
+        }
+    );
+
+    add_command(
+        {"joystick", "show"},
+        "joystick show <joystick-id>",
+        "Show the complete device object, including retained history.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("joystick-id");
+            arguments.expect_end("joystick show <joystick-id>");
+
+            const auto& entry = m_joysticks.require(id, false);
+            std::cout << std::format(
+                "joystick {} [{}]: {}\n",
+                id,
+                entry.connected ? "connected" : "disconnected snapshot",
+                *entry.object
+            );
+        },
+        {
+            joystick_id_argument("joystick-id")
+        }
+    );
+
+    add_command(
+        {"joystick", "poll"},
+        "joystick poll <joystick-id>",
+        "Poll and commit one state snapshot immediately.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("joystick-id");
+            arguments.expect_end("joystick poll <joystick-id>");
+
+            auto& joystick = *m_joysticks.require(id, true).object;
+            glfw_api::poll_joystick(joystick);
+            auto& history = joystick.joystick_states();
+            history.commit();
+
+            std::cout << std::format("joystick {} history[0]: {}\n", id, history.history(0));
+        },
+        {
+            connected_joystick_id_argument("joystick-id")
+        },
+        false
+    );
+
+    add_command(
+        {"joystick", "state"},
+        "joystick state <joystick-id>",
+        "Show the newest committed state.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("joystick-id");
+            arguments.expect_end("joystick state <joystick-id>");
+
+            const auto& history = m_joysticks.require(id, false).object->joystick_states();
+            require_history_size(history.history_size(), 1, std::format("joystick {}", id));
+            std::cout << std::format("{}\n", history.history(0));
+        },
+        {
+            joystick_id_argument("joystick-id")
+        }
+    );
+
+    add_command(
+        {"joystick", "state-delta"},
+        "joystick state-delta <joystick-id>",
+        "Show the change from history[1] to history[0].",
+        [print_joystick_delta](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("joystick-id");
+            arguments.expect_end("joystick state-delta <joystick-id>");
+            print_joystick_delta(id);
+        },
+        {
+            joystick_id_argument("joystick-id")
+        }
+    );
+
+    add_command(
+        {"joystick", "delta"},
+        "joystick delta <joystick-id>",
+        "Alias for state-delta.",
+        [print_joystick_delta](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("joystick-id");
+            arguments.expect_end("joystick delta <joystick-id>");
+            print_joystick_delta(id);
+        },
+        {
+            joystick_id_argument("joystick-id")
+        }
+    );
+
+    add_command(
+        {"joystick", "history"},
+        "joystick history <joystick-id>",
+        "Show every retained state.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("joystick-id");
+            arguments.expect_end("joystick history <joystick-id>");
+            std::cout << std::format(
+                "joystick {} history: {}\n",
+                id,
+                m_joysticks.require(id, false).object->joystick_states()
+            );
+        },
+        {
+            joystick_id_argument("joystick-id")
+        }
+    );
+
+    add_command(
+        {"joystick", "history-size"},
+        "joystick history-size <joystick-id> <sample-count>",
+        "Replace retained state history with a new sample capacity.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("joystick-id");
+            const std::size_t sample_count = arguments.pop<std::size_t>("sample-count");
+            arguments.expect_end("joystick history-size <joystick-id> <sample-count>");
+
+            if (sample_count == 0) {
+                command_error("sample-count must be positive");
+            }
+
+            auto& joystick = *m_joysticks.require(id, true).object;
+            joystick.joystick_states() = glfw_api::joystick_t::joystick_states_t(sample_count);
+            glfw_api::poll_joystick(joystick);
+            auto& history = joystick.joystick_states();
+            history.commit();
+
+            std::cout << std::format(
+                "joystick {} history capacity set to {}; samples={}\n",
+                id,
+                history.history_capacity(),
+                history.history_size()
+            );
+        },
+        {
+            connected_joystick_id_argument("joystick-id"),
+            argument("sample-count")
+        },
+        false
+    );
+
+    add_command(
+        {"gamepad", "refresh"},
+        "gamepad refresh",
+        "Refresh stable IDs and report connection changes.",
+        [this](arguments_t& arguments) {
+            arguments.expect_end("gamepad refresh");
+            m_gamepads.refresh(glfw_api::gamepads(), true);
+            std::cout << "gamepad registry refreshed.\n";
+        },
+        false
+    );
+
+    add_command(
+        {"gamepad", "list"},
+        "gamepad list",
+        "List connected devices and retained disconnected snapshots.",
+        [this](arguments_t& arguments) {
+            arguments.expect_end("gamepad list");
+            m_gamepads.refresh(glfw_api::gamepads(), false);
+
+            if (m_gamepads.entries().empty()) {
+                std::cout << "No gamepad objects have been observed.\n";
+                return;
+            }
+
+            for (const auto& [id, entry] : m_gamepads.entries()) {
+                std::cout << std::format(
+                    "gamepad {} [{}]: {}\n",
+                    id,
+                    entry.connected ? "connected" : "disconnected snapshot",
+                    *entry.object
+                );
+            }
+        }
+    );
+
+    add_command(
+        {"gamepad", "show"},
+        "gamepad show <gamepad-id>",
+        "Show the complete device object, including retained history.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("gamepad-id");
+            arguments.expect_end("gamepad show <gamepad-id>");
+
+            const auto& entry = m_gamepads.require(id, false);
+            std::cout << std::format(
+                "gamepad {} [{}]: {}\n",
+                id,
+                entry.connected ? "connected" : "disconnected snapshot",
+                *entry.object
+            );
+        },
+        {
+            gamepad_id_argument("gamepad-id")
+        }
+    );
+
+    add_command(
+        {"gamepad", "poll"},
+        "gamepad poll <gamepad-id>",
+        "Poll and commit one state snapshot immediately.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("gamepad-id");
+            arguments.expect_end("gamepad poll <gamepad-id>");
+
+            auto& gamepad = *m_gamepads.require(id, true).object;
+            glfw_api::poll_gamepad(gamepad);
+            auto& history = gamepad.gamepad_states();
+            history.commit();
+
+            std::cout << std::format("gamepad {} history[0]: {}\n", id, history.history(0));
+        },
+        {
+            connected_gamepad_id_argument("gamepad-id")
+        },
+        false
+    );
+
+    add_command(
+        {"gamepad", "state"},
+        "gamepad state <gamepad-id>",
+        "Show the newest committed state.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("gamepad-id");
+            arguments.expect_end("gamepad state <gamepad-id>");
+
+            const auto& history = m_gamepads.require(id, false).object->gamepad_states();
+            require_history_size(history.history_size(), 1, std::format("gamepad {}", id));
+            std::cout << std::format("{}\n", history.history(0));
+        },
+        {
+            gamepad_id_argument("gamepad-id")
+        }
+    );
+
+    add_command(
+        {"gamepad", "state-delta"},
+        "gamepad state-delta <gamepad-id>",
+        "Show the change from history[1] to history[0].",
+        [print_gamepad_delta](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("gamepad-id");
+            arguments.expect_end("gamepad state-delta <gamepad-id>");
+            print_gamepad_delta(id);
+        },
+        {
+            gamepad_id_argument("gamepad-id")
+        }
+    );
+
+    add_command(
+        {"gamepad", "delta"},
+        "gamepad delta <gamepad-id>",
+        "Alias for state-delta.",
+        [print_gamepad_delta](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("gamepad-id");
+            arguments.expect_end("gamepad delta <gamepad-id>");
+            print_gamepad_delta(id);
+        },
+        {
+            gamepad_id_argument("gamepad-id")
+        }
+    );
+
+    add_command(
+        {"gamepad", "history"},
+        "gamepad history <gamepad-id>",
+        "Show every retained state.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("gamepad-id");
+            arguments.expect_end("gamepad history <gamepad-id>");
+            std::cout << std::format(
+                "gamepad {} history: {}\n",
+                id,
+                m_gamepads.require(id, false).object->gamepad_states()
+            );
+        },
+        {
+            gamepad_id_argument("gamepad-id")
+        }
+    );
+
+    add_command(
+        {"gamepad", "history-size"},
+        "gamepad history-size <gamepad-id> <sample-count>",
+        "Replace retained state history with a new sample capacity.",
+        [this](arguments_t& arguments) {
+            const id_t id = arguments.pop<id_t>("gamepad-id");
+            const std::size_t sample_count = arguments.pop<std::size_t>("sample-count");
+            arguments.expect_end("gamepad history-size <gamepad-id> <sample-count>");
+
+            if (sample_count == 0) {
+                command_error("sample-count must be positive");
+            }
+
+            auto& gamepad = *m_gamepads.require(id, true).object;
+            gamepad.gamepad_states() = glfw_api::gamepad_t::gamepad_states_t(sample_count);
+            glfw_api::poll_gamepad(gamepad);
+            auto& history = gamepad.gamepad_states();
+            history.commit();
+
+            std::cout << std::format(
+                "gamepad {} history capacity set to {}; samples={}\n",
+                id,
+                history.history_capacity(),
+                history.history_size()
+            );
+        },
+        {
+            connected_gamepad_id_argument("gamepad-id"),
+            argument("sample-count")
+        },
+        false
+    );
+
+    add_command(
         {"gamepad", "mapping", "update"},
         "gamepad mapping update <mapping-string>",
         "Update GLFW gamepad mappings from one mapping string.",
         [apply_gamepad_mapping](arguments_t& arguments) {
-            std::string mapping(arguments.pop("mapping-string"));
+            std::string mapping = arguments.pop<std::string>("mapping-string");
             arguments.expect_end("gamepad mapping update <mapping-string>");
 
             apply_gamepad_mapping(std::move(mapping));
         },
         {
-            command_table_t::argument("mapping-string")
+            argument("mapping-string")
         },
         false
     );
 
-    m_commands.add(
+    add_command(
         {"gamepad", "mapping", "update-file"},
         "gamepad mapping update-file <file>",
         "Update GLFW gamepad mappings from a mapping file.",
         [apply_gamepad_mapping](arguments_t& arguments) {
-            const std::filesystem::path path(arguments.pop("file"));
+            const std::filesystem::path path = arguments.pop<std::filesystem::path>("file");
             arguments.expect_end("gamepad mapping update-file <file>");
 
-            apply_gamepad_mapping(read_gamepad_mapping_file(path));
+            std::ifstream input(path);
+            if (!input) {
+                command_error(std::format("cannot open gamepad mapping file '{}'", path.string()));
+            }
+
+            std::string mapping{
+                std::istreambuf_iterator<char>(input),
+                std::istreambuf_iterator<char>()
+            };
+            if (input.bad()) {
+                command_error(std::format("failed to read gamepad mapping file '{}'", path.string()));
+            }
+
+            apply_gamepad_mapping(std::move(mapping));
         },
         {
-            command_table_t::files_argument("file")
+            files_argument("file")
         },
         false
     );
