@@ -14,8 +14,8 @@ Long-lived application workspace of **Builder**.
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/Gilqamesh/Builder-Application-1.git Builder-Application-1
-   cd Builder-Application-1
+   git clone https://github.com/Gilqamesh/Builder-Modules.git Builder-Modules
+   cd Builder-Modules
    ```
 
 2. **Bootstrap the Builder CLI**
