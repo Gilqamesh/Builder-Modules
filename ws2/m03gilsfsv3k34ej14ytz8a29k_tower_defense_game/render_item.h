@@ -1,7 +1,7 @@
 #ifndef M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_RENDER_ITEM_H
 # define M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_RENDER_ITEM_H
 
-# include "geometry.h"
+# include "renderable.h"
 # include "material.h"
 
 # include <memory>
@@ -16,8 +16,8 @@ class render_item_t {
 public:
     render_item_t();
 
-    void geometry(std::shared_ptr<geometry_t> geometry);
-    std::shared_ptr<geometry_t> geometry() const;
+    void renderable(std::shared_ptr<renderable_t> renderable);
+    std::shared_ptr<renderable_t> renderable() const;
 
     void material(std::shared_ptr<material_t> material);
     std::shared_ptr<material_t> material() const;
@@ -32,7 +32,7 @@ public:
     const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& scale() const;
 
 private:
-    std::shared_ptr<geometry_t> m_geometry;
+    std::shared_ptr<renderable_t> m_renderable;
     std::shared_ptr<material_t> m_material;
     m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> m_translation;
     m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> m_rotation;
@@ -59,13 +59,13 @@ render_item_t<T, N>::render_item_t():
 }
 
 template <typename T, std::size_t N>
-void render_item_t<T, N>::geometry(std::shared_ptr<geometry_t> geometry) {
-    m_geometry = geometry;
+void render_item_t<T, N>::renderable(std::shared_ptr<renderable_t> renderable) {
+    m_renderable = renderable;
 }
 
 template <typename T, std::size_t N>
-std::shared_ptr<geometry_t> render_item_t<T, N>::geometry() const {
-    return m_geometry;
+std::shared_ptr<renderable_t> render_item_t<T, N>::renderable() const {
+    return m_renderable;
 }
 
 template <typename T, std::size_t N>
@@ -127,8 +127,8 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::render_item_t<T,
 
         out = std::format_to(out, "{{ ");
 
-        const auto& geometry = render_item.geometry();
-        out = std::format_to(out, "geometry: {}, ", geometry ? *geometry : "-");
+        const auto& renderable = render_item.renderable();
+        out = std::format_to(out, "renderable: {}, ", renderable ? *renderable : "-");
 
         const auto& material = render_item.material();
         out = std::format_to(out, "material: {}, ", material ? *material : "-");

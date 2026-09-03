@@ -29,9 +29,7 @@ extern "C" void phase__library(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::li
 }
 
 extern "C" void phase__binary(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::binary_phase_t* phase) {
-    const auto sources = phase->install<m03gagbhsujjf63n0w3r2w4q6h_build_phases::source_phase_t>();
-    const auto assets = sources.root() / m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("assets");
-
-    phase->install(assets);
-    phase->install_binary("cli", { phase->source("cli.cpp") });
+    phase->install_binary("cli", { phase->source("cli.cpp") }, {}, {
+        phase->source("assets")
+    });
 }

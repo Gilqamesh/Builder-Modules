@@ -1,6 +1,7 @@
 #include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
 #include <m03gagbhtahg11wzn32idilzte_module_dependency_ir_from_workspace_graph/module_dependency_ir_from_workspace_graph.h>
 
+#include <functional>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -16,6 +17,7 @@ namespace filesystem_api = m03gagbhsnusi43zogoacgj2ez_filesystem;
 namespace graph_api = m03gagbhsp2drqq3gkop8pzfrm_workspace_graph;
 namespace ir_api = m03ge9sciyp8y22mzr4nme82tm_module_dependency_ir;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
+
 
 namespace {
 
@@ -135,8 +137,16 @@ int main() {
             "#pragma once\n"
         );
         write_file(
+            workspace_root / "ws0" / module_dependency.unique_name() / "builder.cpp",
+            ""
+        );
+        write_file(
             workspace_root / "ws0" / builder_dependency.unique_name() / "api.h",
             "#pragma once\n"
+        );
+        write_file(
+            workspace_root / "ws0" / builder_dependency.unique_name() / "builder.cpp",
+            ""
         );
 
         const auto plugin = artifact_root
@@ -148,37 +158,35 @@ int main() {
         std::filesystem::create_directories(plugin.parent_path());
         build_empty_plugin(plugin);
 
-        graph_api::workspace_graph_t graph(
+        graph_api::workspace_graph_t graph {
             filesystem_api::path_t(workspace_root),
             filesystem_api::path_t(artifact_root)
-        );
+        };
 
         const auto initially_empty = api::from_workspace_graph(graph);
-        test::expect_equal(initially_empty.workspaces.size(), std::size_t(2));
-        test::expect(find_workspace(initially_empty, "ws0").modules.empty());
-        test::expect(find_workspace(initially_empty, "ws1").modules.empty());
+        test::expect(std::equal_to<>(), initially_empty.workspaces.size(), std::size_t(2));
+        test::expect(std::identity(), find_workspace(initially_empty, "ws0").modules.empty());
+        test::expect(std::identity(), find_workspace(initially_empty, "ws1").modules.empty());
 
         graph.discover_module(module_dependency);
         graph.discover_module(owner);
         graph.discover_module(builder_dependency);
 
         const auto ir = api::from_workspace_graph(graph);
-        test::expect_equal(ir.workspaces.size(), std::size_t(2));
+        test::expect(std::equal_to<>(), ir.workspaces.size(), std::size_t(2));
         const auto& ws0 = find_workspace(ir, "ws0");
         const auto& ws1 = find_workspace(ir, "ws1");
-        test::expect_equal(ws0.modules.size(), std::size_t(3));
-        test::expect(ws1.modules.empty());
+        test::expect(std::equal_to<>(), ws0.modules.size(), std::size_t(3));
+        test::expect(std::identity(), ws1.modules.empty());
 
         const auto& owner_ir = find_module(ws0, owner.unique_name());
-        test::expect_equal(owner_ir.name, owner.unique_name());
-        test::expect_equal(owner_ir.module_dependencies.size(), std::size_t(1));
-        test::expect_equal(
-            owner_ir.module_dependencies[0],
+        test::expect(std::equal_to<>(), owner_ir.name, owner.unique_name());
+        test::expect(std::equal_to<>(), owner_ir.module_dependencies.size(), std::size_t(1));
+        test::expect(std::equal_to<>(), owner_ir.module_dependencies[0],
             module_dependency.unique_name()
         );
-        test::expect_equal(owner_ir.builder_dependencies.size(), std::size_t(1));
-        test::expect_equal(
-            owner_ir.builder_dependencies[0],
+        test::expect(std::equal_to<>(), owner_ir.builder_dependencies.size(), std::size_t(1));
+        test::expect(std::equal_to<>(), owner_ir.builder_dependencies[0],
             builder_dependency.unique_name()
         );
 
@@ -190,9 +198,9 @@ int main() {
             ws0,
             builder_dependency.unique_name()
         );
-        test::expect(module_dependency_ir.module_dependencies.empty());
-        test::expect(module_dependency_ir.builder_dependencies.empty());
-        test::expect(builder_dependency_ir.module_dependencies.empty());
-        test::expect(builder_dependency_ir.builder_dependencies.empty());
+        test::expect(std::identity(), module_dependency_ir.module_dependencies.empty());
+        test::expect(std::identity(), module_dependency_ir.builder_dependencies.empty());
+        test::expect(std::identity(), builder_dependency_ir.module_dependencies.empty());
+        test::expect(std::identity(), builder_dependency_ir.builder_dependencies.empty());
     });
 }

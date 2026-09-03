@@ -1,6 +1,7 @@
 #include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
 #include <m03ge9zyrjajugagmp61034qhi_module_dependency_ir_svg_renderer/module_dependency_ir_svg_renderer.h>
 
+#include <functional>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -15,6 +16,7 @@ namespace api = m03ge9zyrjajugagmp61034qhi_module_dependency_ir_svg_renderer;
 namespace filesystem_api = m03gagbhsnusi43zogoacgj2ez_filesystem;
 namespace ir_api = m03ge9sciyp8y22mzr4nme82tm_module_dependency_ir;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
+
 
 namespace {
 
@@ -93,13 +95,13 @@ int main() {
         const auto temporary_dot = output + "_tmp.dot";
         write_file(temporary_dot.to_native_path(), "stale temporary file");
 
-        test::expect_equal(api::render(ir, "module_a", output), output);
-        test::expect(filesystem_api::is_regular_file(output));
-        test::expect(!filesystem_api::exists(temporary_dot));
+        test::expect(std::equal_to<>(), api::render(ir, "module_a", output), output);
+        test::expect(std::identity(), filesystem_api::is_regular_file(output));
+        test::expect(std::identity(), !filesystem_api::exists(temporary_dot));
         const auto contents = read_file(output.to_native_path());
-        test::expect(contents.find("<svg") != std::string::npos);
-        test::expect(contents.find("module_a") != std::string::npos);
-        test::expect(contents.find("module_b") != std::string::npos);
+        test::expect(std::identity(), contents.find("<svg") != std::string::npos);
+        test::expect(std::identity(), contents.find("module_a") != std::string::npos);
+        test::expect(std::identity(), contents.find("module_b") != std::string::npos);
 
         const filesystem_api::path_t wrong_extension(
             temporary_directory.path() / "wrong.png"
@@ -111,12 +113,12 @@ int main() {
                 wrong_extension
             );
         });
-        test::expect(!filesystem_api::exists(wrong_extension + "_tmp.dot"));
+        test::expect(std::identity(), !filesystem_api::exists(wrong_extension + "_tmp.dot"));
 
         test::expect_throws<std::runtime_error>([&] {
             [[maybe_unused]] const auto value = api::render(ir, "module_a", output);
         });
-        test::expect(!filesystem_api::exists(temporary_dot));
+        test::expect(std::identity(), !filesystem_api::exists(temporary_dot));
 
         const ir_api::module_dependency_ir_t invalid_ir {
             .workspaces = {
@@ -142,17 +144,16 @@ int main() {
                 invalid_output
             );
         });
-        test::expect(!filesystem_api::exists(invalid_output));
-        test::expect(!filesystem_api::exists(invalid_output + "_tmp.dot"));
+        test::expect(std::identity(), !filesystem_api::exists(invalid_output));
+        test::expect(std::identity(), !filesystem_api::exists(invalid_output + "_tmp.dot"));
 
         const filesystem_api::path_t empty_output(
             temporary_directory.path() / "empty.svg"
         );
-        test::expect_equal(
-            api::render(ir_api::module_dependency_ir_t {}, "", empty_output),
+        test::expect(std::equal_to<>(), api::render(ir_api::module_dependency_ir_t {}, "", empty_output),
             empty_output
         );
-        test::expect(read_file(empty_output.to_native_path()).find("<svg") != std::string::npos);
-        test::expect(!filesystem_api::exists(empty_output + "_tmp.dot"));
+        test::expect(std::identity(), read_file(empty_output.to_native_path()).find("<svg") != std::string::npos);
+        test::expect(std::identity(), !filesystem_api::exists(empty_output + "_tmp.dot"));
     });
 }

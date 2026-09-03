@@ -3,10 +3,12 @@
 #include <m03gagbht17w4tser1fescqxye_raylib/raymath.h>
 #include <m03gagbht17w4tser1fescqxye_raylib/rlgl.h>
 
+#include <functional>
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
+
 
 int main() {
     return test::run([] {
-        test::expect(true, "Raylib public headers compile");
+        test::expect(std::identity(), true);
     });
 }

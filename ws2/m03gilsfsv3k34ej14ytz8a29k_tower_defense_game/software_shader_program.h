@@ -18,9 +18,9 @@ enum class shader_type_t {
     _count
 };
 
-class shader_program_t {
+class software_shader_program_t {
 public:
-    shader_program_t();
+    software_shader_program_t();
 
     void finalize();
 
@@ -39,7 +39,7 @@ template <>
 struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::shader_type_t>;
 
 template <>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::shader_program_t>;
+struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::software_shader_program_t>;
 
 } // namespace std
 
@@ -70,16 +70,16 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::shader_type_t> {
 };
 
 template <>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::shader_program_t> {
+struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::software_shader_program_t> {
     constexpr auto parse(std::format_parse_context& ctx) {
         auto it = ctx.begin();
         if (it != ctx.end() && *it != '}') {
-            throw std::format_error("invalid shader_program_t format specifier");
+            throw std::format_error("invalid software_shader_program_t format specifier");
         }
         return it;
     }
 
-    auto format(const m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::shader_program_t& shader_program, auto& ctx) const {
+    auto format(const m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::software_shader_program_t& shader_program, auto& ctx) const {
         auto out = ctx.out();
 
         out = std::format_to(out, "{{ ");

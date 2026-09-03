@@ -1,7 +1,6 @@
 #include <m03gagbhsujjf63n0w3r2w4q6h_build_phases/build_phases.h>
 #include <m03gagbhsmhr0naw0zpccv4gaq_cxx_toolchain/cxx_toolchain.h>
 #include <m03gagbhsnusi43zogoacgj2ez_filesystem/filesystem.h>
-
 #include <m03gagbht3svcx3ign454lfup3_cmake/cmake.h>
 #include <m03gagbht7wqhtdg9hwdpmfn5o_download/download.h>
 #include <m03gagbht9a02hx1qrv2qfgnp7_gzip/gzip.h>
@@ -13,8 +12,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-namespace m03gagbht17w4tser1fescqxye_raylib {
 
 static constexpr auto RAYLIB_SOURCE_URL = "https://codeload.github.com/raysan5/raylib/tar.gz/refs/tags/5.5";
 static constexpr auto RAYLIB_SOURCE_SHA256 = "aea98ecf5bc5c5e0b789a76de0083a21a70457050ea4cc2aec7566935f5e258e";
@@ -97,5 +94,3 @@ extern "C" void phase__library(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::li
 extern "C" void phase__binary(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::binary_phase_t* phase) {
     phase->install_binary("cli", { phase->source("cli.cpp") });
 }
-
-} // namespace m03gagbht17w4tser1fescqxye_raylib

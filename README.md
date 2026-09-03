@@ -32,11 +32,15 @@ Long-lived application workspace of **Builder**.
    The default target is `cli`.
 
    ```bash
-   ./cli m03ge9zyrjajugagmp61034qhi_module_dependency_ir_svg_renderer m03ge9ij4lbns2mq6722cd8654_function_visualizer out.svg
+   ./cli m03ge9zyrjajugagmp61034qhi_module_dependency_ir_svg_renderer m03ge9ij4lbns2mq6722cd8654_function_visualizer "$PWD/out.svg"
    ```
    ```bash
    ./cli m03gagbht5685jfnokvj7crv2c_create_module tools some_module_name
    ```
+
+   Targets run with their executable's install directory as the working directory so
+   packaged runtime artifacts are available by relative path. Pass absolute paths,
+   such as paths rooted at `$PWD`, for input and output files in the invoking directory.
 
 ## Notable modules
 

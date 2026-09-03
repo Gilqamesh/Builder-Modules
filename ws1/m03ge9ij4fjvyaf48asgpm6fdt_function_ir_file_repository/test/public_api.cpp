@@ -1,6 +1,7 @@
 #include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
 #include <m03ge9ij4fjvyaf48asgpm6fdt_function_ir_file_repository/function_ir_file_repository.h>
 
+#include <functional>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -13,6 +14,7 @@ namespace api = m03ge9ij4fjvyaf48asgpm6fdt_function_ir_file_repository;
 namespace id_api = m03ge9ij45dcznrmna12qow5r5_function_id;
 namespace ir_api = m03ge9ij46lc986vpdamnc2fka_function_ir;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
+
 
 namespace {
 
@@ -90,40 +92,35 @@ void expect_ir_equal(
     const ir_api::function_ir_t& actual,
     const ir_api::function_ir_t& expected
 ) {
-    test::expect_equal(actual.function_id, expected.function_id);
-    test::expect_equal(actual.left, expected.left);
-    test::expect_equal(actual.right, expected.right);
-    test::expect_equal(actual.top, expected.top);
-    test::expect_equal(actual.bottom, expected.bottom);
-    test::expect_equal(actual.children.size(), expected.children.size());
-    test::expect_equal(actual.connections.size(), expected.connections.size());
+    test::expect(std::equal_to<>(), actual.function_id, expected.function_id);
+    test::expect(std::equal_to<>(), actual.left, expected.left);
+    test::expect(std::equal_to<>(), actual.right, expected.right);
+    test::expect(std::equal_to<>(), actual.top, expected.top);
+    test::expect(std::equal_to<>(), actual.bottom, expected.bottom);
+    test::expect(std::equal_to<>(), actual.children.size(), expected.children.size());
+    test::expect(std::equal_to<>(), actual.connections.size(), expected.connections.size());
 
     for (std::size_t i = 0; i < actual.children.size(); ++i) {
-        test::expect_equal(
-            actual.children[i].function_id,
+        test::expect(std::equal_to<>(), actual.children[i].function_id,
             expected.children[i].function_id
         );
-        test::expect_equal(actual.children[i].left, expected.children[i].left);
-        test::expect_equal(actual.children[i].right, expected.children[i].right);
-        test::expect_equal(actual.children[i].top, expected.children[i].top);
-        test::expect_equal(actual.children[i].bottom, expected.children[i].bottom);
+        test::expect(std::equal_to<>(), actual.children[i].left, expected.children[i].left);
+        test::expect(std::equal_to<>(), actual.children[i].right, expected.children[i].right);
+        test::expect(std::equal_to<>(), actual.children[i].top, expected.children[i].top);
+        test::expect(std::equal_to<>(), actual.children[i].bottom, expected.children[i].bottom);
     }
 
     for (std::size_t i = 0; i < actual.connections.size(); ++i) {
-        test::expect_equal(
-            actual.connections[i].from_function_index,
+        test::expect(std::equal_to<>(), actual.connections[i].from_function_index,
             expected.connections[i].from_function_index
         );
-        test::expect_equal(
-            actual.connections[i].from_argument_index,
+        test::expect(std::equal_to<>(), actual.connections[i].from_argument_index,
             expected.connections[i].from_argument_index
         );
-        test::expect_equal(
-            actual.connections[i].to_function_index,
+        test::expect(std::equal_to<>(), actual.connections[i].to_function_index,
             expected.connections[i].to_function_index
         );
-        test::expect_equal(
-            actual.connections[i].to_argument_index,
+        test::expect(std::equal_to<>(), actual.connections[i].to_argument_index,
             expected.connections[i].to_argument_index
         );
     }
@@ -145,9 +142,9 @@ int main() {
         const auto repository_path = temporary_directory.path()
             / "nested"
             / "function-ir";
-        test::expect(!std::filesystem::exists(repository_path));
+        test::expect(std::identity(), !std::filesystem::exists(repository_path));
         api::function_ir_file_repository_t repository(repository_path);
-        test::expect(std::filesystem::is_directory(repository_path));
+        test::expect(std::identity(), std::filesystem::is_directory(repository_path));
 
         const auto first_id = make_id(
             "math",
@@ -171,13 +168,13 @@ int main() {
         repository.save(first_ir);
         repository.save(second_ir);
         repository.save(other_ir);
-        test::expect(std::filesystem::is_regular_file(
+        test::expect(std::identity(), std::filesystem::is_regular_file(
             repository_path / id_api::function_id_t::to_string(first_id)
         ));
-        test::expect(std::filesystem::is_regular_file(
+        test::expect(std::identity(), std::filesystem::is_regular_file(
             repository_path / id_api::function_id_t::to_string(second_id)
         ));
-        test::expect(std::filesystem::is_regular_file(
+        test::expect(std::identity(), std::filesystem::is_regular_file(
             repository_path / id_api::function_id_t::to_string(other_id)
         ));
 

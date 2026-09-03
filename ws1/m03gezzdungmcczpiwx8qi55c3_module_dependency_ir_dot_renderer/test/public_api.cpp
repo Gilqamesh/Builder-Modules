@@ -1,6 +1,7 @@
 #include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
 #include <m03gezzdungmcczpiwx8qi55c3_module_dependency_ir_dot_renderer/module_dependency_ir_dot_renderer.h>
 
+#include <functional>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -14,6 +15,7 @@ namespace api = m03gezzdungmcczpiwx8qi55c3_module_dependency_ir_dot_renderer;
 namespace filesystem_api = m03gagbhsnusi43zogoacgj2ez_filesystem;
 namespace ir_api = m03ge9sciyp8y22mzr4nme82tm_module_dependency_ir;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
+
 
 namespace {
 
@@ -90,31 +92,27 @@ int main() {
         const filesystem_api::path_t output(
             temporary_directory.path() / "graphs" / "modules.dot"
         );
-        test::expect_equal(api::render(ir, "module\\a", output), output);
-        test::expect(filesystem_api::is_regular_file(output));
+        test::expect(std::equal_to<>(), api::render(ir, "module\\a", output), output);
+        test::expect(std::identity(), filesystem_api::is_regular_file(output));
 
         const auto contents = read_file(output.to_native_path());
-        test::expect(contents.starts_with("digraph BuilderModuleDependencyGraph {\n"));
-        test::expect(contents.ends_with("}\n"));
-        test::expect(contents.find("subgraph cluster_workspace_0") != std::string::npos);
-        test::expect(contents.find("subgraph cluster_workspace_1") != std::string::npos);
-        test::expect(contents.find("label=\"ws\\\"0\\nline\";") != std::string::npos);
-        test::expect(contents.find("m0 [label=\"module\\\\a\"") != std::string::npos);
-        test::expect(contents.find("m1 [label=\"module_b\"") != std::string::npos);
-        test::expect(contents.find("m2 [label=\"module_c\"") != std::string::npos);
-        test::expect(
-            contents.find(
+        test::expect(std::identity(), contents.starts_with("digraph BuilderModuleDependencyGraph {\n"));
+        test::expect(std::identity(), contents.ends_with("}\n"));
+        test::expect(std::identity(), contents.find("subgraph cluster_workspace_0") != std::string::npos);
+        test::expect(std::identity(), contents.find("subgraph cluster_workspace_1") != std::string::npos);
+        test::expect(std::identity(), contents.find("label=\"ws\\\"0\\nline\";") != std::string::npos);
+        test::expect(std::identity(), contents.find("m0 [label=\"module\\\\a\"") != std::string::npos);
+        test::expect(std::identity(), contents.find("m1 [label=\"module_b\"") != std::string::npos);
+        test::expect(std::identity(), contents.find("m2 [label=\"module_c\"") != std::string::npos);
+        test::expect(std::identity(), contents.find(
                 "m0 [label=\"module\\\\a\", penwidth=2.2, color=\"#111827\", fillcolor=\"#E0F2FE\"]"
             ) != std::string::npos
         );
-        test::expect(
-            contents.find("m1 -> m0 [label=\"module\"") != std::string::npos
+        test::expect(std::identity(), contents.find("m1 -> m0 [label=\"module\"") != std::string::npos
         );
-        test::expect(
-            contents.find("m2 -> m0 [label=\"builder\"") != std::string::npos
+        test::expect(std::identity(), contents.find("m2 -> m0 [label=\"builder\"") != std::string::npos
         );
-        test::expect(
-            contents.find("m1 -> m2 [label=\"module\"") != std::string::npos
+        test::expect(std::identity(), contents.find("m1 -> m2 [label=\"module\"") != std::string::npos
         );
 
         test::expect_throws<std::runtime_error>([&] {
@@ -149,7 +147,7 @@ int main() {
                 duplicate_output
             );
         });
-        test::expect(!filesystem_api::exists(duplicate_output));
+        test::expect(std::identity(), !filesystem_api::exists(duplicate_output));
 
         const ir_api::module_dependency_ir_t missing_dependency_ir {
             .workspaces = {
@@ -179,12 +177,10 @@ int main() {
         const filesystem_api::path_t empty_output(
             temporary_directory.path() / "empty.dot"
         );
-        test::expect_equal(
-            api::render(ir_api::module_dependency_ir_t {}, "", empty_output),
+        test::expect(std::equal_to<>(), api::render(ir_api::module_dependency_ir_t {}, "", empty_output),
             empty_output
         );
-        test::expect(
-            read_file(empty_output.to_native_path()).find(
+        test::expect(std::identity(), read_file(empty_output.to_native_path()).find(
                 "digraph BuilderModuleDependencyGraph"
             ) != std::string::npos
         );

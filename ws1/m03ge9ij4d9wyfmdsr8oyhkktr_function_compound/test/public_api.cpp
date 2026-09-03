@@ -1,6 +1,7 @@
 #include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
 #include <m03ge9ij4d9wyfmdsr8oyhkktr_function_compound/function_compound.h>
 
+#include <functional>
 #include <chrono>
 #include <cstdint>
 #include <memory>
@@ -12,6 +13,7 @@ namespace id_api = m03ge9ij45dcznrmna12qow5r5_function_id;
 namespace ir_api = m03ge9ij46lc986vpdamnc2fka_function_ir;
 namespace runtime_api = m03ge9ij49xkr5obofujoj7ltw_function_runtime;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
+
 namespace typesystem_api = m03ge9ij43jyxy821pda20jhwh_typesystem;
 
 namespace {
@@ -89,20 +91,20 @@ int main() {
         std::unique_ptr<runtime_api::function_t> compound(
             api::function_compound_t::function(typesystem, ir)
         );
-        test::expect(compound != nullptr);
-        test::expect_equal(compound->function_ir().function_id, root_id);
-        test::expect_equal(compound->function_ir().left, 1);
-        test::expect_equal(compound->function_ir().right, 2);
-        test::expect_equal(compound->function_ir().top, 3);
-        test::expect_equal(compound->function_ir().bottom, 4);
-        test::expect_equal(compound->function_ir().children.size(), std::size_t(1));
-        test::expect(compound->children().empty());
-        test::expect(compound->arguments().empty());
+        test::expect(std::identity(), compound != nullptr);
+        test::expect(std::equal_to<>(), compound->function_ir().function_id, root_id);
+        test::expect(std::equal_to<>(), compound->function_ir().left, 1);
+        test::expect(std::equal_to<>(), compound->function_ir().right, 2);
+        test::expect(std::equal_to<>(), compound->function_ir().top, 3);
+        test::expect(std::equal_to<>(), compound->function_ir().bottom, 4);
+        test::expect(std::equal_to<>(), compound->function_ir().children.size(), std::size_t(1));
+        test::expect(std::identity(), compound->children().empty());
+        test::expect(std::identity(), compound->arguments().empty());
 
         ir.function_id = make_id("mutated-source", std::chrono::seconds(12));
         ir.children.clear();
-        test::expect_equal(compound->function_ir().function_id, root_id);
-        test::expect_equal(compound->function_ir().children.size(), std::size_t(1));
+        test::expect(std::equal_to<>(), compound->function_ir().function_id, root_id);
+        test::expect(std::equal_to<>(), compound->function_ir().children.size(), std::size_t(1));
 
         compound->arguments().resize(1);
         runtime_api::function_t sink(
@@ -115,25 +117,25 @@ int main() {
 
         g_sink_call_count = 0;
         compound->write(0, 42);
-        test::expect_equal(g_sink_call_count, 1);
-        test::expect_equal(static_cast<int>(sink.read(0)), 42);
-        test::expect(compound->children().empty());
+        test::expect(std::equal_to<>(), g_sink_call_count, 1);
+        test::expect(std::equal_to<>(), static_cast<int>(sink.read(0)), 42);
+        test::expect(std::identity(), compound->children().empty());
 
         compound->call(0);
-        test::expect_equal(g_sink_call_count, 2);
-        test::expect_equal(g_last_sink_argument, std::uint8_t(0));
-        test::expect_equal(compound->children().size(), std::size_t(1));
+        test::expect(std::equal_to<>(), g_sink_call_count, 2);
+        test::expect(std::equal_to<>(), g_last_sink_argument, std::uint8_t(0));
+        test::expect(std::equal_to<>(), compound->children().size(), std::size_t(1));
         auto* child = compound->children()[0];
-        test::expect_equal(child->function_ir().function_id, child_id);
-        test::expect_equal(child->left(), 10);
-        test::expect_equal(child->right(), 110);
-        test::expect_equal(child->top(), 20);
-        test::expect_equal(child->bottom(), 120);
+        test::expect(std::equal_to<>(), child->function_ir().function_id, child_id);
+        test::expect(std::equal_to<>(), child->left(), 10);
+        test::expect(std::equal_to<>(), child->right(), 110);
+        test::expect(std::equal_to<>(), child->top(), 20);
+        test::expect(std::equal_to<>(), child->bottom(), 120);
 
         compound->call(0);
-        test::expect_equal(g_sink_call_count, 3);
-        test::expect_equal(compound->children().size(), std::size_t(1));
-        test::expect_equal(compound->children()[0], child);
+        test::expect(std::equal_to<>(), g_sink_call_count, 3);
+        test::expect(std::equal_to<>(), compound->children().size(), std::size_t(1));
+        test::expect(std::equal_to<>(), compound->children()[0], child);
 
         delete child;
         compound->children().clear();
@@ -154,7 +156,7 @@ int main() {
         empty->arguments().resize(1);
         empty->write(0, 7);
         test::expect_no_throw([&] { empty->call(0); });
-        test::expect(empty->children().empty());
-        test::expect_equal(static_cast<int>(empty->read(0)), 7);
+        test::expect(std::identity(), empty->children().empty());
+        test::expect(std::equal_to<>(), static_cast<int>(empty->read(0)), 7);
     });
 }
