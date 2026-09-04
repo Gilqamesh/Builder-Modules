@@ -1,10 +1,29 @@
-#include <m03ge9ij49xkr5obofujoj7ltw_function_runtime/function.h>
-#include <cassert>
-#include <cstring>
-#include <limits>
-#include <utility>
+# include <m03ge9ij49xkr5obofujoj7ltw_function_runtime/function.h>
+
+# include <cassert>
+# include <cmath>
+# include <cstring>
+# include <limits>
+# include <new>
+# include <utility>
 
 namespace m03ge9ij49xkr5obofujoj7ltw_function_runtime {
+
+namespace {
+
+int checked_coordinate(double value, const char* operation) {
+    if (
+        !std::isfinite(value) ||
+        value < static_cast<double>(std::numeric_limits<int>::lowest()) ||
+        static_cast<double>(std::numeric_limits<int>::max()) < value
+    ) {
+        throw std::out_of_range(std::format("{}: result is outside the int range", operation));
+    }
+
+    return static_cast<int>(value);
+}
+
+} // namespace
 
 function_t::function_t(m03ge9ij43jyxy821pda20jhwh_typesystem::typesystem_t& typesystem, m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t function_ir, void (*call)(function_t&, uint8_t)):
     m_typesystem(&typesystem),
@@ -43,8 +62,16 @@ m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t& function_t::function_ir()
     return m_function_ir;
 }
 
-void (*&function_t::function_call())(function_t&, uint8_t) {
+void (*function_t::function_call() const)(function_t&, uint8_t) {
     return m_call;
+}
+
+void function_t::function_call(void (*call)(function_t&, uint8_t)) {
+    if (call == nullptr) {
+        throw std::invalid_argument("function_t::function_call: function call must not be null");
+    }
+
+    m_call = call;
 }
 
 void function_t::argument_name(uint8_t argument_index, std::string name) {
@@ -116,7 +143,7 @@ function_t::reader_t function_t::read(uint8_t index) {
     };
 }
 
-void function_t::write(uint8_t argument_index, void* data, int data_type_id) {
+void function_t::write(uint8_t argument_index, const void* data, int data_type_id) {
     if (data_type_id == -1) {
         return ;
     }
@@ -127,15 +154,14 @@ void function_t::write(uint8_t argument_index, void* data, int data_type_id) {
     if (data == nullptr) {
         throw std::invalid_argument("function_t::write: data must not be null");
     }
+    if (!m_typesystem->is_trivially_copyable(data_type_id)) {
+        throw std::invalid_argument("function_t::write: argument values must be trivially copyable");
+    }
     argument_t& argument = m_arguments[argument_index];
 
     const auto data_size = m_typesystem->sizeof_type(data_type_id);
-    if (argument.m_data_type_id != data_type_id || argument.m_data.size() != data_size) {
-        argument.m_data_type_id = data_type_id;
-        argument.m_data.resize(data_size);
-    }
-
-    std::memcpy((void*) argument.m_data.data(), data, argument.m_data.size());
+    argument.assign(data, data_size, m_typesystem->alignof_type(data_type_id));
+    argument.m_data_type_id = data_type_id;
 
     send(argument_index);
 }
@@ -148,15 +174,19 @@ void function_t::send(uint8_t argument_index) {
     argument_t& argument = m_arguments[argument_index];
     if (argument.m_data_type_id != -1 && argument.m_connection) {
         const auto data_size = m_typesystem->sizeof_type(argument.m_data_type_id);
-        if (argument.m_data.size() != data_size) {
+        if (argument.m_data_size != data_size) {
             throw std::runtime_error(std::format("argument {} has an invalid data size", argument_index));
         }
-        argument_t& other_argument = argument.m_connection->m_arguments[argument.m_connection_argument_index];
-        if (other_argument.m_data_type_id != argument.m_data_type_id || other_argument.m_data.size() != data_size) {
-            other_argument.m_data_type_id = argument.m_data_type_id;
-            other_argument.m_data.resize(data_size);
+        if (argument.m_connection->m_arguments.size() <= argument.m_connection_argument_index) {
+            throw std::runtime_error(std::format("connected argument index out of range: {}", argument.m_connection_argument_index));
         }
-        std::memcpy((void*) other_argument.m_data.data(), (void*) argument.m_data.data(), other_argument.m_data.size());
+        argument_t& other_argument = argument.m_connection->m_arguments[argument.m_connection_argument_index];
+        other_argument.assign(
+            argument.m_data,
+            data_size,
+            m_typesystem->alignof_type(argument.m_data_type_id)
+        );
+        other_argument.m_data_type_id = argument.m_data_type_id;
         argument.m_connection->call(argument.m_connection_argument_index);
     }
 }
@@ -168,12 +198,15 @@ void function_t::clear(uint8_t argument_index) {
 
     argument_t& argument = m_arguments[argument_index];
     argument.m_data_type_id = -1;
-    argument.m_data.clear();
+    argument.reset();
 
     if (argument.m_connection) {
+        if (argument.m_connection->m_arguments.size() <= argument.m_connection_argument_index) {
+            throw std::runtime_error(std::format("connected argument index out of range: {}", argument.m_connection_argument_index));
+        }
         argument_t& other_argument = argument.m_connection->m_arguments[argument.m_connection_argument_index];
         other_argument.m_data_type_id = -1;
-        other_argument.m_data.clear();
+        other_argument.reset();
     }
 }
 
@@ -190,7 +223,7 @@ void function_t::copy(uint8_t from_argument_index, uint8_t to_argument_index) {
         return ;
     }
 
-    write(to_argument_index, (void*) from_argument.m_data.data(), from_argument.m_data_type_id);
+    write(to_argument_index, from_argument.m_data, from_argument.m_data_type_id);
 }
 
 int function_t::left() {
@@ -292,34 +325,42 @@ void function_t::shrink() {
 
 void function_t::left(int left) {
     m_left = left;
+    m_is_dimensions_finalized = false;
 }
 
 void function_t::right(int right) {
     m_right = right;
+    m_is_dimensions_finalized = false;
 }
 
 void function_t::top(int top) {
     m_top = top;
+    m_is_dimensions_finalized = false;
 }
 
 void function_t::bottom(int bottom) {
     m_bottom = bottom;
+    m_is_dimensions_finalized = false;
 }
 
 void function_t::finalize_dimensions() {
-    const int width = m_right - m_left;
-    const int height = m_bottom - m_top;
+    const std::int64_t width = static_cast<std::int64_t>(m_right) - m_left;
+    const std::int64_t height = static_cast<std::int64_t>(m_bottom) - m_top;
 
     if (width <= 0 || height <= 0) {
         throw std::invalid_argument("function_t::finalize_dimensions: right and bottom must be greater than left and top");
     }
 
     if (width < height) {
-        m_coordinate_system_width = width / (float) height * std::numeric_limits<int16_t>::max();
+        m_coordinate_system_width = static_cast<float>(
+            static_cast<double>(width) / height * std::numeric_limits<int16_t>::max()
+        );
         m_coordinate_system_height = std::numeric_limits<int16_t>::max();
     } else {
         m_coordinate_system_width = std::numeric_limits<int16_t>::max();
-        m_coordinate_system_height = height / (float) width * std::numeric_limits<int16_t>::max();
+        m_coordinate_system_height = static_cast<float>(
+            static_cast<double>(height) / width * std::numeric_limits<int16_t>::max()
+        );
     }
 
     m_is_dimensions_finalized = true;
@@ -343,34 +384,118 @@ int function_t::to_child_x(int x) {
     if (!m_is_dimensions_finalized) {
         throw std::logic_error("function_t::to_child_x: dimensions are not finalized");
     }
-    return (x - m_left) / (float) (m_right - m_left) * m_coordinate_system_width - m_coordinate_system_width / 2.0f;
+    const double result = (
+        static_cast<double>(static_cast<std::int64_t>(x) - m_left) /
+        (static_cast<std::int64_t>(m_right) - m_left) * m_coordinate_system_width -
+        m_coordinate_system_width / 2.0
+    );
+    return checked_coordinate(result, "function_t::to_child_x");
 }
 
 int function_t::to_child_y(int y) {
     if (!m_is_dimensions_finalized) {
         throw std::logic_error("function_t::to_child_y: dimensions are not finalized");
     }
-    return (y - m_top) / (float) (m_bottom - m_top) * m_coordinate_system_height - m_coordinate_system_height / 2.0f;
+    const double result = (
+        static_cast<double>(static_cast<std::int64_t>(y) - m_top) /
+        (static_cast<std::int64_t>(m_bottom) - m_top) * m_coordinate_system_height -
+        m_coordinate_system_height / 2.0
+    );
+    return checked_coordinate(result, "function_t::to_child_y");
 }
 
 int function_t::from_child_x(int x) {
     if (!m_is_dimensions_finalized) {
         throw std::logic_error("function_t::from_child_x: dimensions are not finalized");
     }
-    return (x + m_coordinate_system_width / 2.0f) / m_coordinate_system_width * (m_right - m_left) + m_left;
+    const double result = (
+        (x + m_coordinate_system_width / 2.0) / m_coordinate_system_width *
+        (static_cast<std::int64_t>(m_right) - m_left) + m_left
+    );
+    return checked_coordinate(result, "function_t::from_child_x");
 }
 
 int function_t::from_child_y(int y) {
     if (!m_is_dimensions_finalized) {
         throw std::logic_error("function_t::from_child_y: dimensions are not finalized");
     }
-    return (y + m_coordinate_system_height / 2.0f) / m_coordinate_system_height * (m_bottom - m_top) + m_top;
+    const double result = (
+        (y + m_coordinate_system_height / 2.0) / m_coordinate_system_height *
+        (static_cast<std::int64_t>(m_bottom) - m_top) + m_top
+    );
+    return checked_coordinate(result, "function_t::from_child_y");
 }
 
-function_t::argument_t::argument_t() {
-    m_connection = nullptr;
-    m_connection_argument_index = -1;
-    m_data_type_id = -1;
+function_t::argument_t::argument_t():
+    m_connection(nullptr),
+    m_connection_argument_index(static_cast<uint8_t>(-1)),
+    m_data_type_id(-1),
+    m_data(nullptr),
+    m_data_size(0),
+    m_data_alignment(alignof(std::max_align_t))
+{
+}
+
+function_t::argument_t::~argument_t() {
+    reset();
+}
+
+function_t::argument_t::argument_t(argument_t&& other) noexcept:
+    m_connection(other.m_connection),
+    m_connection_argument_index(other.m_connection_argument_index),
+    m_name(std::move(other.m_name)),
+    m_data_type_id(other.m_data_type_id),
+    m_data(std::exchange(other.m_data, nullptr)),
+    m_data_size(std::exchange(other.m_data_size, 0)),
+    m_data_alignment(std::exchange(other.m_data_alignment, alignof(std::max_align_t)))
+{
+    other.m_connection = nullptr;
+    other.m_connection_argument_index = static_cast<uint8_t>(-1);
+    other.m_data_type_id = -1;
+}
+
+function_t::argument_t& function_t::argument_t::operator=(argument_t&& other) noexcept {
+    if (this != &other) {
+        reset();
+        m_connection = other.m_connection;
+        m_connection_argument_index = other.m_connection_argument_index;
+        m_name = std::move(other.m_name);
+        m_data_type_id = other.m_data_type_id;
+        m_data = std::exchange(other.m_data, nullptr);
+        m_data_size = std::exchange(other.m_data_size, 0);
+        m_data_alignment = std::exchange(other.m_data_alignment, alignof(std::max_align_t));
+        other.m_connection = nullptr;
+        other.m_connection_argument_index = static_cast<uint8_t>(-1);
+        other.m_data_type_id = -1;
+    }
+
+    return *this;
+}
+
+int function_t::argument_t::data_type_id() const noexcept {
+    return m_data_type_id;
+}
+
+size_t function_t::argument_t::data_size() const noexcept {
+    return m_data_size;
+}
+
+void function_t::argument_t::assign(const void* data, size_t size, size_t alignment) {
+    void* replacement = ::operator new(size, std::align_val_t(alignment));
+    std::memcpy(replacement, data, size);
+
+    reset();
+    m_data = replacement;
+    m_data_size = size;
+    m_data_alignment = alignment;
+}
+
+void function_t::argument_t::reset() noexcept {
+    if (m_data != nullptr) {
+        ::operator delete(m_data, std::align_val_t(m_data_alignment));
+        m_data = nullptr;
+    }
+    m_data_size = 0;
 }
 
 } // namespace m03ge9ij49xkr5obofujoj7ltw_function_runtime

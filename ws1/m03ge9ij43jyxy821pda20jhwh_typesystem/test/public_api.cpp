@@ -1,9 +1,10 @@
-#include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
-#include <m03ge9ij43jyxy821pda20jhwh_typesystem/typesystem.h>
+# include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
+# include <m03ge9ij43jyxy821pda20jhwh_typesystem/typesystem.h>
 
-#include <functional>
-#include <cstddef>
-#include <stdexcept>
+# include <cstddef>
+# include <functional>
+# include <stdexcept>
+# include <string>
 
 namespace api = m03ge9ij43jyxy821pda20jhwh_typesystem;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
@@ -23,6 +24,14 @@ struct target_t {
     long value;
 };
 
+struct text_t {
+    std::string value;
+};
+
+struct final_text_t {
+    std::string value;
+};
+
 middle_t source_to_middle(source_t source) {
     return middle_t { source.value + 1 };
 }
@@ -31,13 +40,21 @@ target_t middle_to_target(middle_t middle) {
     return target_t { static_cast<long>(middle.value) * 2L };
 }
 
+text_t source_to_text(source_t source) {
+    return text_t { std::to_string(source.value) };
+}
+
+final_text_t text_to_final_text(text_t text) {
+    return final_text_t { "value=" + text.value };
+}
+
 const int* pointer_to_const(int* value) {
     return value;
 }
 
-void add_context(void* from, void* to, void* context) {
-    const int value = *static_cast<int*>(from);
-    const int increment = *static_cast<int*>(context);
+void add_context(const void* from, void* to, const void* context) {
+    const int value = *static_cast<const int*>(from);
+    const int increment = *static_cast<const int*>(context);
     *static_cast<int*>(to) = value + increment;
 }
 
@@ -49,6 +66,9 @@ int main() {
 
         test::expect(std::identity(), typesystem.type_addr<source_t>() != nullptr);
         test::expect(std::equal_to<>(), typesystem.type_addr<source_t>(),
+            typesystem.type_addr<source_t>()
+        );
+        test::expect(std::equal_to<>(), typesystem.type_addr<const source_t>(),
             typesystem.type_addr<source_t>()
         );
         test::expect(std::not_equal_to<>(), typesystem.type_addr<source_t>(),
@@ -71,6 +91,8 @@ int main() {
         typesystem.register_type<target_t>();
         typesystem.register_type<int*>();
         typesystem.register_type<const int*>();
+        typesystem.register_type<text_t>();
+        typesystem.register_type<final_text_t>();
 
         const int source_id = typesystem.type_id<source_t>();
         const int middle_id = typesystem.type_id<middle_t>();
@@ -83,6 +105,8 @@ int main() {
         );
         test::expect(std::equal_to<>(), typesystem.sizeof_type(source_id), sizeof(source_t));
         test::expect(std::equal_to<>(), typesystem.sizeof_type(target_id), sizeof(target_t));
+        test::expect(std::equal_to<>(), typesystem.alignof_type(source_id), alignof(source_t));
+        test::expect(std::identity(), typesystem.is_trivially_copyable(source_id));
 
         typesystem.register_type<source_t>();
         test::expect(std::equal_to<>(), typesystem.type_id<source_t>(), source_id);
@@ -99,6 +123,8 @@ int main() {
         typesystem.register_coercion<source_t, middle_t>(&source_to_middle);
         typesystem.register_coercion<middle_t, target_t>(&middle_to_target);
         typesystem.register_coercion<int*, const int*>(&pointer_to_const);
+        typesystem.register_coercion<source_t, text_t>(&source_to_text);
+        typesystem.register_coercion<text_t, final_text_t>(&text_to_final_text);
         test::expect_throws<std::runtime_error>([&] {
             typesystem.register_coercion<source_t, middle_t>(&source_to_middle);
         });
@@ -123,6 +149,8 @@ int main() {
         test::expect(std::equal_to<>(), copied_by_value.value, 20);
         const auto target_by_value = typesystem.coerce<target_t>(&source, source_id);
         test::expect(std::equal_to<>(), target_by_value.value, 42L);
+        const auto text_by_value = typesystem.coerce<final_text_t>(&source, source_id);
+        test::expect(std::equal_to<>(), text_by_value.value, std::string("value=20"));
 
         auto reader = typesystem.coerce(source);
         test::expect(std::identity(), reader.self == &typesystem);
@@ -132,6 +160,10 @@ int main() {
         test::expect(std::equal_to<>(), reader_middle.value, 21);
         const target_t reader_target = typesystem.coerce(source);
         test::expect(std::equal_to<>(), reader_target.value, 42L);
+
+        const source_t const_source { 30 };
+        const target_t const_reader_target = typesystem.coerce(const_source);
+        test::expect(std::equal_to<>(), const_reader_target.value, 62L);
 
         int integer = 7;
         int* pointer = &integer;

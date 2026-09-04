@@ -1,15 +1,15 @@
-#include "api.h"
+# include "api.h"
 
-#include <exception>
-#include <format>
-#include <iostream>
-#include <stdexcept>
-#include <string>
-#include <chrono>
-#include <thread>
+# include <m03gkcdy62bnz808pmk4uzkjra_glfw/glfw.h>
+# include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
 
-#include <m03gkcdy62bnz808pmk4uzkjra_glfw/glfw.h>
-#include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
+# include <chrono>
+# include <exception>
+# include <format>
+# include <iostream>
+# include <stdexcept>
+# include <string>
+# include <thread>
 
 namespace {
 
@@ -241,11 +241,11 @@ int main() {
             const auto frame_started_at = steady_clock_t::now();
             const auto seconds = std::chrono::duration<float>(frame_started_at - started_at).count();
 
-            glfw.poll_events();
+            glfw_api::poll_events();
 
             const auto framebuffer_size = window->framebuffer_size();
             if (framebuffer_size[0] > 0 && framebuffer_size[1] > 0) {
-                if (!window->make_context_current()) {
+                if (!window->context_current(true)) {
                     throw std::runtime_error("opengl_renderer_cli: failed to make the OpenGL context current");
                 }
 

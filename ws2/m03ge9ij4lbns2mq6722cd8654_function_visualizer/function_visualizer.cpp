@@ -1,22 +1,24 @@
-#include <m03ge9ij4ji4x4hp1tu5011uc8_function_visualizer_editor/function_visualizer_editor.h>
-#include <m03ge9ij4ec2ss9jnrfdsrjm1q_function_repository/function_repository.h>
-#include <m03ge9ij4c25hdgt1ohryq3fcp_function_alu/function_alu.h>
-#include <m03ge9ij4d9wyfmdsr8oyhkktr_function_compound/function_compound.h>
-#include <m03ge9ij4fjvyaf48asgpm6fdt_function_ir_file_repository/function_ir_file_repository.h>
-#include <m03ge9ij4hzaaehqgc59cj8f9q_rl_imgui/rlImGui.h>
-#include <m03gagbht17w4tser1fescqxye_raylib/raylib.h>
-#include <m03ge9ij49xkr5obofujoj7ltw_function_runtime/function.h>
-#include <m03ge9ij46lc986vpdamnc2fka_function_ir/function_ir.h>
-#include <m03ge9ij45dcznrmna12qow5r5_function_id/function_id.h>
-#include <m03ge9ij43jyxy821pda20jhwh_typesystem/typesystem.h>
-#include <algorithm>
-#include <cassert>
-#include <chrono>
-#include <cstdio>
-#include <cstdint>
-#include <limits>
-#include <sstream>
-#include <string>
+# include <m03ge9ij4ji4x4hp1tu5011uc8_function_visualizer_editor/function_visualizer_editor.h>
+# include <m03ge9ij4ec2ss9jnrfdsrjm1q_function_repository/function_repository.h>
+# include <m03ge9ij4c25hdgt1ohryq3fcp_function_alu/function_alu.h>
+# include <m03ge9ij4d9wyfmdsr8oyhkktr_function_compound/function_compound.h>
+# include <m03ge9ij4fjvyaf48asgpm6fdt_function_ir_file_repository/function_ir_file_repository.h>
+# include <m03ge9ij4hzaaehqgc59cj8f9q_rl_imgui/rlImGui.h>
+# include <m03gagbht17w4tser1fescqxye_raylib/raylib.h>
+# include <m03ge9ij49xkr5obofujoj7ltw_function_runtime/function.h>
+# include <m03ge9ij46lc986vpdamnc2fka_function_ir/function_ir.h>
+# include <m03ge9ij45dcznrmna12qow5r5_function_id/function_id.h>
+# include <m03ge9ij43jyxy821pda20jhwh_typesystem/typesystem.h>
+
+# include <algorithm>
+# include <cassert>
+# include <chrono>
+# include <cstdio>
+# include <cstdint>
+# include <limits>
+# include <sstream>
+# include <string>
+# include <vector>
 
 namespace m03ge9ij4lbns2mq6722cd8654_function_visualizer {
 
@@ -245,8 +247,8 @@ void update_mouse_event(float dt) {
         int right = left + (dragged_function->right() - dragged_function->left());
         int top = std::clamp(from_view_y(mouse_p.y, world, camera) - dragged_offset_y, -current_function->coordinate_system_height() / 2.0f, current_function->coordinate_system_height() / 2.0f);
         int bottom = top + (dragged_function->bottom() - dragged_function->top());
-        m03ge9ij49xkr5obofujoj7ltw_function_runtime::function_t* hit_functions[32];
-        int hit_functions_count = 0;
+        std::vector<m03ge9ij49xkr5obofujoj7ltw_function_runtime::function_t*> hit_functions;
+        hit_functions.reserve(current_function->children().size());
         bool can_move = true;
         for (m03ge9ij49xkr5obofujoj7ltw_function_runtime::function_t* child : current_function->children()) {
             if (child == dragged_function) {
@@ -272,8 +274,7 @@ void update_mouse_event(float dt) {
                         right = left + (dragged_function->right() - dragged_function->left());
                     }
                 }
-                for (int i = 0; i < hit_functions_count; ++i) {
-                    m03ge9ij49xkr5obofujoj7ltw_function_runtime::function_t* hit_function = hit_functions[i];
+                for (m03ge9ij49xkr5obofujoj7ltw_function_runtime::function_t* hit_function : hit_functions) {
                     int ddx = std::min(hit_function->right(), right) - std::max(hit_function->left(), left);
                     int ddy = std::min(hit_function->bottom(), bottom) - std::max(hit_function->top(), top);
                     if (0 <= ddx && 0 <= ddy) {
@@ -281,8 +282,7 @@ void update_mouse_event(float dt) {
                         break ;
                     }
                 }
-                assert(hit_functions_count < sizeof(hit_functions) / sizeof(hit_functions[0]));
-                hit_functions[hit_functions_count++] = child;
+                hit_functions.push_back(child);
             }
             if (!can_move) {
                 break ;

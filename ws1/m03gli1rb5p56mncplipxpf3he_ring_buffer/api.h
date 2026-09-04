@@ -65,21 +65,21 @@ public:
     /**
      * @brief Publishes the staged slot, advances to the next slot, and increases the history size up to the history capacity.
      *
-     * @throws Any exception thrown by copy assignment when using copy-and-advance commit.
+     * Propagates exceptions thrown by copy assignment when using copy-and-advance commit.
      */
     void commit();
 
     /**
      * @brief Returns the value at the specified history offset, where zero denotes the newest committed value.
      *
-     * @throws std::out_of_range if the offset is not less than the history size.
+     * Fails if the offset is not less than the history size.
      */
     T& history(std::size_t offset);
 
     /**
      * @brief Returns the value at the specified history offset, where zero denotes the newest committed value.
      *
-     * @throws std::out_of_range if the offset is not less than the history size.
+     * Fails if the offset is not less than the history size.
      */
     const T& history(std::size_t offset) const;
 

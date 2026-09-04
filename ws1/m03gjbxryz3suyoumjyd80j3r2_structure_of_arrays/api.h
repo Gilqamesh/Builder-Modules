@@ -1,12 +1,16 @@
 #ifndef M03GJBXRYZ3SUYOUMJYD80J3R2_STRUCTURE_OF_ARRAYS_API_H
 # define M03GJBXRYZ3SUYOUMJYD80J3R2_STRUCTURE_OF_ARRAYS_API_H
 
-# include <vector>
-# include <tuple>
+# include <m03gjfvd6i5jzbmngb2ldoooza_type_erased_array/api.h>
+
+# include <concepts>
+# include <cstddef>
 # include <format>
 # include <span>
-
-# include <m03gjfvd6i5jzbmngb2ldoooza_type_erased_array/api.h>
+# include <tuple>
+# include <type_traits>
+# include <utility>
+# include <vector>
 
 namespace m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays {
 

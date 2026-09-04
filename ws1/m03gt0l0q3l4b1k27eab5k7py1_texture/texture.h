@@ -30,7 +30,7 @@ enum class format_t {
 /**
  * @brief Returns the packed byte count of one texel in the specified format.
  *
- * @throws std::invalid_argument if format is not recognized.
+ * Fails if format is not recognized.
  */
 std::size_t bytes_per_texel(format_t format);
 
@@ -44,8 +44,8 @@ public:
     /**
      * @brief Constructs a texture from packed texel bytes.
      *
-     * @throws std::invalid_argument if the format is not recognized, either dimension is zero, or the byte count does not match the format and dimensions.
-     * @throws std::length_error if the required byte count is not representable by std::size_t.
+     * Fails if the format is not recognized, either dimension is zero, or the byte count does not match the format and dimensions.
+     * Fails if the required byte count is not representable by std::size_t.
      */
     texture_t(
         format_t format,

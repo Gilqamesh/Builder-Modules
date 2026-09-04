@@ -1,15 +1,15 @@
-#include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
-#include <m03gjfvd6i5jzbmngb2ldoooza_type_erased_array/api.h>
+# include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
+# include <m03gjfvd6i5jzbmngb2ldoooza_type_erased_array/api.h>
 
-#include <functional>
-#include <array>
-#include <cstddef>
-#include <format>
-#include <span>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
+# include <array>
+# include <cstddef>
+# include <format>
+# include <functional>
+# include <span>
+# include <stdexcept>
+# include <string>
+# include <utility>
+# include <vector>
 
 namespace api = m03gjfvd6i5jzbmngb2ldoooza_type_erased_array;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
@@ -18,6 +18,7 @@ int main() {
     return test::run([] {
         using array_t = api::type_erased_array_t;
         using mismatched_t = std::array<std::byte, sizeof(int) + 1>;
+        using same_size_mismatched_t = std::array<std::byte, sizeof(int)>;
 
         array_t empty;
         test::expect(std::equal_to<>(), empty.element_count(), std::size_t(0));
@@ -46,6 +47,9 @@ int main() {
         test::expect_throws<std::invalid_argument>([&] {
             [[maybe_unused]] const auto& value = values.operator[]<mismatched_t>(0);
         });
+        test::expect_throws<std::invalid_argument>([&] {
+            [[maybe_unused]] const auto& value = values.operator[]<same_size_mismatched_t>(0);
+        });
         test::expect_throws<std::out_of_range>([&] {
             [[maybe_unused]] const auto& value = values.operator[]<int>(3);
         });
@@ -62,6 +66,9 @@ int main() {
         test::expect(std::equal_to<>(), appended.operator[]<int>(1), 9);
         test::expect_throws<std::invalid_argument>([&] {
             appended.push_back(mismatched_t {});
+        });
+        test::expect_throws<std::invalid_argument>([&] {
+            appended.push_back(same_size_mismatched_t {});
         });
 
         array_t copied = appended;

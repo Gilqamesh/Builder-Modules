@@ -1,14 +1,14 @@
-#include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
-#include <m03ge9ij47sume9p7pg7nbvu88_function_ir_binary/function_ir_binary.h>
+# include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
+# include <m03ge9ij47sume9p7pg7nbvu88_function_ir_binary/function_ir_binary.h>
 
-#include <functional>
-#include <chrono>
-#include <cstdint>
-#include <limits>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
+# include <chrono>
+# include <cstdint>
+# include <functional>
+# include <limits>
+# include <stdexcept>
+# include <string>
+# include <utility>
+# include <vector>
 
 namespace api = m03ge9ij47sume9p7pg7nbvu88_function_ir_binary;
 namespace id_api = m03ge9ij45dcznrmna12qow5r5_function_id;
@@ -55,6 +55,10 @@ int main() {
         }
         const auto decoded_empty = empty_binary.function_ir();
         test::expect(std::identity(), !static_cast<bool>(decoded_empty.function_id));
+        test::expect(std::equal_to<>(), decoded_empty.left, 0);
+        test::expect(std::equal_to<>(), decoded_empty.right, 0);
+        test::expect(std::equal_to<>(), decoded_empty.top, 0);
+        test::expect(std::equal_to<>(), decoded_empty.bottom, 0);
         test::expect(std::identity(), decoded_empty.children.empty());
         test::expect(std::identity(), decoded_empty.connections.empty());
 
@@ -106,6 +110,10 @@ int main() {
             decoded.function_id,
             make_id("graph", "root", 100s)
         );
+        test::expect(std::equal_to<>(), decoded.left, 0);
+        test::expect(std::equal_to<>(), decoded.right, 0);
+        test::expect(std::equal_to<>(), decoded.top, 0);
+        test::expect(std::equal_to<>(), decoded.bottom, 0);
         test::expect(std::equal_to<>(), decoded.children.size(), std::size_t(2));
         expect_id_equal(decoded.children[0].function_id, first_child_id);
         test::expect(std::equal_to<>(), decoded.children[0].left, -32768);

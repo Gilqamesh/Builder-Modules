@@ -14,7 +14,7 @@ namespace m03ginuqujr8cbfieco8r61u54_saturating_arithmetic {
  * 
  * If the result of an operation would overflow or underflow, the result is clamped to the maximum or minimum value of the type.
  * 
- * @throws std::invalid_argument if either operand is NaN or +-infinity for floating point types.
+ * Fails if either operand is NaN or +-infinity for floating point types.
  */
 template <typename T>
 T add(const T& a, const T& b);
@@ -24,7 +24,7 @@ T add(const T& a, const T& b);
  * 
  * If the result of an operation would overflow or underflow, the result is clamped to the maximum or minimum value of the type.
  * 
- * @throws std::invalid_argument if either operand is NaN or +-infinity for floating point types.
+ * Fails if either operand is NaN or +-infinity for floating point types.
  */
 template <typename T>
 T sub(const T& a, const T& b);
@@ -34,7 +34,7 @@ T sub(const T& a, const T& b);
  * 
  * If the result of an operation would overflow or underflow, the result is clamped to the maximum or minimum value of the type.
  * 
- * @throws std::invalid_argument if either operand is NaN or +-infinity for floating point types.
+ * Fails if either operand is NaN or +-infinity for floating point types.
  */
 template <typename T>
 T mul(const T& a, const T& b);
@@ -44,7 +44,7 @@ T mul(const T& a, const T& b);
  * 
  * If the result of an operation would overflow or underflow, the result is clamped to the maximum or minimum value of the type.
  * 
- * @throws std::invalid_argument if either operand is NaN or +-infinity for floating point types.
+ * Fails if either operand is NaN or +-infinity for floating point types.
  */
 template <typename T>
 T div(const T& a, const T& b);

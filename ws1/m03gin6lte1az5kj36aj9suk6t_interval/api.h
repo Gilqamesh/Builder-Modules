@@ -32,16 +32,16 @@ public:
     /**
      * @brief Constructs an interval with the given bounds.
      * 
-     * @throws std::invalid_argument if end < start.
-     * @throws if either values are NaN or +-infinity for floating point types.
+     * Fails if end < start.
+     * Fails if either values are NaN or +-infinity for floating point types.
      */
     interval_t(const T& start, const T& end);
 
     /**
      * @brief Sets the bounds of the interval.
      * 
-     * @throws std::invalid_argument if end < start.
-     * @throws if either values are NaN or +-infinity for floating point types.
+     * Fails if end < start.
+     * Fails if either values are NaN or +-infinity for floating point types.
      */
     void bounds(const T& start, const T& end);
 
@@ -53,28 +53,28 @@ public:
     /**
      * @brief Adds a value to both bounds using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if value is NaN or +-infinity for floating point types.
+     * Fails if value is NaN or +-infinity for floating point types.
      */
     interval_t& operator+=(const T& value);
 
     /**
      * @brief Subtracts a value from both bounds using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if value is NaN or +-infinity for floating point types.
+     * Fails if value is NaN or +-infinity for floating point types.
      */
     interval_t& operator-=(const T& value);
 
     /**
      * @brief Returns a new interval that is the result of adding a value to both bounds using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if value is NaN or +-infinity for floating point types.
+     * Fails if value is NaN or +-infinity for floating point types.
      */
     interval_t operator+(const T& value) const;
 
     /**
      * @brief Returns a new interval that is the result of subtracting a value from both bounds using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if value is NaN or +-infinity for floating point types.
+     * Fails if value is NaN or +-infinity for floating point types.
      */
     interval_t operator-(const T& value) const;
 
@@ -83,14 +83,14 @@ public:
      * 
      * If the value is greater or equal to the end of the interval, the end of the interval is returned, which is not part of the interval.
      * 
-     * @throws std::invalid_argument if value is NaN or +-infinity for floating point types.
+     * Fails if value is NaN or +-infinity for floating point types.
      */
     T clamp(const T& value) const;
 
     /**
      * @brief Returns a new interval that is inflated by the given value on both sides.
      * 
-     * @throws std::invalid_argument if value is NaN or +-infinity for floating point types.
+     * Fails if value is NaN or +-infinity for floating point types.
      */
     interval_t inflate(const T& value) const;
 
@@ -99,7 +99,7 @@ public:
      * 
      * If the deflation would result in an empty interval, the result is an empty interval with the midpoint of the original interval as its bounds.
      * 
-     * @throws std::invalid_argument if value is NaN or +-infinity for floating point types.
+     * Fails if value is NaN or +-infinity for floating point types.
      */
     interval_t deflate(const T& value) const;
 

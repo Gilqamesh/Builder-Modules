@@ -1,14 +1,14 @@
-#include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
-#include <m03gm33dj5xo77vegpbspger4r_cli/api.h>
+# include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
+# include <m03gm33dj5xo77vegpbspger4r_cli/api.h>
 
-#include <filesystem>
-#include <format>
-#include <functional>
-#include <fstream>
-#include <sstream>
-#include <string>
-#include <type_traits>
-#include <vector>
+# include <filesystem>
+# include <format>
+# include <functional>
+# include <fstream>
+# include <sstream>
+# include <string>
+# include <type_traits>
+# include <vector>
 
 namespace api = m03gm33dj5xo77vegpbspger4r_cli;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
@@ -88,7 +88,7 @@ int main() {
 
         bool fallback_called = false;
         application.fallback([&](api::context_t& context) {
-            fallback_called = context.arguments.pop() == "fallback";
+            fallback_called = context.arguments.pop("fallback") == "fallback";
             return fallback_called;
         });
         const std::vector<std::string> fallback { "fallback" };

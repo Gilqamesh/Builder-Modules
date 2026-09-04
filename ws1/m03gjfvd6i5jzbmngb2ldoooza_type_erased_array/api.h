@@ -1,14 +1,16 @@
 #ifndef M03GJFVD6I5JZBMNGB2LDOOOZA_TYPE_ERASED_ARRAY_API_H
 # define M03GJFVD6I5JZBMNGB2LDOOOZA_TYPE_ERASED_ARRAY_API_H
 
+# include <concepts>
 # include <cstddef>
 # include <format>
 # include <memory>
 # include <span>
 # include <stdexcept>
+# include <typeinfo>
+# include <type_traits>
+# include <utility>
 # include <vector>
-
-# include <m03gagbht2l61mj6qitacwbmea_byte_stream/byte_stream.h>
 
 namespace m03gjfvd6i5jzbmngb2ldoooza_type_erased_array {
 
@@ -16,8 +18,14 @@ class type_erased_array_t {
 public:
     type_erased_array_t();
 
+    type_erased_array_t(const type_erased_array_t& other);
+    type_erased_array_t& operator=(const type_erased_array_t& other);
+
+    type_erased_array_t(type_erased_array_t&& other) noexcept = default;
+    type_erased_array_t& operator=(type_erased_array_t&& other) noexcept = default;
+
     template <typename T>
-    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
+    requires (std::is_trivially_copyable_v<T> && std::same_as<T, std::remove_cv_t<T>> && !std::same_as<T, bool>)
     explicit type_erased_array_t(std::vector<T> values);
 
     std::span<const std::byte> data() const& noexcept;
@@ -33,20 +41,71 @@ public:
     void clear();
 
     template <typename T>
-    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
+    requires (std::is_trivially_copyable_v<T> && std::same_as<T, std::remove_cv_t<T>> && !std::same_as<T, bool>)
     T& operator[](size_t index) &;
 
     template <typename T>
-    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
+    requires (std::is_trivially_copyable_v<T> && std::same_as<T, std::remove_cv_t<T>> && !std::same_as<T, bool>)
     const T& operator[](size_t index) const&;
 
     template <typename T>
-    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
+    requires (std::is_trivially_copyable_v<T> && std::same_as<T, std::remove_cv_t<T>> && !std::same_as<T, bool>)
     void push_back(const T& value);
 
 private:
-    m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t m_data;
-    size_t m_element_size;
+    class storage_t {
+    public:
+        virtual ~storage_t() = default;
+
+        virtual std::unique_ptr<storage_t> clone() const = 0;
+        virtual std::span<const std::byte> readable_data() const = 0;
+        virtual std::span<std::byte> writable_data() = 0;
+        virtual size_t element_count() const = 0;
+        virtual size_t element_size() const = 0;
+        virtual const std::type_info& element_type() const = 0;
+        virtual void clear() = 0;
+    };
+
+    template <typename T>
+    class typed_storage_t final : public storage_t {
+    public:
+        explicit typed_storage_t(std::vector<T> values):
+            m_values(std::move(values))
+        {
+        }
+
+        std::unique_ptr<storage_t> clone() const override {
+            return std::make_unique<typed_storage_t<T>>(m_values);
+        }
+
+        std::span<const std::byte> readable_data() const override {
+            return std::as_bytes(std::span<const T>(m_values));
+        }
+
+        std::span<std::byte> writable_data() override {
+            return std::as_writable_bytes(std::span<T>(m_values));
+        }
+
+        size_t element_count() const override {
+            return m_values.size();
+        }
+
+        size_t element_size() const override {
+            return sizeof(T);
+        }
+
+        const std::type_info& element_type() const override {
+            return typeid(T);
+        }
+
+        void clear() override {
+            m_values.clear();
+        }
+
+        std::vector<T> m_values;
+    };
+
+    std::unique_ptr<storage_t> m_storage;
 };
 
 } // namespace m03gjfvd6i5jzbmngb2ldoooza_type_erased_array
@@ -61,47 +120,46 @@ struct formatter<m03gjfvd6i5jzbmngb2ldoooza_type_erased_array::type_erased_array
 namespace m03gjfvd6i5jzbmngb2ldoooza_type_erased_array {
 
 template <typename T>
-requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
+requires (std::is_trivially_copyable_v<T> && std::same_as<T, std::remove_cv_t<T>> && !std::same_as<T, bool>)
 type_erased_array_t::type_erased_array_t(std::vector<T> values):
-    m_data(std::as_bytes(std::span<const T>(values.begin(), values.end()))),
-    m_element_size(sizeof(T))
+    m_storage(std::make_unique<typed_storage_t<T>>(std::move(values)))
 {
 }
 
 template <typename T>
-requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
+requires (std::is_trivially_copyable_v<T> && std::same_as<T, std::remove_cv_t<T>> && !std::same_as<T, bool>)
 T& type_erased_array_t::operator[](size_t index) & {
-    if (m_element_size != sizeof(T)) {
-        throw std::invalid_argument(std::format("type_erased_array_t::operator[]: type mismatch, expected element size {}, got {}", m_element_size, sizeof(T)));
+    if (!m_storage || m_storage->element_type() != typeid(T)) {
+        throw std::invalid_argument("type_erased_array_t::operator[]: element type does not match requested type");
     }
     if (element_count() <= index) {
         throw std::out_of_range(std::format("type_erased_array_t::operator[]: index {} exceeds element count {}", index, element_count()));
     }
-    return *reinterpret_cast<T*>(m_data.bytes().data() + index * m_element_size);
+    return static_cast<typed_storage_t<T>&>(*m_storage).m_values[index];
 }
 
 template <typename T>
-requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
+requires (std::is_trivially_copyable_v<T> && std::same_as<T, std::remove_cv_t<T>> && !std::same_as<T, bool>)
 const T& type_erased_array_t::operator[](size_t index) const& {
-    if (m_element_size != sizeof(T)) {
-        throw std::invalid_argument(std::format("type_erased_array_t::operator[]: type mismatch, expected element size {}, got {}", m_element_size, sizeof(T)));
+    if (!m_storage || m_storage->element_type() != typeid(T)) {
+        throw std::invalid_argument("type_erased_array_t::operator[]: element type does not match requested type");
     }
     if (element_count() <= index) {
         throw std::out_of_range(std::format("type_erased_array_t::operator[]: index {} exceeds element count {}", index, element_count()));
     }
-    return *reinterpret_cast<const T*>(m_data.bytes().data() + index * m_element_size);
+    return static_cast<const typed_storage_t<T>&>(*m_storage).m_values[index];
 }
 
 template <typename T>
-requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
+requires (std::is_trivially_copyable_v<T> && std::same_as<T, std::remove_cv_t<T>> && !std::same_as<T, bool>)
 void type_erased_array_t::push_back(const T& value) {
-    if (m_element_size == 0) {
-        m_element_size = sizeof(T);
-    } else if (m_element_size != sizeof(T)) {
-        throw std::invalid_argument(std::format("type_erased_array_t::push_back: type mismatch, expected element size {}, got {}", m_element_size, sizeof(T)));
+    if (!m_storage) {
+        m_storage = std::make_unique<typed_storage_t<T>>(std::vector<T> {});
+    } else if (m_storage->element_type() != typeid(T)) {
+        throw std::invalid_argument("type_erased_array_t::push_back: element type does not match stored type");
     }
 
-    m_data.append(std::span<const std::byte>(reinterpret_cast<const std::byte*>(&value), sizeof(T)));
+    static_cast<typed_storage_t<T>&>(*m_storage).m_values.push_back(value);
 }
 
 } // namespace m03gjfvd6i5jzbmngb2ldoooza_type_erased_array

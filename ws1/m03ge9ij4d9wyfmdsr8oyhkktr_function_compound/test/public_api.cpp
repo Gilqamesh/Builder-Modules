@@ -1,12 +1,12 @@
-#include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
-#include <m03ge9ij4d9wyfmdsr8oyhkktr_function_compound/function_compound.h>
+# include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
+# include <m03ge9ij4d9wyfmdsr8oyhkktr_function_compound/function_compound.h>
 
-#include <functional>
-#include <chrono>
-#include <cstdint>
-#include <memory>
-#include <string>
-#include <utility>
+# include <chrono>
+# include <cstdint>
+# include <functional>
+# include <memory>
+# include <string>
+# include <utility>
 
 namespace api = m03ge9ij4d9wyfmdsr8oyhkktr_function_compound;
 namespace id_api = m03ge9ij45dcznrmna12qow5r5_function_id;
@@ -135,7 +135,7 @@ int main() {
         compound->call(0);
         test::expect(std::equal_to<>(), g_sink_call_count, 3);
         test::expect(std::equal_to<>(), compound->children().size(), std::size_t(1));
-        test::expect(std::equal_to<>(), compound->children()[0], child);
+        test::expect(std::identity(), compound->children()[0] == child);
 
         delete child;
         compound->children().clear();

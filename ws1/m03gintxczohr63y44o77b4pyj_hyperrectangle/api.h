@@ -37,14 +37,14 @@ public:
     /**
      * @brief Constructs a hyperrectangle with the given intervals.
      * 
-     * @throws std::invalid_argument if the number of intervals is not equal to N.
+     * Fails if the number of intervals is not equal to N.
      */
     hyperrectangle_t(std::initializer_list<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>> list);
 
     /**
      * @brief Constructs a hyperrectangle with the given corner and opposite corner.
      * 
-     * @throws std::invalid_argument if any element of the corner or opposite corner is NaN or +-infinity for floating point types.
+     * Fails if any element of the corner or opposite corner is NaN or +-infinity for floating point types.
      */
     hyperrectangle_t(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& corner, const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& opposite_corner);
 
@@ -91,28 +91,28 @@ public:
     /**
      * @brief Adds a vector to the hyperrectangle using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if any element of the vector is NaN or +-infinity for floating point types.
+     * Fails if any element of the vector is NaN or +-infinity for floating point types.
      */
     hyperrectangle_t& operator+=(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& vector);
 
     /**
      * @brief Subtracts a vector from the hyperrectangle using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if any element of the vector is NaN or +-infinity for floating point types.
+     * Fails if any element of the vector is NaN or +-infinity for floating point types.
      */
     hyperrectangle_t& operator-=(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& vector);
 
     /**
      * @brief Returns a new hyperrectangle that is the result of adding a vector to the hyperrectangle using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if any element of the vector is NaN or +-infinity for floating point types.
+     * Fails if any element of the vector is NaN or +-infinity for floating point types.
      */
     hyperrectangle_t operator+(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& vector) const;
 
     /**
      * @brief Returns a new hyperrectangle that is the result of subtracting a vector from the hyperrectangle using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if any element of the vector is NaN or +-infinity for floating point types.
+     * Fails if any element of the vector is NaN or +-infinity for floating point types.
      */
     hyperrectangle_t operator-(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& vector) const;
 
@@ -121,35 +121,35 @@ public:
      * 
      * If any element of the vector is greater or equal to the end of the corresponding interval, the end of the interval is returned, which is not part of the interval.
      * 
-     * @throws std::invalid_argument if any element of the vector is NaN or +-infinity for floating point types.
+     * Fails if any element of the vector is NaN or +-infinity for floating point types.
      */
     m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> clamp(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& vector) const;
 
     /**
      * @brief Inflates the hyperrectangle by the given value in all dimensions using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if value is NaN or +-infinity for floating point types.
+     * Fails if value is NaN or +-infinity for floating point types.
      */
     hyperrectangle_t inflate(const T& value) const;
 
     /**
      * @brief Inflates the hyperrectangle by the given values in each dimension using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if any element of the vector is NaN or +-infinity for floating point types.
+     * Fails if any element of the vector is NaN or +-infinity for floating point types.
      */
     hyperrectangle_t inflate(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& values) const;
 
     /**
      * @brief Deflates the hyperrectangle by the given value in all dimensions using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if value is NaN or +-infinity for floating point types.
+     * Fails if value is NaN or +-infinity for floating point types.
      */
     hyperrectangle_t deflate(const T& value) const;
 
     /**
      * @brief Deflates the hyperrectangle by the given values in each dimension using saturating arithmetic.
      * 
-     * @throws std::invalid_argument if any element of the vector is NaN or +-infinity for floating point types.
+     * Fails if any element of the vector is NaN or +-infinity for floating point types.
      */
     hyperrectangle_t deflate(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& values) const;
 

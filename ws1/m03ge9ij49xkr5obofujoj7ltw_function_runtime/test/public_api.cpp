@@ -1,16 +1,15 @@
-#include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
-#include <m03ge9ij49xkr5obofujoj7ltw_function_runtime/function.h>
+# include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
+# include <m03ge9ij49xkr5obofujoj7ltw_function_runtime/function.h>
 
-#include <functional>
-#include <type_traits>
-#include <chrono>
-#include <cmath>
-#include <cstdint>
-#include <limits>
-#include <memory>
-#include <stdexcept>
-#include <string>
-#include <type_traits>
+# include <chrono>
+# include <cmath>
+# include <cstdint>
+# include <functional>
+# include <limits>
+# include <memory>
+# include <stdexcept>
+# include <string>
+# include <type_traits>
 
 namespace api = m03ge9ij49xkr5obofujoj7ltw_function_runtime;
 namespace id_api = m03ge9ij45dcznrmna12qow5r5_function_id;
@@ -81,13 +80,8 @@ int main() {
         static_assert(std::has_virtual_destructor_v<api::function_t>);
 
         api::function_t::argument_t default_argument;
-        test::expect(std::identity(), default_argument.m_connection == nullptr);
-        test::expect(std::equal_to<>(), default_argument.m_connection_argument_index,
-            std::numeric_limits<std::uint8_t>::max()
-        );
-        test::expect(std::identity(), default_argument.m_name.empty());
-        test::expect(std::equal_to<>(), default_argument.m_data_type_id, -1);
-        test::expect(std::identity(), default_argument.m_data.empty());
+        test::expect(std::equal_to<>(), default_argument.data_type_id(), -1);
+        test::expect(std::equal_to<>(), default_argument.data_size(), std::size_t(0));
 
         typesystem_api::typesystem_t typesystem;
         typesystem.register_type<int>();
@@ -123,12 +117,15 @@ int main() {
         function.call(7);
         test::expect(std::equal_to<>(), g_call_count, 1);
         test::expect(std::equal_to<>(), g_last_argument, std::uint8_t(7));
-        function.function_call() = &alternate_call;
+        function.function_call(&alternate_call);
         g_alternate_call_count = 0;
         function.call(8);
         test::expect(std::equal_to<>(), g_alternate_call_count, 1);
         test::expect(std::equal_to<>(), g_last_argument, std::uint8_t(8));
-        function.function_call() = &record_call;
+        function.function_call(&record_call);
+        test::expect_throws<std::invalid_argument>([&] {
+            function.function_call(nullptr);
+        });
 
         function.argument_name(0, "input");
         function.argument_name(1, "copy");
@@ -146,8 +143,8 @@ int main() {
         const double coerced_value = function.read(0);
         test::expect(std::equal_to<>(), integer_value, 41);
         test::expect(std::equal_to<>(), coerced_value, 41.5);
-        test::expect(std::equal_to<>(), function.arguments()[0].m_data_type_id, typesystem.type_id<int>());
-        test::expect(std::equal_to<>(), function.arguments()[0].m_data.size(), sizeof(int));
+        test::expect(std::equal_to<>(), function.arguments()[0].data_type_id(), typesystem.type_id<int>());
+        test::expect(std::equal_to<>(), function.arguments()[0].data_size(), sizeof(int));
 
         int raw_value = 17;
         function.write(1, &raw_value, typesystem.type_id<int>());
@@ -237,6 +234,19 @@ int main() {
             source.write(0, nullptr, typesystem.type_id<int>());
         });
 
+        api::function_t resized_source(typesystem, ir_api::function_ir_t {}, &no_op_call);
+        api::function_t resized_target(typesystem, ir_api::function_ir_t {}, &no_op_call);
+        resized_source.arguments().resize(1);
+        resized_target.arguments().resize(1);
+        resized_source.connect(&resized_target, 0, 0);
+        resized_target.arguments().clear();
+        test::expect_throws<std::runtime_error>([&] {
+            resized_source.write(0, 1);
+        });
+        test::expect_throws<std::runtime_error>([&] {
+            resized_source.clear(0);
+        });
+
         test::expect(std::identity(), &function.children() == &function.children());
         test::expect(std::identity(), &function.arguments() == &function.arguments());
         test::expect(std::equal_to<>(), function.children().size(), std::size_t(0));
@@ -264,6 +274,22 @@ int main() {
         test::expect(std::equal_to<>(), geometry.to_child_y(120), 0);
         test::expect(std::equal_to<>(), geometry.from_child_x(0), 60);
         test::expect(std::equal_to<>(), geometry.from_child_y(0), 120);
+        geometry.right(120);
+        test::expect_throws<std::logic_error>([&] {
+            [[maybe_unused]] const auto width = geometry.coordinate_system_width();
+        });
+
+        api::function_t extreme_geometry(typesystem, ir_api::function_ir_t {}, &no_op_call);
+        extreme_geometry.left(std::numeric_limits<int>::lowest());
+        extreme_geometry.right(std::numeric_limits<int>::max());
+        extreme_geometry.top(std::numeric_limits<int>::lowest());
+        extreme_geometry.bottom(std::numeric_limits<int>::max());
+        test::expect_no_throw([&] { extreme_geometry.finalize_dimensions(); });
+        test::expect_throws<std::out_of_range>([&] {
+            [[maybe_unused]] const auto x = extreme_geometry.from_child_x(
+                std::numeric_limits<int>::max()
+            );
+        });
 
         api::function_t invalid_geometry(typesystem, ir_api::function_ir_t {}, &no_op_call);
         test::expect_throws<std::invalid_argument>([&] { invalid_geometry.finalize_dimensions(); });
@@ -273,6 +299,9 @@ int main() {
 
         g_typesystem = &typesystem;
         typesystem.register_type<id_api::function_id_t>();
+        test::expect_throws<std::invalid_argument>([&] {
+            function.write(0, &base_id, typesystem.type_id<id_api::function_id_t>());
+        });
         typesystem.register_type<api::function_t*>();
         typesystem.register_coercion<id_api::function_id_t, api::function_t*>(
             &function_id_to_function

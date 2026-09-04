@@ -1,17 +1,16 @@
-#include <cstdint>
+# include "software_renderer.h"
 
-#include "software_renderer.h"
+# include <m03gkcdy62bnz808pmk4uzkjra_glfw/glfw.h>
+# include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
 
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <exception>
-#include <format>
-#include <iostream>
-#include <thread>
-
-#include <m03gkcdy62bnz808pmk4uzkjra_glfw/glfw.h>
-#include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
+# include <algorithm>
+# include <chrono>
+# include <cmath>
+# include <cstdint>
+# include <exception>
+# include <format>
+# include <iostream>
+# include <thread>
 
 namespace {
 
@@ -82,7 +81,7 @@ int main() {
             const auto frame_started_at = steady_clock_t::now();
             const auto seconds = std::chrono::duration<float>(frame_started_at - started_at).count();
 
-            glfw.poll_events();
+            glfw_api::poll_events();
 
             if (renderer.begin_frame()) {
                 render_frame(renderer, seconds);

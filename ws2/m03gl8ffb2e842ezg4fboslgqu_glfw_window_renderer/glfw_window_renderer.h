@@ -10,7 +10,7 @@ public:
     /**
      * @brief Creates a new GLFW window renderer.
      * 
-     * @throws std::invalid_argument if the window is null.
+     * Fails if the window is null.
      */
     explicit glfw_window_renderer_t(std::shared_ptr<m03gkcdy62bnz808pmk4uzkjra_glfw::window_t> window);
     virtual ~glfw_window_renderer_t() = default;

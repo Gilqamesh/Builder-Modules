@@ -31,7 +31,7 @@ Use `render_item` for the current model. `renderer3_t` is the active application
 
 ## Validation
 
-The automatic `test/public_api.cpp` target is currently a placeholder and does not validate the graphics-resource contract. Build the application and directly exercise construction and finalization of changed resources; rendering changes require a visible smoke test that identifies backend, display, and GPU assumptions.
+The automatic `test/public_api.cpp` target covers mesh and geometry construction, range revalidation, topology, and selected-index invariants. Rendering changes also require a visible smoke test that identifies backend, display, and GPU assumptions.
 
 ## Open decisions
 

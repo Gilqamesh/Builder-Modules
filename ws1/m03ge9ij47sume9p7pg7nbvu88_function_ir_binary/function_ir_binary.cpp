@@ -1,10 +1,11 @@
-#include <m03ge9ij47sume9p7pg7nbvu88_function_ir_binary/function_ir_binary.h>
-#include <chrono>
-#include <cstdint>
-#include <limits>
-#include <stdexcept>
-#include <utility>
-#include <format>
+# include <m03ge9ij47sume9p7pg7nbvu88_function_ir_binary/function_ir_binary.h>
+
+# include <chrono>
+# include <cstdint>
+# include <format>
+# include <limits>
+# include <stdexcept>
+# include <utility>
 
 namespace m03ge9ij47sume9p7pg7nbvu88_function_ir_binary {
 
@@ -91,7 +92,7 @@ const std::vector<uint8_t>& function_ir_binary_t::bytes() const {
 }
 
 m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t function_ir_binary_t::function_ir() const {
-    m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t result;
+    m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t result {};
 
     size_t offset = 0;
     result.function_id = deserialize_function_id(offset);
@@ -99,7 +100,7 @@ m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t function_ir_binary_t::func
         opcode_t op = static_cast<opcode_t>(m_bytes[offset++]);
         switch (op) {
             case opcode_t::CREATE_FUNCTION: {
-                if (m_bytes.size() < offset + 8) {
+                if (m_bytes.size() - offset < 8) {
                     throw std::runtime_error("failed to deserialize function_ir: unexpected end of data while reading CREATE_FUNCTION");
                 }
 
@@ -121,7 +122,7 @@ m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t function_ir_binary_t::func
                 result.children.emplace_back(std::move(child));
             } break;
             case opcode_t::CONNECT_ARGUMENTS: {
-                if (m_bytes.size() < offset + 4) {
+                if (m_bytes.size() - offset < 4) {
                     throw std::runtime_error("failed to deserialize function_ir: unexpected end of data while reading CONNECT_ARGUMENTS");
                 }
 
@@ -191,7 +192,7 @@ m03ge9ij45dcznrmna12qow5r5_function_id::function_id_t function_ir_binary_t::dese
     }
     ++offset;
 
-    if (m_bytes.size() < offset + 8) {
+    if (m_bytes.size() - offset < 8) {
         throw std::runtime_error("failed to deserialize function_id: unexpected end of data while reading creation time");
     }
     uint64_t creation_time_serialized = 0;

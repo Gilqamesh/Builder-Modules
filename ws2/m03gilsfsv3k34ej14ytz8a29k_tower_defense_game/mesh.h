@@ -2,12 +2,15 @@
 # define M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_MESH_H
 
 # include "vertex_attribute.h"
-
-# include <vector>
-# include <span>
-# include <format>
-
 # include <m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays/api.h>
+
+# include <cstddef>
+# include <format>
+# include <limits>
+# include <span>
+# include <stdexcept>
+# include <utility>
+# include <vector>
 
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
@@ -61,7 +64,11 @@ mesh_t::mesh_t(m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays::structure_of_arra
         const auto& attribute = m_vertex_attributes[i];
         const auto& stream = m_vertex_streams[i];
         const auto stream_element_size = stream.element_size();
-        const auto attribute_element_size = vertex_attribute_type_size(attribute.type()) * attribute.component_count();
+        const auto attribute_type_size = vertex_attribute_type_size(attribute.type());
+        if (std::numeric_limits<size_t>::max() / attribute_type_size < attribute.component_count()) {
+            throw std::length_error(std::format("mesh_t::mesh_t: vertex attribute {} element size is not representable", i));
+        }
+        const auto attribute_element_size = attribute_type_size * attribute.component_count();
         if (stream_element_size != attribute_element_size) {
             throw std::runtime_error(std::format("mesh_t::mesh_t: vertex stream {} element size ({}) does not match vertex attribute element size ({})", i, stream_element_size, attribute_element_size));
         }

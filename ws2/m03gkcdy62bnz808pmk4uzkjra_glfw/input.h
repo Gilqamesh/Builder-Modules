@@ -561,7 +561,7 @@ public:
     /**
      * @brief Parses one supported SDL-format gamepad mapping line.
      *
-     * @throws std::invalid_argument if the mapping is malformed or unsupported.
+     * Fails if the mapping is malformed or unsupported.
      */
     explicit joystick_to_gamepad_mapping_t(const std::string& gamepad_mapping); // follows SDL gamepad mapping string format
 

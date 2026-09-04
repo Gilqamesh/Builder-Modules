@@ -38,7 +38,7 @@ enum class address_mode_t {
 class sampler_t {
 public:
     /**
-     * @throws std::invalid_argument if any argument is not a recognized enumerator.
+     * Fails if any argument is not a recognized enumerator.
      */
     sampler_t(filter_t filter, address_mode_t address_u, address_mode_t address_v);
 
@@ -59,8 +59,8 @@ private:
  *
  * `coordinates[0]` is `u`/`x` and `coordinates[1]` is `v`/`y`. Nearest-neighbor filtering addresses `floor(c * dimension)`. Bilinear filtering uses `p = c * dimension - 0.5` and addresses `floor(p)` and `floor(p) + 1` independently in each dimension. Stored sRGB color channels are decoded before filtering; RGBA components are filtered independently without premultiplication.
  *
- * @throws std::invalid_argument if texture is empty.
- * @throws std::domain_error if either coordinate is not finite.
+ * Fails if texture is empty.
+ * Fails if either coordinate is not finite.
  */
 m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 4> sample(
     const texture_t& texture,

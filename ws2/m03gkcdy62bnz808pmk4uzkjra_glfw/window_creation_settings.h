@@ -145,7 +145,7 @@ public:
      *
      * Call this from the main thread while glfw_t is alive and immediately before creating a window.
      *
-     * @throws std::invalid_argument if this state is invalid.
+     * Fails if this state is invalid.
      */
     void apply() const;
 

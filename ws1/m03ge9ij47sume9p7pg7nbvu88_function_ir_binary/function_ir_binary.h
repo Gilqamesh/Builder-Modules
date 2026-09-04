@@ -1,10 +1,12 @@
 #ifndef M03GE9IJ47SUME9P7PG7NBVU88_FUNCTION_IR_BINARY_FUNCTION_IR_BINARY_H
 # define M03GE9IJ47SUME9P7PG7NBVU88_FUNCTION_IR_BINARY_FUNCTION_IR_BINARY_H
 
-# include <cstddef>
-# include <vector>
 # include <m03ge9ij46lc986vpdamnc2fka_function_ir/function_ir.h>
 # include <m03ge9ij45dcznrmna12qow5r5_function_id/function_id.h>
+
+# include <cstddef>
+# include <cstdint>
+# include <vector>
 
 namespace m03ge9ij47sume9p7pg7nbvu88_function_ir_binary {
 

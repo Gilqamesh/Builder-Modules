@@ -123,7 +123,7 @@ private:
 class program_t {
 public:
     /**
-     * @throws std::invalid_argument if the AST stages are wrong, a fragment input has no compatible vertex output, or a binding has incompatible types across stages.
+     * Fails if the AST stages are wrong, a fragment input has no compatible vertex output, or a binding has incompatible types across stages.
      */
     program_t(shader::shader_ast_t vertex, shader::shader_ast_t fragment);
 
@@ -133,8 +133,8 @@ public:
     /**
      * @brief Runs a fresh vertex invocation and replaces all prior vertex results.
      *
-     * @throws std::invalid_argument if a required input or binding is absent or has the wrong type.
-     * @throws std::runtime_error if execution completes without writing position.
+     * Fails if a required input or binding is absent or has the wrong type.
+     * Fails if execution completes without writing position.
      */
     void run(const bindings_t& bindings, vertex_io_t& io) const;
 
@@ -143,7 +143,7 @@ public:
      *
      * Discard terminates execution, clears all outputs, and is reported by `fragment_io_t::discarded()`.
      *
-     * @throws std::invalid_argument if a required input or binding is absent or has the wrong type.
+     * Fails if a required input or binding is absent or has the wrong type.
      */
     void run(const bindings_t& bindings, fragment_io_t& io) const;
 
