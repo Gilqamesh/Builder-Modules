@@ -4,7 +4,9 @@
 
 Implement the tower-defense application while serving as the current proving ground for the graphics resource model. The graphics architecture is still evolving, so stable decisions and open decisions must be kept separate.
 
-## Current graphics model
+The application module owns the game and its evolving graphics integration. CPU-side texture storage and sampling belong to `m03gt0l0q3l4b1k27eab5k7py1_texture`. Backend-independent shader-language, frontend, and reflection semantics belong to `m03gsy25j4v7nccgmsdov9ioft_shader`; individual CPU shader invocation belongs to `m03gt1djvvy5atia5evkbg6rqy_software_shader`. The application owns integration of those abstractions with its material, draw-resource, and renderer model.
+
+## Public model
 
 - A `mesh_t` means vertex streams plus their vertex attributes. It does not semantically own primitive topology or index selection.
 - Every mesh stream has the same vertex count, and each stream element size matches its declared attribute.
@@ -16,7 +18,7 @@ Implement the tower-defense application while serving as the current proving gro
 - A `render_item_t` combines geometry, material, and object transform state.
 - Reusable geometry, mesh, index, material, texture, and sampler resources use shared ownership where the current API shares their lifetime.
 
-Use `render_item` for the current model. Legacy `entity` text and the numbered renderer variants are transitional experiments; changes to their relationship require a defined destination model.
+Use `render_item` for the current model. `renderer3_t` is the active application integration path. The inactive `renderer_t` and `renderer2_t` paths, standalone application-local `opengl_*` wrappers, and remaining `entity` terminology are legacy or experimental evidence, not co-equal statements of intended architecture.
 
 ## Invariants
 
@@ -26,21 +28,10 @@ Use `render_item` for the current model. Legacy `entity` text and the numbered r
 - Geometry construction rejects a null index buffer and an initially invalid range; `indices()` revalidates the range because the shared index buffer remains mutable.
 - Geometry finalization requires a mesh, a non-empty valid index selection, a topology-compatible index count, and indices within the mesh's vertex count.
 - Shared ownership expresses actual shared lifetime rather than substituting for an ownership decision.
-- Application behavior must remain buildable while architecture experiments are isolated to the files named by the task.
-
-## Boundary
-
-The application module currently owns the game and its evolving graphics experiments. CPU-side texture storage and sampling belong to `m03gt0l0q3l4b1k27eab5k7py1_texture`. Backend-independent shader-language, frontend, and reflection semantics belong to `m03gsy25j4v7nccgmsdov9ioft_shader`. The application owns only their integration into its evolving graphics, material, and renderer model. The following changes require their own explicit semantic design:
-
-- split the remaining application-owned graphics types into separate modules;
-- introduce a generic representation framework;
-- replace transform components with matrices;
-- normalize all renderer experiments into one design;
-- add instancing, draw batching, or generalized render graphs.
 
 ## Validation
 
-Build the application and exercise construction/finalization of changed resources. Mesh changes require mismatch cases for stream count, vertex count, and element size. Geometry changes require null ownership, range, topology count, and vertex-index bounds cases. Rendering changes require a visible smoke test that identifies backend, display, and GPU assumptions.
+The automatic `test/public_api.cpp` target is currently a placeholder and does not validate the graphics-resource contract. Build the application and directly exercise construction and finalization of changed resources; rendering changes require a visible smoke test that identifies backend, display, and GPU assumptions.
 
 ## Open decisions
 
@@ -49,5 +40,5 @@ Obtain explicit direction before settling:
 - the final boundary between the remaining generic definitions and OpenGL/software representations;
 - whether and how an immutable shader program participates in the material model;
 - whether transform remains translation/rotation/scale or becomes a matrix abstraction;
-- how software-renderer shader behavior relates to vertex and fragment shader concepts;
+- how `software_shader` invocations integrate with vertex assembly, interpolation, rasterization, and renderer resource binding;
 - whether render targets replace the renderer's direct window dependency.

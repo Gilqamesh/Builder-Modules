@@ -549,9 +549,6 @@ private:
         if (!is_numeric(lhs) || !is_numeric(rhs) || lhs.scalar() != rhs.scalar()) {
             return false;
         }
-        if (componentwise(lhs, rhs, result)) {
-            return true;
-        }
         if (lhs.category() == shader_data_category_t::matrix && rhs.category() == shader_data_category_t::vector) {
             return lhs.columns() == rhs.rows() && result.category() == shader_data_category_t::vector &&
                 result.scalar() == lhs.scalar() && result.rows() == lhs.rows();
@@ -560,7 +557,7 @@ private:
             return lhs.columns() == rhs.rows() && result.category() == shader_data_category_t::matrix &&
                 result.scalar() == lhs.scalar() && result.rows() == lhs.rows() && result.columns() == rhs.columns();
         }
-        return false;
+        return componentwise(lhs, rhs, result);
     }
 
     void analyze(const shader_expression_node_t& expression) {

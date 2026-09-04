@@ -24,6 +24,8 @@ using vector2f_t = shader::vector_t<float, 2>;
 using vector3f_t = shader::vector_t<float, 3>;
 using vector4f_t = shader::vector_t<float, 4>;
 using matrix2f_t = shader::matrix_t<float, 2, 2>;
+using matrix2x3f_t = shader::matrix_t<float, 2, 3>;
+using matrix3x2f_t = shader::matrix_t<float, 3, 2>;
 
 template <typename T>
 concept accepts_temporary_texture = requires(software_shader::bindings_t& bindings, T&& value) {
@@ -327,6 +329,31 @@ void test_value_operations_and_builtins() {
     test::expect(std::identity(), !std::format("{}", program).empty());
 }
 
+void test_rectangular_matrix_operations() {
+    shader::vertex_shader_ast_builder_t vertex;
+    const auto matrix = vertex.input<matrix2x3f_t>(0);
+    const auto rhs = vertex.input<matrix3x2f_t>(1);
+    const auto vector = vertex.input<vector3f_t>(2);
+    const auto scalar = vertex.input<float>(3);
+    vertex.position(vector4f_t({0.0F, 0.0F, 0.0F, 1.0F}));
+    vertex.output(0, matrix * rhs);
+    vertex.output(1, matrix * vector);
+    vertex.output(2, matrix * scalar);
+
+    software_shader::program_t program(std::move(vertex).finalize(), trivial_fragment());
+    software_shader::bindings_t bindings;
+    software_shader::vertex_io_t io(0, 0);
+    io.input(0, matrix2x3f_t({1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F}));
+    io.input(1, matrix3x2f_t({7.0F, 8.0F, 9.0F, 10.0F, 11.0F, 12.0F}));
+    io.input(2, vector3f_t({1.0F, 2.0F, 3.0F}));
+    io.input(3, 2.0F);
+    program.run(bindings, io);
+
+    test::expect(std::equal_to<>(), *io.output<matrix2f_t>(0), matrix2f_t({58.0F, 64.0F, 139.0F, 154.0F}));
+    test::expect(std::equal_to<>(), *io.output<vector2f_t>(1), vector2f_t({14.0F, 32.0F}));
+    test::expect(std::equal_to<>(), *io.output<matrix2x3f_t>(2), matrix2x3f_t({2.0F, 4.0F, 6.0F, 8.0F, 10.0F, 12.0F}));
+}
+
 void test_scalar_operations() {
     shader::vertex_shader_ast_builder_t vertex;
     const auto floating = vertex.input<float>(0);
@@ -417,6 +444,7 @@ int main() {
         test_fragment_discard_terminates_and_invalidates_outputs();
         test_bindings_own_uniforms_and_borrow_separate_resources();
         test_value_operations_and_builtins();
+        test_rectangular_matrix_operations();
         test_scalar_operations();
     });
 }

@@ -15,7 +15,11 @@ namespace shader = m03gsy25j4v7nccgmsdov9ioft_shader;
 namespace {
 
 using vector2f_t = shader::vector_t<float, 2>;
+using vector3f_t = shader::vector_t<float, 3>;
 using vector4f_t = shader::vector_t<float, 4>;
+using matrix2x3f_t = shader::matrix_t<float, 2, 3>;
+using matrix2x4f_t = shader::matrix_t<float, 2, 4>;
+using matrix3x4f_t = shader::matrix_t<float, 3, 4>;
 
 void expect_element(
     const shader::shader_interface_element_t& element,
@@ -225,6 +229,42 @@ void test_null_arena_entry_is_rejected() {
     });
 }
 
+void test_matrix_multiplication_validation() {
+    test::expect_throws<std::invalid_argument>([] {
+        shader::vertex_shader_ast_builder_t vertex;
+        const auto lhs = vertex.input<matrix2x3f_t>(0);
+        const auto rhs = vertex.input<matrix2x3f_t>(1);
+        const auto product = vertex.expression<matrix2x3f_t>(
+            std::make_unique<shader::shader_binary_node_t>(
+                shader::shader_data_type<matrix2x3f_t>(),
+                shader::shader_binary_operation_t::multiply,
+                lhs.node(),
+                rhs.node()
+            )
+        );
+        vertex.position(vector4f_t({0.0F, 0.0F, 0.0F, 1.0F}));
+        vertex.output(0, product);
+        [[maybe_unused]] const auto ast = std::move(vertex).finalize();
+    });
+
+    shader::vertex_shader_ast_builder_t vertex;
+    const auto matrix = vertex.input<matrix2x3f_t>(0);
+    const auto rhs = vertex.input<matrix3x4f_t>(1);
+    const auto vector = vertex.input<vector3f_t>(2);
+    const auto scalar = vertex.input<float>(3);
+    vertex.position(vector4f_t({0.0F, 0.0F, 0.0F, 1.0F}));
+    vertex.output(0, matrix * rhs);
+    vertex.output(1, matrix * vector);
+    vertex.output(2, matrix * scalar);
+
+    const auto ast = std::move(vertex).finalize();
+    const auto outputs = ast.interface().outputs();
+    test::expect(std::equal_to<>(), outputs.size(), std::size_t(3));
+    expect_element(outputs[0], 0, shader::shader_data_type<matrix2x4f_t>());
+    expect_element(outputs[1], 1, shader::shader_data_type<vector2f_t>());
+    expect_element(outputs[2], 2, shader::shader_data_type<matrix2x3f_t>());
+}
+
 } // namespace
 
 int main() {
@@ -236,5 +276,6 @@ int main() {
         test_local_visibility_is_checked_per_use();
         test_incompatible_output_writes_are_rejected();
         test_null_arena_entry_is_rejected();
+        test_matrix_multiplication_validation();
     });
 }
