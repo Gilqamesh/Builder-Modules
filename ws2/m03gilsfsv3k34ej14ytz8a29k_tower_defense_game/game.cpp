@@ -19,6 +19,17 @@ namespace {
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
 namespace texture_api = m03gt0l0q3l4b1k27eab5k7py1_texture;
+namespace software_renderer = m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer;
+
+using software_renderer::geometry_t;
+using software_renderer::index_buffer_t;
+using software_renderer::material_t;
+using software_renderer::mesh_t;
+using software_renderer::render_item_t;
+using software_renderer::texture_binding_t;
+using software_renderer::vertex_attribute_t;
+using software_renderer::vertex_attribute_type_t;
+using software_renderer::vertex_primitive_topology_t;
 
 game_t::game_t():
     m_camera({{-400, 400}, {-300, 300}}, {{0, 400}, {0, 200}})
@@ -139,7 +150,7 @@ game_t::game_t():
     m03gkcdy62bnz808pmk4uzkjra_glfw::window_creation_settings_t window_settings;
     window_settings.opengl(4, 6, m03gkcdy62bnz808pmk4uzkjra_glfw::opengl_profile_t::core);
     m_window = m03gkcdy62bnz808pmk4uzkjra_glfw::window_t::create("Tower Defense Game", m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 4>{100, 100, 1600, 1200}, window_settings);
-    m_renderer = std::make_shared<renderer3_t>(m_window);
+    m_renderer = std::make_shared<software_renderer::software_renderer_t>(m_window);
 }
 
 game_t::~game_t() {

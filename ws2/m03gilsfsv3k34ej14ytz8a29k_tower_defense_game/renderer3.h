@@ -1,15 +1,14 @@
 #ifndef M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_RENDERER3_H
 # define M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_RENDERER3_H
 
-# include "camera.h"
-# include "render_item.h"
+# include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
+# include <m03gl22hn0dqmosreqjie9tg5m_opengl_renderer/api.h>
+# include <m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer/camera.h>
+# include <m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer/render_item.h>
 
 # include <cstdint>
 # include <format>
 # include <memory>
-
-# include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
-# include <m03gl22hn0dqmosreqjie9tg5m_opengl_renderer/api.h>
 
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
@@ -37,7 +36,10 @@ public:
     int width() const noexcept;
     int height() const noexcept;
 
-    void draw(const camera_t<float, int, 2>& camera, const render_item_t<float, 2>& render_item);
+    void draw(
+        const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::camera_t<float, int, 2>& camera,
+        const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t<float, 2>& render_item
+    );
 
 private:
     void create_resources();

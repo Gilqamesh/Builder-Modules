@@ -1,18 +1,18 @@
-#ifndef M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_GEOMETRY_H
-# define M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_GEOMETRY_H
+#ifndef M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_GEOMETRY_H
+# define M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_GEOMETRY_H
 
-# include "mesh.h"
 # include "index_buffer.h"
+# include "mesh.h"
 # include "vertex_primitive_topology.h"
 
-# include <vector>
-# include <memory>
-# include <span>
 # include <cstddef>
 # include <format>
+# include <memory>
+# include <span>
 # include <stdexcept>
+# include <vector>
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
 struct index_range_t {
     std::size_t offset;
@@ -44,12 +44,12 @@ private:
     index_range_t m_index_range;
 };
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
 
 namespace std {
 
 template <>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::index_range_t> {
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::index_range_t> {
     constexpr auto parse(std::format_parse_context& ctx) {
         auto it = ctx.begin();
         if (it != ctx.end() && *it != '}') {
@@ -58,7 +58,7 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::index_range_t> {
         return it;
     }
 
-    auto format(const m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::index_range_t& index_range, auto& ctx) const {
+    auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::index_range_t& index_range, auto& ctx) const {
         auto out = ctx.out();
 
         out = std::format_to(out, "{{ ");
@@ -73,14 +73,14 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::index_range_t> {
 };
 
 template <>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::geometry_t>;
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::geometry_t>;
 
 } // namespace std
 
 namespace std {
 
 template <>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::geometry_t> {
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::geometry_t> {
     constexpr auto parse(std::format_parse_context& ctx) {
         auto it = ctx.begin();
         if (it != ctx.end() && *it != '}') {
@@ -89,7 +89,7 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::geometry_t> {
         return it;
     }
 
-    auto format(const m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::geometry_t& geometry, auto& ctx) const {
+    auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::geometry_t& geometry, auto& ctx) const {
         auto out = ctx.out();
 
         out = std::format_to(out, "{{ ");
@@ -120,4 +120,4 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::geometry_t> {
 
 } // namespace std
 
-#endif // M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_GEOMETRY_H
+#endif // M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_GEOMETRY_H

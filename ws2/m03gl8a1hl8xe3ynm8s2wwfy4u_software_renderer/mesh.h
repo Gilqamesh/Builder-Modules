@@ -1,7 +1,8 @@
-#ifndef M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_MESH_H
-# define M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_MESH_H
+#ifndef M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_MESH_H
+# define M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_MESH_H
 
 # include "vertex_attribute.h"
+
 # include <m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays/api.h>
 
 # include <cstddef>
@@ -12,7 +13,7 @@
 # include <utility>
 # include <vector>
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
 class mesh_t {
 public:
@@ -24,23 +25,23 @@ public:
     const m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays::erased_structure_of_arrays_t& vertex_streams() const&;
     std::span<const vertex_attribute_t> vertex_attributes() const&;
 
-    size_t number_of_vertices() const;
+    std::size_t number_of_vertices() const;
 
 private:
     m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays::erased_structure_of_arrays_t m_vertex_streams;
     std::vector<vertex_attribute_t> m_vertex_attributes;
 };
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
 
 namespace std {
 
 template <>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::mesh_t>;
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::mesh_t>;
 
 } // namespace std
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
 template <typename... Ts>
 mesh_t::mesh_t(m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays::structure_of_arrays_t<Ts...> vertex_streams, std::vector<vertex_attribute_t> vertex_attributes):
@@ -53,8 +54,8 @@ mesh_t::mesh_t(m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays::structure_of_arra
         throw std::runtime_error(std::format("mesh_t::mesh_t: number of vertex streams ({}) does not match number of vertex attributes ({})", vertex_stream_count, vertex_attribute_count));
     }
 
-    size_t element_count = 0;
-    for (size_t i = 0; i < vertex_stream_count; ++i) {
+    std::size_t element_count = 0;
+    for (std::size_t i = 0; i < vertex_stream_count; ++i) {
         if (i == 0) {
             element_count = m_vertex_streams[i].element_count();
         } else if (m_vertex_streams[i].element_count() != element_count) {
@@ -65,7 +66,7 @@ mesh_t::mesh_t(m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays::structure_of_arra
         const auto& stream = m_vertex_streams[i];
         const auto stream_element_size = stream.element_size();
         const auto attribute_type_size = vertex_attribute_type_size(attribute.type());
-        if (std::numeric_limits<size_t>::max() / attribute_type_size < attribute.component_count()) {
+        if (std::numeric_limits<std::size_t>::max() / attribute_type_size < attribute.component_count()) {
             throw std::length_error(std::format("mesh_t::mesh_t: vertex attribute {} element size is not representable", i));
         }
         const auto attribute_element_size = attribute_type_size * attribute.component_count();
@@ -75,21 +76,21 @@ mesh_t::mesh_t(m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays::structure_of_arra
     }
 }
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
 
 namespace std {
 
 template <>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::mesh_t> {
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::mesh_t> {
     constexpr auto parse(format_parse_context& ctx) {
         return ctx.begin();
     }
 
-    auto format(const m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::mesh_t& mesh, auto& ctx) const {
+    auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::mesh_t& mesh, auto& ctx) const {
         auto out = ctx.out();
 
         out = format_to(out, "vertex_attributes: [ ");
-        for (size_t i = 0; i < mesh.vertex_attributes().size(); ++i) {
+        for (std::size_t i = 0; i < mesh.vertex_attributes().size(); ++i) {
             if (0 < i) {
                 out = format_to(out, ",");
             }
@@ -103,4 +104,4 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::mesh_t> {
 
 } // namespace std
 
-#endif // M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_MESH_H
+#endif // M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_MESH_H

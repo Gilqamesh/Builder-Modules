@@ -184,6 +184,7 @@ void test_fragment_discard_terminates_and_invalidates_outputs() {
 
     shader::fragment_shader_ast_builder_t fragment;
     const auto should_discard = fragment.input<bool>(0);
+    fragment.color(vector4f_t({1.0F, 0.0F, 0.0F, 1.0F}));
     fragment.output(0, vector4f_t({1.0F, 0.0F, 0.0F, 1.0F}));
     fragment.branch(should_discard, [&] { fragment.discard(); });
     fragment.output(1, vector4f_t({0.0F, 1.0F, 0.0F, 1.0F}));
@@ -200,12 +201,14 @@ void test_fragment_discard_terminates_and_invalidates_outputs() {
 
     program.run(bindings, io);
     test::expect(std::identity(), io.discarded());
+    test::expect(std::logical_not<>(), io.color().has_value());
     test::expect(std::logical_not<>(), io.output<vector4f_t>(0).has_value());
     test::expect(std::logical_not<>(), io.output<vector4f_t>(1).has_value());
 
     io.input(0, false);
     program.run(bindings, io);
     test::expect(std::logical_not<>(), io.discarded());
+    test::expect(std::equal_to<>(), *io.color(), vector4f_t({1.0F, 0.0F, 0.0F, 1.0F}));
     test::expect(std::identity(), io.output<vector4f_t>(0).has_value());
     test::expect(std::identity(), io.output<vector4f_t>(1).has_value());
     test::expect(std::equal_to<>(), *io.output<vector4f_t>(2), vector4f_t({10.5F, 20.5F, 0.0F, 1.0F}));

@@ -1,15 +1,16 @@
-#ifndef M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_RENDER_ITEM_H
-# define M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_RENDER_ITEM_H
+#ifndef M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_RENDER_ITEM_H
+# define M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_RENDER_ITEM_H
 
 # include "geometry.h"
 # include "material.h"
 
-# include <memory>
-# include <format>
-
 # include <m03ginwy24ng8o487c4beoms6l_vector/api.h>
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+# include <cstddef>
+# include <format>
+# include <memory>
+
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
 template <typename T, std::size_t N>
 class render_item_t {
@@ -39,16 +40,16 @@ private:
     m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> m_scale;
 };
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
 
 namespace std {
 
 template <typename T, std::size_t N>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::render_item_t<T, N>>;
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t<T, N>>;
 
 } // namespace std
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
 template <typename T, std::size_t N>
 render_item_t<T, N>::render_item_t():
@@ -108,12 +109,12 @@ const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& render_item_t<T, N>::sc
     return m_scale;
 }
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
 
 namespace std {
 
 template <typename T, std::size_t N>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::render_item_t<T, N>> {
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t<T, N>> {
     constexpr auto parse(std::format_parse_context& ctx) {
         auto it = ctx.begin();
         if (it != ctx.end() && *it != '}') {
@@ -122,7 +123,7 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::render_item_t<T,
         return it;
     }
 
-    auto format(const m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::render_item_t<T, N>& render_item, auto& ctx) const {
+    auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t<T, N>& render_item, auto& ctx) const {
         auto out = ctx.out();
 
         out = std::format_to(out, "{{ ");
@@ -153,6 +154,6 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::render_item_t<T,
     }
 };
 
-}
+} // namespace std
 
-#endif // M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_RENDER_ITEM_H
+#endif // M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_RENDER_ITEM_H

@@ -12,5 +12,5 @@ This module owns program-link compatibility and per-invocation execution. Vertex
 - Program linking rejects incompatible stages, interfaces, and resource bindings before execution.
 - Expressions are evaluated where they execute and observe the current local state rather than cached expression values.
 - A normally completed vertex invocation has written position.
-- Fragment discard terminates the invocation and invalidates all fragment outputs.
+- Fragment color is an optional special result distinct from numbered outputs. Fragment discard terminates the invocation and invalidates color and all numbered outputs.
 - Execution representation and strategy remain private to permit later alternatives without changing the public contract.

@@ -105,6 +105,9 @@ public:
     template <shader::shader_value T>
     std::optional<std::remove_cvref_t<T>> output(std::uint32_t location) const;
 
+    void color(shader::vector_t<float, 4> color);
+    std::optional<shader::vector_t<float, 4>> color() const;
+
     bool discarded() const;
     void discard();
     void clear_results();
@@ -115,6 +118,7 @@ private:
     bool m_discarded;
     std::unordered_map<std::uint32_t, std::any> m_inputs;
     std::unordered_map<std::uint32_t, std::any> m_outputs;
+    std::optional<shader::vector_t<float, 4>> m_color;
 };
 
 /**

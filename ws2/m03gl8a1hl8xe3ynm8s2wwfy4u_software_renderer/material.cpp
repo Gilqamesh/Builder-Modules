@@ -1,6 +1,6 @@
 #include "material.h"
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
 material_t::material_t()
 {
@@ -14,4 +14,4 @@ const std::vector<texture_binding_t>& material_t::texture_bindings() const {
     return m_texture_bindings;
 }
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer

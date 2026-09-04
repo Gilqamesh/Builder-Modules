@@ -217,6 +217,24 @@ void test_incompatible_output_writes_are_rejected() {
     });
 }
 
+void test_fragment_color_is_a_special_output() {
+    shader::fragment_shader_ast_builder_t fragment;
+    fragment.color(vector4f_t({1.0F, 0.5F, 0.25F, 1.0F}));
+
+    const auto ast = std::move(fragment).finalize();
+    test::expect(std::identity(), ast.interface().outputs().empty());
+
+    test::expect_throws<std::invalid_argument>([] {
+        shader::shader_expression_nodes_t expressions;
+        shader::shader_block_t root;
+        auto expression = std::make_unique<shader::shader_constant_node_t>(vector4f_t({1.0F, 1.0F, 1.0F, 1.0F}));
+        const auto* expression_ptr = expression.get();
+        expressions.push_back(std::move(expression));
+        root.statements.push_back(std::make_unique<shader::shader_output_statement_t>(shader::shader_output_t::color, 0, expression_ptr));
+        [[maybe_unused]] shader::shader_ast_t ast(shader::shader_stage_t::vertex, std::move(expressions), std::move(root));
+    });
+}
+
 void test_null_arena_entry_is_rejected() {
     test::expect_throws<std::invalid_argument>([] {
         shader::shader_expression_nodes_t expressions;
@@ -275,6 +293,7 @@ int main() {
         test_interface_value_validation();
         test_local_visibility_is_checked_per_use();
         test_incompatible_output_writes_are_rejected();
+        test_fragment_color_is_a_special_output();
         test_null_arena_entry_is_rejected();
         test_matrix_multiplication_validation();
     });

@@ -1,6 +1,6 @@
 #include "index_buffer.h"
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
 index_buffer_t::indices_t& index_buffer_t::indices() {
     return m_indices;
@@ -26,12 +26,12 @@ index_buffer_t::indices_t::const_iterator index_buffer_t::end() const {
     return m_indices.end();
 }
 
-index_buffer_t::index_t& index_buffer_t::operator[](size_t index) {
+index_buffer_t::index_t& index_buffer_t::operator[](std::size_t index) {
     return m_indices[index];
 }
 
-const index_buffer_t::index_t& index_buffer_t::operator[](size_t index) const {
+const index_buffer_t::index_t& index_buffer_t::operator[](std::size_t index) const {
     return m_indices[index];
 }
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer

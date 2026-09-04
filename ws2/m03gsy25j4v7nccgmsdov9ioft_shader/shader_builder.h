@@ -17,7 +17,7 @@ namespace m03gsy25j4v7nccgmsdov9ioft_shader {
 
 enum class shader_stage_t { vertex, fragment };
 enum class shader_builtin_t { vertex_index, instance_index, fragment_coordinate, front_facing };
-enum class shader_output_t { location, position };
+enum class shader_output_t { location, position, color };
 
 struct shader_interface_element_t {
     std::uint32_t index;
@@ -233,6 +233,8 @@ public:
     fragment_shader_ast_builder_t();
     shader_expression_t<vector_t<float, 4>> fragment_coordinate();
     shader_expression_t<bool> front_facing();
+    void color(shader_expression_t<vector_t<float, 4>> expression);
+    void color(vector_t<float, 4> value);
     void discard();
 };
 

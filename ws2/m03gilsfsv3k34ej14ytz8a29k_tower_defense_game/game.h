@@ -1,16 +1,13 @@
 #ifndef M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_GAME_H
 # define M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_GAME_H
 
-# include "camera.h"
-# include "render_item.h"
-# include "renderer3.h"
-
-# include <vector>
-# include <memory>
-
 # include <m03ginwy24ng8o487c4beoms6l_vector/api.h>
 # include <m03gkcdy62bnz808pmk4uzkjra_glfw/glfw.h>
 # include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
+# include <m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer/software_renderer.h>
+
+# include <memory>
+# include <vector>
 
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
@@ -28,9 +25,9 @@ private:
 private:
     m03gkcdy62bnz808pmk4uzkjra_glfw::glfw_t glfw;
     std::shared_ptr<m03gkcdy62bnz808pmk4uzkjra_glfw::window_t> m_window;
-    std::shared_ptr<renderer3_t> m_renderer;
-    camera_t<float, int, 2> m_camera;
-    std::vector<render_item_t<float, 2>> m_render_items;
+    std::shared_ptr<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::software_renderer_t> m_renderer;
+    m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::camera_t<float, int, 2> m_camera;
+    std::vector<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t<float, 2>> m_render_items;
 };
 
 } // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game

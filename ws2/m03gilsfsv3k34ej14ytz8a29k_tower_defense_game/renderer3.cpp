@@ -16,6 +16,7 @@
 namespace {
 
 namespace tower_defense_api = m03gilsfsv3k34ej14ytz8a29k_tower_defense_game;
+namespace software_renderer_api = m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer;
 namespace vector_api = m03ginwy24ng8o487c4beoms6l_vector;
 namespace texture_api = m03gt0l0q3l4b1k27eab5k7py1_texture;
 
@@ -38,7 +39,7 @@ struct gl_position_t {
 struct render_item_data_t {
     const m03gjfvd6i5jzbmngb2ldoooza_type_erased_array::type_erased_array_t* vertex_stream;
     std::span<const std::uint32_t> indices;
-    tower_defense_api::vertex_primitive_topology_t primitive_topology;
+    software_renderer_api::vertex_primitive_topology_t primitive_topology;
     vector2f_t translation;
     vector2f_t scale;
 };
@@ -198,7 +199,7 @@ vector2f_t read_position(
 }
 
 vector2i_t transform_position(
-    const tower_defense_api::camera_t<float, int, 2>& camera,
+    const software_renderer_api::camera_t<float, int, 2>& camera,
     vector2f_t position,
     vector2f_t translation,
     vector2f_t scale
@@ -223,7 +224,7 @@ void require_supported_texture_format(texture_api::format_t format) {
     }
 }
 
-render_item_data_t validate_render_item(const tower_defense_api::render_item_t<float, 2>& render_item) {
+render_item_data_t validate_render_item(const software_renderer_api::render_item_t<float, 2>& render_item) {
     const auto geometry = render_item.geometry();
     if (!geometry) {
         throw std::runtime_error("renderer3_t::draw: does not support a render item with no geometry");
@@ -270,7 +271,7 @@ render_item_data_t validate_render_item(const tower_defense_api::render_item_t<f
         ));
     }
 
-    const auto expected_vertex_attribute_type = tower_defense_api::vertex_attribute_type_t::R32;
+    const auto expected_vertex_attribute_type = software_renderer_api::vertex_attribute_type_t::R32;
     if (first_vertex_attribute.type() != expected_vertex_attribute_type) {
         throw std::runtime_error(std::format(
             "renderer3_t::draw: does not support entity_mesh with vertex_attributes that are not of type {}",
@@ -288,7 +289,7 @@ render_item_data_t validate_render_item(const tower_defense_api::render_item_t<f
 }
 
 std::vector<gl_position_t> build_view_positions(
-    const tower_defense_api::camera_t<float, int, 2>& camera,
+    const software_renderer_api::camera_t<float, int, 2>& camera,
     const render_item_data_t& render_data
 ) {
     std::vector<gl_position_t> view_positions;
@@ -306,27 +307,27 @@ std::vector<gl_position_t> build_view_positions(
     return view_positions;
 }
 
-GLenum to_gl_primitive_topology(tower_defense_api::vertex_primitive_topology_t primitive_topology) {
+GLenum to_gl_primitive_topology(software_renderer_api::vertex_primitive_topology_t primitive_topology) {
     switch (primitive_topology) {
-        case tower_defense_api::vertex_primitive_topology_t::point: {
+        case software_renderer_api::vertex_primitive_topology_t::point: {
             return GL_POINTS;
         } break;
-        case tower_defense_api::vertex_primitive_topology_t::line: {
+        case software_renderer_api::vertex_primitive_topology_t::line: {
             return GL_LINES;
         } break;
-        case tower_defense_api::vertex_primitive_topology_t::line_strip: {
+        case software_renderer_api::vertex_primitive_topology_t::line_strip: {
             return GL_LINE_STRIP;
         } break;
-        case tower_defense_api::vertex_primitive_topology_t::line_loop: {
+        case software_renderer_api::vertex_primitive_topology_t::line_loop: {
             return GL_LINE_LOOP;
         } break;
-        case tower_defense_api::vertex_primitive_topology_t::triangle: {
+        case software_renderer_api::vertex_primitive_topology_t::triangle: {
             return GL_TRIANGLES;
         } break;
-        case tower_defense_api::vertex_primitive_topology_t::triangle_strip: {
+        case software_renderer_api::vertex_primitive_topology_t::triangle_strip: {
             return GL_TRIANGLE_STRIP;
         } break;
-        case tower_defense_api::vertex_primitive_topology_t::triangle_fan: {
+        case software_renderer_api::vertex_primitive_topology_t::triangle_fan: {
             return GL_TRIANGLE_FAN;
         } break;
         default: {
@@ -443,7 +444,10 @@ int renderer3_t::height() const noexcept {
     return m_height;
 }
 
-void renderer3_t::draw(const camera_t<float, int, 2>& camera, const render_item_t<float, 2>& render_item) {
+void renderer3_t::draw(
+    const software_renderer_api::camera_t<float, int, 2>& camera,
+    const software_renderer_api::render_item_t<float, 2>& render_item
+) {
     if (!m_frame_active) {
         throw std::runtime_error("renderer3_t::draw: begin_frame must be called before draw");
     }
@@ -465,7 +469,7 @@ void renderer3_t::draw(const camera_t<float, int, 2>& camera, const render_item_
     gl.UseProgram(m_program);
     gl.Uniform2f(m_viewport_size_location, static_cast<GLfloat>(m_width), static_cast<GLfloat>(m_height));
     gl.Uniform4f(m_entity_color_location, entity_color.red, entity_color.green, entity_color.blue, entity_color.alpha);
-    gl.Uniform1i(m_point_shape_location, render_data.primitive_topology == vertex_primitive_topology_t::point ? GL_TRUE : GL_FALSE);
+    gl.Uniform1i(m_point_shape_location, render_data.primitive_topology == software_renderer_api::vertex_primitive_topology_t::point ? GL_TRUE : GL_FALSE);
 
     gl.BindVertexArray(m_vertex_array);
 

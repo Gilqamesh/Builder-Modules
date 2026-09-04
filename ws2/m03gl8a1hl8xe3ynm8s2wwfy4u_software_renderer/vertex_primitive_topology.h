@@ -1,9 +1,9 @@
-#ifndef M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_VERTEX_PRIMITIVE_TOPOLOGY_H
-# define M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_VERTEX_PRIMITIVE_TOPOLOGY_H
+#ifndef M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_VERTEX_PRIMITIVE_TOPOLOGY_H
+# define M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_VERTEX_PRIMITIVE_TOPOLOGY_H
 
 # include <format>
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
 enum class vertex_primitive_topology_t {
                         /* Vertex index interpretation of 6 vertices        */
@@ -16,19 +16,19 @@ enum class vertex_primitive_topology_t {
     triangle_fan,       /* {0, 1, 2}, {0, 2, 3}, {0, 3, 4}, {0, 4, 5}       */
 };
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
 
 namespace std {
 
 template <>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive_topology_t>;
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::vertex_primitive_topology_t>;
 
 } // namespace std
 
 namespace std {
 
 template <>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive_topology_t> {
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::vertex_primitive_topology_t> {
     constexpr auto parse(std::format_parse_context& ctx) {
         auto it = ctx.begin();
         if (it != ctx.end() && *it != '}') {
@@ -37,29 +37,29 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive
         return it;
     }
 
-    auto format(const m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive_topology_t& topology, auto& ctx) const {
+    auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::vertex_primitive_topology_t& topology, auto& ctx) const {
         auto out = ctx.out();
 
         switch (topology) {
-            case m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive_topology_t::point: {
+            case m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::vertex_primitive_topology_t::point: {
                 out = std::format_to(out, "point");
             } break;
-            case m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive_topology_t::line: {
+            case m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::vertex_primitive_topology_t::line: {
                 out = std::format_to(out, "line");
             } break;
-            case m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive_topology_t::line_strip: {
+            case m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::vertex_primitive_topology_t::line_strip: {
                 out = std::format_to(out, "line_strip");
             } break;
-            case m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive_topology_t::line_loop: {
+            case m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::vertex_primitive_topology_t::line_loop: {
                 out = std::format_to(out, "line_loop");
             } break;
-            case m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive_topology_t::triangle: {
+            case m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::vertex_primitive_topology_t::triangle: {
                 out = std::format_to(out, "triangle");
             } break;
-            case m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive_topology_t::triangle_strip: {
+            case m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::vertex_primitive_topology_t::triangle_strip: {
                 out = std::format_to(out, "triangle_strip");
             } break;
-            case m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive_topology_t::triangle_fan: {
+            case m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::vertex_primitive_topology_t::triangle_fan: {
                 out = std::format_to(out, "triangle_fan");
             } break;
             default: {
@@ -73,4 +73,4 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::vertex_primitive
 
 } // namespace std
 
-#endif // M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_VERTEX_PRIMITIVE_TOPOLOGY_H
+#endif // M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_VERTEX_PRIMITIVE_TOPOLOGY_H

@@ -174,7 +174,7 @@ public:
         if (m_stage == shader_stage_t::vertex && !m_position) {
             invalid("vertex shader does not write position");
         }
-        if (m_stage == shader_stage_t::fragment && m_outputs.empty() && !m_discard) {
+        if (m_stage == shader_stage_t::fragment && m_outputs.empty() && !m_color && !m_discard) {
             invalid("fragment shader has no output");
         }
 
@@ -478,6 +478,11 @@ public:
                 invalid("invalid position output");
             }
             m_position = true;
+        } else if (statement.output() == shader_output_t::color) {
+            if (m_stage != shader_stage_t::fragment || expression.type() != shader_data_type<vector_t<float, 4>>()) {
+                invalid("invalid color output");
+            }
+            m_color = true;
         } else if (statement.output() == shader_output_t::location) {
             consistent(m_outputs, statement.location(), expression.type(), "output location has inconsistent types");
         } else {
@@ -663,6 +668,7 @@ private:
     std::unordered_map<std::uint32_t, shader_data_type_t> m_outputs;
     std::size_t m_loop_depth = 0;
     bool m_position = false;
+    bool m_color = false;
     bool m_discard = false;
 };
 
@@ -994,6 +1000,8 @@ fragment_shader_ast_builder_t::fragment_shader_ast_builder_t():
 }
 shader_expression_t<vector_t<float, 4>> fragment_shader_ast_builder_t::fragment_coordinate() { return builtin<vector_t<float, 4>>(shader_builtin_t::fragment_coordinate); }
 shader_expression_t<bool> fragment_shader_ast_builder_t::front_facing() { return builtin<bool>(shader_builtin_t::front_facing); }
+void fragment_shader_ast_builder_t::color(shader_expression_t<vector_t<float, 4>> expression) { statement(std::make_unique<shader_output_statement_t>(shader_output_t::color, 0, require(expression))); }
+void fragment_shader_ast_builder_t::color(vector_t<float, 4> value) { color(constant(std::move(value))); }
 void fragment_shader_ast_builder_t::discard() { statement(std::make_unique<shader_discard_statement_t>()); }
 
 shader_expression_t<bool> operator!(shader_expression_t<bool> expression) { return shader_unary<bool>(shader_unary_operation_t::logical_not, expression); }

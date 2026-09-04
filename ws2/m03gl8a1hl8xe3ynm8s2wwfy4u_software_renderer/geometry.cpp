@@ -1,6 +1,6 @@
 #include "geometry.h"
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
 geometry_t::geometry_t(std::shared_ptr<index_buffer_t> index_buffer):
     m_index_buffer(std::move(index_buffer)),
@@ -39,8 +39,8 @@ void geometry_t::finalize() {
         throw std::runtime_error("geometry_t::finalize: does not support geometry with no indices");
     }
 
-    size_t expected_index_count_divisor = 1;
-    size_t expected_minimum_index_count = 0;
+    std::size_t expected_index_count_divisor = 1;
+    std::size_t expected_minimum_index_count = 0;
     switch (m_primitive_topology) {
         case vertex_primitive_topology_t::point: {
             expected_index_count_divisor = 1;
@@ -86,7 +86,7 @@ void geometry_t::finalize() {
         throw std::runtime_error("geometry_t::finalize: does not support mesh with no vertex streams");
     }
     const auto vertex_count = vertex_streams[0].element_count();
-    for (size_t i = 1; i < vertex_streams.size(); ++i) {
+    for (std::size_t i = 1; i < vertex_streams.size(); ++i) {
         if (vertex_streams[i].element_count() != vertex_count) {
             throw std::runtime_error(std::format("geometry_t::finalize: vertex stream {} element count ({}) does not match vertex stream 0 element count ({})", i, vertex_streams[i].element_count(), vertex_count));
         }
@@ -131,4 +131,4 @@ vertex_primitive_topology_t geometry_t::primitive_topology() const {
     return m_primitive_topology;
 }
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer

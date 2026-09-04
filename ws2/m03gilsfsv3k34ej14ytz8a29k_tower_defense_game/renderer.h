@@ -1,13 +1,12 @@
 #ifndef M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_RENDERER_H
 # define M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_RENDERER_H
 
-# include "camera.h"
-# include "render_item.h"
-
-# include <format>
-
 # include <m03ginwy24ng8o487c4beoms6l_vector/api.h>
 # include <m03gagbht17w4tser1fescqxye_raylib/raylib.h>
+# include <m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer/camera.h>
+# include <m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer/render_item.h>
+
+# include <format>
 
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
@@ -23,7 +22,10 @@ public:
     void window_bounds(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>& bounds);
     const m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>& window_bounds() const;
 
-    void draw(const camera_t<float, int, 2>& camera, const render_item_t<float, 2>& render_item);
+    void draw(
+        const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::camera_t<float, int, 2>& camera,
+        const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t<float, 2>& render_item
+    );
 
 private:
     m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2> m_window_bounds;

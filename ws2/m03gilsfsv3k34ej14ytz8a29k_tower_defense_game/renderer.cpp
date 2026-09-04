@@ -8,6 +8,7 @@
 namespace {
 
 namespace texture_api = m03gt0l0q3l4b1k27eab5k7py1_texture;
+namespace software_renderer_api = m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer;
 
 int texture_format_to_raylib_pixel_format(texture_api::format_t format) {
 // Pixel formats
@@ -74,7 +75,10 @@ const m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>& renderer_t::window_bo
     return m_window_bounds;
 }
 
-void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t<float, 2>& render_item) {
+void renderer_t::draw(
+    const software_renderer_api::camera_t<float, int, 2>& camera,
+    const software_renderer_api::render_item_t<float, 2>& render_item
+) {
     const auto geometry = render_item.geometry();
     if (!geometry || !geometry->mesh()) {
         throw std::runtime_error("renderer_t::draw: render item has incomplete geometry");
@@ -118,7 +122,7 @@ void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t
         throw std::runtime_error(std::format("renderer_t::draw: does not support entity_mesh with vertex_attributes that do not have {} components", expected_first_vertex_attribute_count));
     }
 
-    const auto expected_vertex_attribute_type = vertex_attribute_type_t::R32;
+    const auto expected_vertex_attribute_type = software_renderer_api::vertex_attribute_type_t::R32;
     if (first_vertex_attribute.type() != expected_vertex_attribute_type) {
         throw std::runtime_error(std::format("renderer_t::draw: does not support entity_mesh with vertex_attributes that are not of type {}", static_cast<int>(expected_vertex_attribute_type)));
     }
@@ -133,7 +137,7 @@ void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t
 
     const m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>* positions = reinterpret_cast<const m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>*>(vertex_stream.data().data());
     switch (primitive_topology) {
-        case vertex_primitive_topology_t::point: {
+        case software_renderer_api::vertex_primitive_topology_t::point: {
             for (size_t i = 0; i < indices.size(); ++i) {
                 const auto scaled_position = positions[indices[i]] * scale;
                 // todo: implement rotation for 2D
@@ -154,7 +158,7 @@ void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t
                 DrawCircle(view_position[0], view_position[1], point_size, point_color);
             }
         } break;
-        case vertex_primitive_topology_t::line: {
+        case software_renderer_api::vertex_primitive_topology_t::line: {
             for (size_t i = 0; i < indices.size(); i += 2) {
                 const auto scaled_position_0 = positions[indices[i]] * scale;
                 const auto translated_position_0 = scaled_position_0 + translation;
@@ -165,7 +169,7 @@ void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t
                 DrawLine(view_position_0[0], view_position_0[1], view_position_1[0], view_position_1[1], GREEN);
             }
         } break;
-        case vertex_primitive_topology_t::line_strip: {
+        case software_renderer_api::vertex_primitive_topology_t::line_strip: {
             for (size_t i = 0; i + 1 < indices.size(); ++i) {
                 const auto scaled_position_0 = positions[indices[i]] * scale;
                 const auto translated_position_0 = scaled_position_0 + translation;
@@ -176,7 +180,7 @@ void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t
                 DrawLine(view_position_0[0], view_position_0[1], view_position_1[0], view_position_1[1], GREEN);
             }
         } break;
-        case vertex_primitive_topology_t::line_loop: {
+        case software_renderer_api::vertex_primitive_topology_t::line_loop: {
             for (size_t i = 0; i < indices.size(); ++i) {
                 const auto scaled_position_0 = positions[indices[i]] * scale;
                 const auto translated_position_0 = scaled_position_0 + translation;
@@ -187,7 +191,7 @@ void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t
                 DrawLine(view_position_0[0], view_position_0[1], view_position_1[0], view_position_1[1], GREEN);
             }
         } break;
-        case vertex_primitive_topology_t::triangle: {
+        case software_renderer_api::vertex_primitive_topology_t::triangle: {
             for (size_t i = 0; i + 2 < indices.size(); i += 3) {
                 const auto scaled_position_0 = positions[indices[i]] * scale;
                 const auto translated_position_0 = scaled_position_0 + translation;
@@ -206,7 +210,7 @@ void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t
                 );
             }
         } break;
-        case vertex_primitive_topology_t::triangle_strip: {
+        case software_renderer_api::vertex_primitive_topology_t::triangle_strip: {
             for (size_t i = 0; i + 2 < indices.size(); ++i) {
                 const auto scaled_position_0 = positions[indices[i]] * scale;
                 const auto translated_position_0 = scaled_position_0 + translation;
@@ -234,7 +238,7 @@ void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t
                 }
             }
         } break;
-        case vertex_primitive_topology_t::triangle_fan: {
+        case software_renderer_api::vertex_primitive_topology_t::triangle_fan: {
             for (size_t i = 1; i + 1 < indices.size(); ++i) {
                 const auto scaled_position_0 = positions[indices[0]] * scale;
                 const auto translated_position_0 = scaled_position_0 + translation;

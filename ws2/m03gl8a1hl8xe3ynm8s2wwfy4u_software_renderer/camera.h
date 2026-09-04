@@ -1,14 +1,15 @@
-#ifndef M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_CAMERA_H
-# define M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_CAMERA_H
-
-# include <format>
-# include <stdexcept>
-# include <typeinfo>
+#ifndef M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_CAMERA_H
+# define M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_CAMERA_H
 
 # include <m03ginwy24ng8o487c4beoms6l_vector/api.h>
 # include <m03gintxczohr63y44o77b4pyj_hyperrectangle/api.h>
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+# include <cstddef>
+# include <format>
+# include <stdexcept>
+# include <typeinfo>
+
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
 template <typename WorldT, typename ViewT, std::size_t N>
 class camera_t {
@@ -32,16 +33,16 @@ private:
     m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<ViewT, N> m_view_rect;
 };
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
 
 namespace std {
 
 template <typename WorldT, typename ViewT, std::size_t N>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::camera_t<WorldT, ViewT, N>>;
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::camera_t<WorldT, ViewT, N>>;
 
 } // namespace std
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
 template <typename WorldT, typename ViewT, std::size_t N>
 camera_t<WorldT, ViewT, N>::camera_t(const m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<WorldT, N>& world_rect, const m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<ViewT, N>& view_rect):
@@ -73,7 +74,7 @@ const m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<ViewT, N>& cam
 template <typename WorldT, typename ViewT, std::size_t N>
 m03ginwy24ng8o487c4beoms6l_vector::vector_t<ViewT, N> camera_t<WorldT, ViewT, N>::to_view(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<WorldT, N>& world_position) const {
     m03ginwy24ng8o487c4beoms6l_vector::vector_t<ViewT, N> result;
-    for (size_t i = 0; i < N; ++i) {
+    for (std::size_t i = 0; i < N; ++i) {
         const auto& camera_world_interval = m_world_rect[i];
         const auto& camera_view_interval = m_view_rect[i];
         const auto camera_view_interval_length = camera_view_interval.length();
@@ -89,7 +90,7 @@ m03ginwy24ng8o487c4beoms6l_vector::vector_t<ViewT, N> camera_t<WorldT, ViewT, N>
 template <typename WorldT, typename ViewT, std::size_t N>
 m03ginwy24ng8o487c4beoms6l_vector::vector_t<WorldT, N> camera_t<WorldT, ViewT, N>::to_world(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<ViewT, N>& view_position) const {
     m03ginwy24ng8o487c4beoms6l_vector::vector_t<WorldT, N> result;
-    for (size_t i = 0; i < N; ++i) {
+    for (std::size_t i = 0; i < N; ++i) {
         const auto& camera_view_interval = m_view_rect[i];
         const auto& camera_world_interval = m_world_rect[i];
         const auto camera_world_interval_length = camera_world_interval.length();
@@ -105,7 +106,7 @@ m03ginwy24ng8o487c4beoms6l_vector::vector_t<WorldT, N> camera_t<WorldT, ViewT, N
 template <typename WorldT, typename ViewT, std::size_t N>
 m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<ViewT, N> camera_t<WorldT, ViewT, N>::to_view(const m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<WorldT, N>& world_rect) const {
     m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<ViewT, N> result;
-    for (size_t i = 0; i < N; ++i) {
+    for (std::size_t i = 0; i < N; ++i) {
         const auto& world_interval = world_rect[i];
         const auto& camera_world_interval = m_world_rect[i];
         const auto& camera_view_interval = m_view_rect[i];
@@ -125,7 +126,7 @@ m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<ViewT, N> camera_t<W
 template <typename WorldT, typename ViewT, std::size_t N>
 m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<WorldT, N> camera_t<WorldT, ViewT, N>::to_world(const m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<ViewT, N>& view_rect) const {
     m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<WorldT, N> result;
-    for (size_t i = 0; i < N; ++i) {
+    for (std::size_t i = 0; i < N; ++i) {
         const auto& view_interval = view_rect[i];
         const auto& camera_view_interval = m_view_rect[i];
         const auto& camera_world_interval = m_world_rect[i];
@@ -142,12 +143,12 @@ m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<WorldT, N> camera_t<
     return result;
 }
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
 
 namespace std {
 
 template <typename WorldT, typename ViewT, std::size_t N>
-struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::camera_t<WorldT, ViewT, N>> {
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::camera_t<WorldT, ViewT, N>> {
     constexpr auto parse(std::format_parse_context& ctx) {
         auto it = ctx.begin();
         if (it != ctx.end() && *it != '}') {
@@ -156,7 +157,7 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::camera_t<WorldT,
         return it;
     }
 
-    auto format(const m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::camera_t<WorldT, ViewT, N>& camera, auto& ctx) const {
+    auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::camera_t<WorldT, ViewT, N>& camera, auto& ctx) const {
         auto out = ctx.out();
 
         out = std::format_to(out, "{{ world_rect: {}, view_rect: {} }}", camera.world_rect(), camera.view_rect());
@@ -167,4 +168,4 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::camera_t<WorldT,
 
 } // namespace std
 
-#endif // M03GILSFSV3K34EJ14YTZ8A29K_TOWER_DEFENSE_GAME_CAMERA_H
+#endif // M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_CAMERA_H

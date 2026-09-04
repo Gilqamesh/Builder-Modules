@@ -1,8 +1,8 @@
 #include "vertex_attribute.h"
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
-size_t vertex_attribute_type_size(vertex_attribute_type_t type) {
+std::size_t vertex_attribute_type_size(vertex_attribute_type_t type) {
     switch (type) {
         case vertex_attribute_type_t::R32: return 4;
         case vertex_attribute_type_t::R64: return 8;
@@ -22,7 +22,7 @@ vertex_attribute_t::vertex_attribute_t(): vertex_attribute_t(vertex_attribute_ty
 {
 }
 
-vertex_attribute_t::vertex_attribute_t(vertex_attribute_type_t type, size_t component_count):
+vertex_attribute_t::vertex_attribute_t(vertex_attribute_type_t type, std::size_t component_count):
     m_type(type),
     m_component_count(component_count)
 {
@@ -39,15 +39,15 @@ vertex_attribute_type_t vertex_attribute_t::type() const {
     return m_type;
 }
 
-void vertex_attribute_t::component_count(size_t count) {
+void vertex_attribute_t::component_count(std::size_t count) {
     if (count == 0) {
         throw std::runtime_error(std::format("vertex_attribute_t::component_count: component count must be greater than zero, got {}", count));
     }
     m_component_count = count;
 }
 
-size_t vertex_attribute_t::component_count() const {
+std::size_t vertex_attribute_t::component_count() const {
     return m_component_count;
 }
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer

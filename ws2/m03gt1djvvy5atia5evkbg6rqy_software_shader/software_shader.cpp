@@ -806,6 +806,10 @@ public:
             m_vertex_io->position(typed_value<shader::vector_t<float, 4>>(result));
             return;
         }
+        if (statement.output() == shader::shader_output_t::color) {
+            m_fragment_io->color(typed_value<shader::vector_t<float, 4>>(result));
+            return;
+        }
         if (m_vertex_io) {
             dispatch_value_type<void>(result.type(), [&]<typename T>() {
                 m_vertex_io->output(statement.location(), typed_value<T>(result));
@@ -1041,17 +1045,27 @@ bool fragment_io_t::front_facing() const {
     return m_front_facing;
 }
 
+void fragment_io_t::color(shader::vector_t<float, 4> color) {
+    m_color = std::move(color);
+}
+
+std::optional<shader::vector_t<float, 4>> fragment_io_t::color() const {
+    return m_color;
+}
+
 bool fragment_io_t::discarded() const {
     return m_discarded;
 }
 
 void fragment_io_t::discard() {
     m_outputs.clear();
+    m_color.reset();
     m_discarded = true;
 }
 
 void fragment_io_t::clear_results() {
     m_outputs.clear();
+    m_color.reset();
     m_discarded = false;
 }
 
