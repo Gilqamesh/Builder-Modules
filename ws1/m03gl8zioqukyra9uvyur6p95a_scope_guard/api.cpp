@@ -7,7 +7,7 @@ scope_guard_t::scope_guard_t(std::function<void()> cleanup):
 {
 }
 
-scope_guard_t::~scope_guard_t() {
+scope_guard_t::~scope_guard_t() noexcept {
     if (m_cleanup) {
         m_cleanup();
     }

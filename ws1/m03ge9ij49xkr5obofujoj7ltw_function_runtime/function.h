@@ -38,6 +38,11 @@ public:
 
     virtual ~function_t();
 
+    function_t(const function_t& other) = delete;
+    function_t& operator=(const function_t& other) = delete;
+    function_t(function_t&& other) = delete;
+    function_t& operator=(function_t&& other) = delete;
+
     function_t* parent();
     void parent(function_t* parent);
 
@@ -155,7 +160,7 @@ private:
     T read(uint8_t argument_index);
 
 private:
-    m03ge9ij43jyxy821pda20jhwh_typesystem::typesystem_t& m_typesystem;
+    m03ge9ij43jyxy821pda20jhwh_typesystem::typesystem_t* m_typesystem;
     m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t m_function_ir;
     void (*m_call)(function_t&, uint8_t);
     std::vector<function_t*> m_children;
@@ -185,14 +190,17 @@ T function_t::read(uint8_t argument_index) {
     if (argument.m_data_type_id == -1) {
         throw std::runtime_error(std::format("argument {} has no data", argument_index));
     }
-    return m_typesystem.coerce<T>((void*) argument.m_data.data(), argument.m_data_type_id);
+    if (argument.m_data.size() != m_typesystem->sizeof_type(argument.m_data_type_id)) {
+        throw std::runtime_error(std::format("argument {} has an invalid data size", argument_index));
+    }
+    return m_typesystem->coerce<T>((void*) argument.m_data.data(), argument.m_data_type_id);
 }
 
 template <typename T>
 void function_t::write(uint8_t argument_index, T data) {
-    m_typesystem.register_type<T>();
+    m_typesystem->register_type<T>();
 
-    write(argument_index, (void*) &data, m_typesystem.type_id<T>());
+    write(argument_index, (void*) &data, m_typesystem->type_id<T>());
 }
 
 } // namespace m03ge9ij49xkr5obofujoj7ltw_function_runtime

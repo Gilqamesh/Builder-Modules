@@ -45,7 +45,7 @@ struct formatter<m03ge9ij45dcznrmna12qow5r5_function_id::function_id_t> {
 
     template <class FormatContext>
     auto format(const m03ge9ij45dcznrmna12qow5r5_function_id::function_id_t& function_id, FormatContext& ctx) const {
-        return std::format_to(ctx.out(), m03ge9ij45dcznrmna12qow5r5_function_id::function_id_t::to_string(function_id));
+        return std::format_to(ctx.out(), "{}", m03ge9ij45dcznrmna12qow5r5_function_id::function_id_t::to_string(function_id));
     }
 };
 

@@ -1,11 +1,9 @@
-#ifndef M03GINUQUJR8CBFIECO8R61U54_SATURATING_ARITHMETIC_H
-# define M03GINUQUJR8CBFIECO8R61U54_SATURATING_ARITHMETIC_H
+#ifndef M03GINUQUJR8CBFIECO8R61U54_SATURATING_ARITHMETIC_API_H
+# define M03GINUQUJR8CBFIECO8R61U54_SATURATING_ARITHMETIC_API_H
 
-# include <cassert>
 # include <cmath>
-
-# include <limits>
 # include <format>
+# include <limits>
 # include <stdexcept>
 # include <type_traits>
 
@@ -121,9 +119,6 @@ T sub(const T& a, const T& b) {
 
 template <typename T>
 T mul(const T& a, const T& b) {
-    assert(false && "todo: implement");
-    throw std::logic_error("m03ginuqujr8cbfieco8r61u54_saturating_arithmetic::mul: not implemented.");
-
     if constexpr (std::is_floating_point_v<T>) {
         if (std::isnan(a) || std::isinf(a)) {
             throw std::invalid_argument(std::format("m03ginuqujr8cbfieco8r61u54_saturating_arithmetic::mul: a {} must not be NaN or +-infinity.", a));
@@ -131,11 +126,12 @@ T mul(const T& a, const T& b) {
         if (std::isnan(b) || std::isinf(b)) {
             throw std::invalid_argument(std::format("m03ginuqujr8cbfieco8r61u54_saturating_arithmetic::mul: b {} must not be NaN or +-infinity.", b));
         }
-    }
 
-
-    if constexpr (!std::numeric_limits<T>::is_integer) {
-        return a * b;
+        const T result = a * b;
+        if (std::isinf(result)) {
+            return std::signbit(result) ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
+        }
+        return result;
     }
 
     const T zero = static_cast<T>(0);
@@ -178,9 +174,6 @@ T mul(const T& a, const T& b) {
 
 template <typename T>
 T div(const T& a, const T& b) {
-    assert(false && "todo: implement");
-    throw std::logic_error("m03ginuqujr8cbfieco8r61u54_saturating_arithmetic::div: not implemented.");
-
     if constexpr (std::is_floating_point_v<T>) {
         if (std::isnan(a) || std::isinf(a)) {
             throw std::invalid_argument(std::format("m03ginuqujr8cbfieco8r61u54_saturating_arithmetic::div: a {} must not be NaN or +-infinity.", a));
@@ -210,9 +203,15 @@ T div(const T& a, const T& b) {
         }
     }
 
-    return a / b;
+    const T result = a / b;
+    if constexpr (std::is_floating_point_v<T>) {
+        if (std::isinf(result)) {
+            return std::signbit(result) ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
+        }
+    }
+    return result;
 }
 
 } // namespace m03ginuqujr8cbfieco8r61u54_saturating_arithmetic
 
-#endif // M03GINUQUJR8CBFIECO8R61U54_SATURATING_ARITHMETIC_H
+#endif // M03GINUQUJR8CBFIECO8R61U54_SATURATING_ARITHMETIC_API_H

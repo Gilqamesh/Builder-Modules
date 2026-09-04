@@ -1,13 +1,12 @@
 #ifndef M03GJFVD6I5JZBMNGB2LDOOOZA_TYPE_ERASED_ARRAY_API_H
 # define M03GJFVD6I5JZBMNGB2LDOOOZA_TYPE_ERASED_ARRAY_API_H
 
-# include <cassert>
-
-# include <stdexcept>
+# include <cstddef>
 # include <format>
 # include <memory>
-# include <vector>
 # include <span>
+# include <stdexcept>
+# include <vector>
 
 # include <m03gagbht2l61mj6qitacwbmea_byte_stream/byte_stream.h>
 
@@ -18,7 +17,7 @@ public:
     type_erased_array_t();
 
     template <typename T>
-    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool>)
+    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
     explicit type_erased_array_t(std::vector<T> values);
 
     std::span<const std::byte> data() const& noexcept;
@@ -34,15 +33,15 @@ public:
     void clear();
 
     template <typename T>
-    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool>)
+    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
     T& operator[](size_t index) &;
 
     template <typename T>
-    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool>)
+    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
     const T& operator[](size_t index) const&;
 
     template <typename T>
-    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool>)
+    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
     void push_back(const T& value);
 
 private:
@@ -62,7 +61,7 @@ struct formatter<m03gjfvd6i5jzbmngb2ldoooza_type_erased_array::type_erased_array
 namespace m03gjfvd6i5jzbmngb2ldoooza_type_erased_array {
 
 template <typename T>
-requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool>)
+requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
 type_erased_array_t::type_erased_array_t(std::vector<T> values):
     m_data(std::as_bytes(std::span<const T>(values.begin(), values.end()))),
     m_element_size(sizeof(T))
@@ -70,25 +69,31 @@ type_erased_array_t::type_erased_array_t(std::vector<T> values):
 }
 
 template <typename T>
-requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool>)
+requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
 T& type_erased_array_t::operator[](size_t index) & {
     if (m_element_size != sizeof(T)) {
         throw std::invalid_argument(std::format("type_erased_array_t::operator[]: type mismatch, expected element size {}, got {}", m_element_size, sizeof(T)));
+    }
+    if (element_count() <= index) {
+        throw std::out_of_range(std::format("type_erased_array_t::operator[]: index {} exceeds element count {}", index, element_count()));
     }
     return *reinterpret_cast<T*>(m_data.bytes().data() + index * m_element_size);
 }
 
 template <typename T>
-requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool>)
+requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
 const T& type_erased_array_t::operator[](size_t index) const& {
     if (m_element_size != sizeof(T)) {
         throw std::invalid_argument(std::format("type_erased_array_t::operator[]: type mismatch, expected element size {}, got {}", m_element_size, sizeof(T)));
+    }
+    if (element_count() <= index) {
+        throw std::out_of_range(std::format("type_erased_array_t::operator[]: index {} exceeds element count {}", index, element_count()));
     }
     return *reinterpret_cast<const T*>(m_data.bytes().data() + index * m_element_size);
 }
 
 template <typename T>
-requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool>)
+requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
 void type_erased_array_t::push_back(const T& value) {
     if (m_element_size == 0) {
         m_element_size = sizeof(T);

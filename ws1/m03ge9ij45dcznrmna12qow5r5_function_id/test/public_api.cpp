@@ -49,6 +49,12 @@ int main() {
             std::string("math::add@1700000123")
         );
         test::expect(std::equal_to<>(), std::format("{}", value), std::string("math::add@1700000123"));
+        const api::function_id_t braces {
+            .ns = "{namespace}",
+            .name = "{name}",
+            .creation_time = std::chrono::system_clock::time_point(1s)
+        };
+        test::expect(std::equal_to<>(), std::format("{}", braces), std::string("{namespace}::{name}@1"));
 
         const auto parsed = api::function_id_t::from_string("math::add@1700000123");
         test::expect(std::equal_to<>(), parsed, value);
@@ -131,6 +137,16 @@ int main() {
         test::expect_throws<std::invalid_argument>([] {
             [[maybe_unused]] const auto invalid = api::function_id_t::from_string(
                 "namespace::name@not-a-number"
+            );
+        });
+        test::expect_throws<std::invalid_argument>([] {
+            [[maybe_unused]] const auto invalid = api::function_id_t::from_string(
+                "namespace::name@1trailing"
+            );
+        });
+        test::expect_throws<std::runtime_error>([] {
+            [[maybe_unused]] const auto invalid = api::function_id_t::from_string(
+                "namespace@1::name"
             );
         });
         test::expect_throws<std::out_of_range>([] {

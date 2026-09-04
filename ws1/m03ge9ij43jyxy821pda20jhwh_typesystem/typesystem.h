@@ -2,7 +2,6 @@
 # define M03GE9IJ43JYXY821PDA20JHWH_TYPESYSTEM_TYPESYSTEM_H
 
 # include <bit>
-# include <cassert>
 # include <cmath>
 # include <cstddef>
 # include <stdexcept>
@@ -110,10 +109,12 @@ void typesystem_t::register_type() {
 
 template <typename From, typename To>
 void typesystem_t::register_coercion(To (*coercion_procedure)(From)) {
+    if (coercion_procedure == nullptr) {
+        throw std::invalid_argument("coercion procedure must not be null");
+    }
+
     int id_from = type_id<From>();
     int id_to = type_id<To>();
-    assert(static_cast<size_t>(id_from) < m_coercions.size());
-    assert(static_cast<size_t>(id_to) < m_coercions[id_from].size());
     if (m_coercions[id_from][id_to]) {
         throw std::runtime_error("coercion is already registered between types");
     }

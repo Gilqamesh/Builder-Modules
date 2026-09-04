@@ -20,6 +20,8 @@ class shell_t {
 public:
     /**
      * @brief Constructs a shell over an application.
+     *
+     * The application is borrowed and must outlive the shell.
      */
     shell_t(m03gm33dj5xo77vegpbspger4r_cli::application_t& application, std::string prompt);
 

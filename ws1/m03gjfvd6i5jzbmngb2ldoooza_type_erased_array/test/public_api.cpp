@@ -46,6 +46,12 @@ int main() {
         test::expect_throws<std::invalid_argument>([&] {
             [[maybe_unused]] const auto& value = values.operator[]<mismatched_t>(0);
         });
+        test::expect_throws<std::out_of_range>([&] {
+            [[maybe_unused]] const auto& value = values.operator[]<int>(3);
+        });
+        test::expect_throws<std::out_of_range>([&] {
+            [[maybe_unused]] const auto& value = const_values.operator[]<int>(99);
+        });
 
         array_t appended;
         appended.push_back(7);

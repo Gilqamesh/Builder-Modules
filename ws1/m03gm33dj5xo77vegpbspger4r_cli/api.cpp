@@ -684,6 +684,10 @@ bool application_t::run_script(
         }
     }
 
+    if (m_running && input.bad()) {
+        throw std::ios_base::failure(std::format("cannot read script '{}'", path.string()));
+    }
+
     return m_running;
 }
 

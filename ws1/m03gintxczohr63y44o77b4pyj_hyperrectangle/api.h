@@ -1,5 +1,5 @@
-#ifndef M03GINTXCZOHR63Y44O77B4PYJ_HYPERRECTANGLE_H
-# define M03GINTXCZOHR63Y44O77B4PYJ_HYPERRECTANGLE_H
+#ifndef M03GINTXCZOHR63Y44O77B4PYJ_HYPERRECTANGLE_API_H
+# define M03GINTXCZOHR63Y44O77B4PYJ_HYPERRECTANGLE_API_H
 
 # include <array>
 # include <type_traits>
@@ -184,7 +184,7 @@ private:
 namespace std {
 
 template <typename T, std::size_t N>
-struct std::formatter<m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<T, N>>;
+struct formatter<m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<T, N>>;
 
 } // namespace std
 
@@ -392,7 +392,7 @@ bool hyperrectangle_t<T, N>::overlaps(const hyperrectangle_t<T, N>& other) const
 namespace std {
 
 template <typename T, std::size_t N>
-struct std::formatter<m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<T, N>> {
+struct formatter<m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_t<T, N>> {
     constexpr auto parse(std::format_parse_context& ctx) {
         auto it = ctx.begin();
         if (it != ctx.end() && *it != '}') {
@@ -421,4 +421,4 @@ struct std::formatter<m03gintxczohr63y44o77b4pyj_hyperrectangle::hyperrectangle_
 
 } // namespace std
 
-#endif // M03GINTXCZOHR63Y44O77B4PYJ_HYPERRECTANGLE_H
+#endif // M03GINTXCZOHR63Y44O77B4PYJ_HYPERRECTANGLE_API_H

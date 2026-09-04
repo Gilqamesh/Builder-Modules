@@ -6,6 +6,12 @@
 namespace m03ge9ij43jyxy821pda20jhwh_typesystem {
 
 void typesystem_t::coerce(void* from, int id_from, void* to, int id_to) {
+    static_cast<void>(sizeof_type(id_from));
+    static_cast<void>(sizeof_type(id_to));
+    if (from == nullptr || to == nullptr) {
+        throw std::invalid_argument("coercion source and destination must not be null");
+    }
+
     if (id_from == id_to) {
         memcpy(to, from, sizeof_type(id_from));
         return ;
@@ -57,6 +63,9 @@ void typesystem_t::update_coercion_graph() {
 }
 
 void typesystem_t::update_coercion_graph(int id_from, int id_to) {
+    static_cast<void>(sizeof_type(id_from));
+    static_cast<void>(sizeof_type(id_to));
+
     // Floyd-Warshall
     const size_t n = m_type_parents.size();
     for (size_t i = 0; i < n; ++i) {
@@ -70,7 +79,7 @@ void typesystem_t::update_coercion_graph(int id_from, int id_to) {
 }
 
 size_t typesystem_t::sizeof_type(int type_id) {
-    if ((int)m_type_size.size() <= type_id) {
+    if (type_id < 0 || static_cast<std::size_t>(type_id) >= m_type_size.size()) {
         throw std::runtime_error("type id is out of bounds");
     }
 

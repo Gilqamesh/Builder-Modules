@@ -1,5 +1,5 @@
-#ifndef M03GIN6LTE1AZ5KJ36AJ9SUK6T_INTERVAL_MODULE_H
-# define M03GIN6LTE1AZ5KJ36AJ9SUK6T_INTERVAL_MODULE_H
+#ifndef M03GIN6LTE1AZ5KJ36AJ9SUK6T_INTERVAL_API_H
+# define M03GIN6LTE1AZ5KJ36AJ9SUK6T_INTERVAL_API_H
 
 # include <cmath>
 
@@ -145,7 +145,7 @@ private:
 namespace std {
 
 template <typename T>
-struct std::formatter<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>>;
+struct formatter<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>>;
 
 } // namespace std
 
@@ -330,7 +330,7 @@ T interval_t<T>::length() const {
 namespace std {
 
 template <typename T>
-struct std::formatter<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>> {
+struct formatter<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>> {
     constexpr auto parse(std::format_parse_context& ctx) {
         auto it = ctx.begin();
         if (it != ctx.end() && *it != '}') {
@@ -351,4 +351,4 @@ struct std::formatter<m03gin6lte1az5kj36aj9suk6t_interval::interval_t<T>> {
 
 } // namespace std
 
-#endif // M03GIN6LTE1AZ5KJ36AJ9SUK6T_INTERVAL_MODULE_H
+#endif // M03GIN6LTE1AZ5KJ36AJ9SUK6T_INTERVAL_API_H

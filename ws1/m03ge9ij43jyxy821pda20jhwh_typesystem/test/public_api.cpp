@@ -89,6 +89,12 @@ int main() {
         test::expect_throws<std::runtime_error>([&] {
             [[maybe_unused]] const auto size = typesystem.sizeof_type(999);
         });
+        test::expect_throws<std::runtime_error>([&] {
+            [[maybe_unused]] const auto size = typesystem.sizeof_type(-1);
+        });
+        test::expect_throws<std::invalid_argument>([&] {
+            typesystem.register_coercion<source_t, middle_t>(nullptr);
+        });
 
         typesystem.register_coercion<source_t, middle_t>(&source_to_middle);
         typesystem.register_coercion<middle_t, target_t>(&middle_to_target);
@@ -138,6 +144,21 @@ int main() {
                 &target,
                 target_id
             );
+        });
+        test::expect_throws<std::runtime_error>([&] {
+            typesystem.coerce(&source, -1, &source_copy, source_id);
+        });
+        test::expect_throws<std::runtime_error>([&] {
+            typesystem.coerce(&source, source_id, &source_copy, 999);
+        });
+        test::expect_throws<std::invalid_argument>([&] {
+            typesystem.coerce(nullptr, source_id, &source_copy, source_id);
+        });
+        test::expect_throws<std::invalid_argument>([&] {
+            typesystem.coerce(&source, source_id, nullptr, source_id);
+        });
+        test::expect_throws<std::runtime_error>([&] {
+            typesystem.update_coercion_graph(-1, source_id);
         });
 
         const api::typesystem_t::coercion_t empty_coercion;

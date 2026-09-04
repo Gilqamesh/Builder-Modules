@@ -2,6 +2,7 @@
 #include <m03ge9ij49xkr5obofujoj7ltw_function_runtime/function.h>
 
 #include <functional>
+#include <type_traits>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -72,6 +73,11 @@ id_api::function_id_t make_id(std::string name, std::chrono::seconds seconds) {
 
 int main() {
     return test::run([] {
+        static_assert(!std::is_copy_constructible_v<api::function_t>);
+        static_assert(!std::is_copy_assignable_v<api::function_t>);
+        static_assert(!std::is_move_constructible_v<api::function_t>);
+        static_assert(!std::is_move_assignable_v<api::function_t>);
+
         static_assert(std::has_virtual_destructor_v<api::function_t>);
 
         api::function_t::argument_t default_argument;
@@ -206,6 +212,9 @@ int main() {
         test::expect_throws<std::runtime_error>([&] {
             source.connect(&target, 0, 9);
         });
+        test::expect_throws<std::invalid_argument>([&] {
+            source.connect(nullptr, 0, 0);
+        });
         test::expect_throws<std::runtime_error>([&] {
             source.connect(&target, 9, 0);
         });
@@ -221,6 +230,12 @@ int main() {
         test::expect_throws<std::runtime_error>([&] {
             source.clear(9);
         });
+        test::expect_throws<std::runtime_error>([&] {
+            source.send(9);
+        });
+        test::expect_throws<std::invalid_argument>([&] {
+            source.write(0, nullptr, typesystem.type_id<int>());
+        });
 
         test::expect(std::identity(), &function.children() == &function.children());
         test::expect(std::identity(), &function.arguments() == &function.arguments());
@@ -228,6 +243,12 @@ int main() {
         test::expect(std::equal_to<>(), function.arguments().size(), std::size_t(3));
 
         api::function_t geometry(typesystem, ir_api::function_ir_t {}, &no_op_call);
+        test::expect_throws<std::logic_error>([&] {
+            [[maybe_unused]] const auto width = geometry.coordinate_system_width();
+        });
+        test::expect_throws<std::logic_error>([&] {
+            [[maybe_unused]] const auto x = geometry.to_child_x(0);
+        });
         geometry.left(10);
         geometry.right(110);
         geometry.top(20);
@@ -243,6 +264,12 @@ int main() {
         test::expect(std::equal_to<>(), geometry.to_child_y(120), 0);
         test::expect(std::equal_to<>(), geometry.from_child_x(0), 60);
         test::expect(std::equal_to<>(), geometry.from_child_y(0), 120);
+
+        api::function_t invalid_geometry(typesystem, ir_api::function_ir_t {}, &no_op_call);
+        test::expect_throws<std::invalid_argument>([&] { invalid_geometry.finalize_dimensions(); });
+        test::expect_throws<std::invalid_argument>([&] {
+            [[maybe_unused]] const api::function_t invalid_call(typesystem, ir_api::function_ir_t {}, nullptr);
+        });
 
         g_typesystem = &typesystem;
         typesystem.register_type<id_api::function_id_t>();

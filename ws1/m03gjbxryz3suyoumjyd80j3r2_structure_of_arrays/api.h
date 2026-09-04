@@ -1,5 +1,5 @@
-#ifndef M03GJBXRYZ3SUYOUMJYD80J3R2_API_H
-# define M03GJBXRYZ3SUYOUMJYD80J3R2_API_H
+#ifndef M03GJBXRYZ3SUYOUMJYD80J3R2_STRUCTURE_OF_ARRAYS_API_H
+# define M03GJBXRYZ3SUYOUMJYD80J3R2_STRUCTURE_OF_ARRAYS_API_H
 
 # include <vector>
 # include <tuple>
@@ -66,9 +66,18 @@ namespace m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays {
 
 template <typename... Ts>
 void structure_of_arrays_t<Ts...>::push_back(Ts... values) {
-    std::apply([&](auto&... vector) {
-        (vector.push_back(std::move(values)), ...);
-    }, m_data);
+    std::size_t pushed_count = 0;
+    try {
+        std::apply([&](auto&... vector) {
+            ((vector.push_back(std::move(values)), ++pushed_count), ...);
+        }, m_data);
+    } catch (...) {
+        std::size_t index = 0;
+        std::apply([&](auto&... vector) {
+            ((index++ < pushed_count ? vector.pop_back() : void()), ...);
+        }, m_data);
+        throw;
+    }
 }
 
 template <typename... Ts>
@@ -172,4 +181,4 @@ struct formatter<m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays::erased_structur
 
 } // namespace std
 
-#endif // M03GJBXRYZ3SUYOUMJYD80J3R2_API_H
+#endif // M03GJBXRYZ3SUYOUMJYD80J3R2_STRUCTURE_OF_ARRAYS_API_H

@@ -311,6 +311,11 @@ public:
      */
     application_t();
 
+    application_t(const application_t& other) = delete;
+    application_t& operator=(const application_t& other) = delete;
+    application_t(application_t&& other) = delete;
+    application_t& operator=(application_t&& other) = delete;
+
     /**
      * @brief Adds a command table entry.
      */
@@ -507,24 +512,24 @@ struct formatter<m03gm33dj5xo77vegpbspger4r_cli::command_t> {
         auto out = ctx.out();
 
         if (!command.usage.empty()) {
-            return format_to(out, "{}", command.usage);
-        }
-
-        bool first = true;
-        for (const std::string& component : command.path) {
-            if (!first) {
-                out = format_to(out, " ");
+            out = format_to(out, "{}", command.usage);
+        } else {
+            bool first = true;
+            for (const std::string& component : command.path) {
+                if (!first) {
+                    out = format_to(out, " ");
+                }
+                first = false;
+                out = format_to(out, "{}", component);
             }
-            first = false;
-            out = format_to(out, "{}", component);
-        }
 
-        for (const m03gm33dj5xo77vegpbspger4r_cli::argument_t& argument : command.arguments) {
-            if (!first) {
-                out = format_to(out, " ");
+            for (const m03gm33dj5xo77vegpbspger4r_cli::argument_t& argument : command.arguments) {
+                if (!first) {
+                    out = format_to(out, " ");
+                }
+                first = false;
+                out = format_to(out, "{}", argument);
             }
-            first = false;
-            out = format_to(out, "{}", argument);
         }
 
         return out;

@@ -27,13 +27,17 @@ function_id_t function_id_t::from_string(const std::string& str) {
     result.ns = str.substr(0, ns_end);
 
     const size_t name_end = str.rfind('@');
-    if (name_end == std::string::npos) {
+    if (name_end == std::string::npos || name_end < ns_end + 2) {
         throw std::runtime_error(std::format("function_id_t::from_string: invalid function_id string: {}", str));
     }
     result.name = str.substr(ns_end + 2, name_end - (ns_end + 2));
 
     const std::string creation_time_str = str.substr(name_end + 1);
-    const uint64_t creation_time_seconds = std::stoull(creation_time_str);
+    std::size_t parsed_size = 0;
+    const uint64_t creation_time_seconds = std::stoull(creation_time_str, &parsed_size);
+    if (parsed_size != creation_time_str.size()) {
+        throw std::invalid_argument(std::format("function_id_t::from_string: invalid creation time: {}", creation_time_str));
+    }
     result.creation_time = std::chrono::system_clock::time_point(std::chrono::seconds(creation_time_seconds));
 
     return result;

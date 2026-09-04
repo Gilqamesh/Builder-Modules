@@ -1,13 +1,13 @@
 #ifndef M03GLI1RB5P56MNCPLIPXPF3HE_RING_BUFFER_API_H
 # define M03GLI1RB5P56MNCPLIPXPF3HE_RING_BUFFER_API_H
 
-# include <vector>
 # include <cstddef>
 # include <format>
-# include <stdexcept>
-# include <typeinfo>
-# include <type_traits>
 # include <limits>
+# include <stdexcept>
+# include <type_traits>
+# include <typeinfo>
+# include <vector>
 
 namespace m03gli1rb5p56mncplipxpf3he_ring_buffer {
 
@@ -94,7 +94,7 @@ public:
     std::size_t history_capacity() const;
 
 private:
-    size_t buffer_size(std::size_t history_capacity) const;
+    static std::size_t buffer_size(std::size_t history_capacity);
 
 private:
     std::vector<T> m_buffer;
@@ -179,8 +179,8 @@ std::size_t ring_buffer_t<T, StagingPolicy, CommitPolicy>::history_capacity() co
 }
 
 template <typename T, staging_policy_t StagingPolicy, commit_policy_t CommitPolicy>
-size_t ring_buffer_t<T, StagingPolicy, CommitPolicy>::buffer_size(std::size_t history_capacity) const {
-    size_t result = history_capacity;
+std::size_t ring_buffer_t<T, StagingPolicy, CommitPolicy>::buffer_size(std::size_t history_capacity) {
+    std::size_t result = history_capacity;
 
     if (result == 0) {
         throw std::invalid_argument(std::format("ring_buffer_t<{}>::ring_buffer_t: capacity must be positive", typeid(T).name()));
@@ -194,7 +194,7 @@ size_t ring_buffer_t<T, StagingPolicy, CommitPolicy>::buffer_size(std::size_t hi
         ++result;
     }
 
-    if (m_buffer.max_size() < result) {
+    if (std::vector<T>().max_size() < result) {
         throw std::length_error(std::format("ring_buffer_t<{}>::ring_buffer_t: history capacity is too large", typeid(T).name()));
     }
 

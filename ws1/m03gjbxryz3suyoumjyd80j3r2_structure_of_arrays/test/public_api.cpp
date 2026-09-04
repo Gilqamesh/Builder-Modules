@@ -4,12 +4,34 @@
 #include <functional>
 #include <cstddef>
 #include <format>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
 
 namespace api = m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
+
+namespace {
+
+struct throwing_value_t {
+    int value;
+    static bool fail_on_move;
+
+    throwing_value_t(int value): value(value) {}
+    throwing_value_t(const throwing_value_t&) = default;
+    throwing_value_t& operator=(const throwing_value_t&) = default;
+    throwing_value_t(throwing_value_t&& other): value(other.value) {
+        if (fail_on_move) {
+            throw std::runtime_error("move failed");
+        }
+    }
+    throwing_value_t& operator=(throwing_value_t&&) = default;
+};
+
+bool throwing_value_t::fail_on_move = false;
+
+} // namespace
 
 
 int main() {
@@ -27,6 +49,18 @@ int main() {
         test::expect(std::equal_to<>(), std::get<1>(data).size(), std::size_t(2));
         test::expect(std::equal_to<>(), std::get<1>(data)[0], 1.5F);
         test::expect(std::equal_to<>(), std::get<1>(data)[1], 2.5F);
+
+        api::structure_of_arrays_t<int, throwing_value_t> exception_safe;
+        throwing_value_t::fail_on_move = true;
+        test::expect_throws<std::runtime_error>([&] {
+            exception_safe.push_back(1, throwing_value_t(2));
+        });
+        test::expect(std::identity(), std::get<0>(exception_safe.data()).empty());
+        test::expect(std::identity(), std::get<1>(exception_safe.data()).empty());
+        throwing_value_t::fail_on_move = false;
+        exception_safe.push_back(3, throwing_value_t(4));
+        test::expect(std::equal_to<>(), std::get<0>(exception_safe.data()).size(), std::size_t(1));
+        test::expect(std::equal_to<>(), std::get<1>(exception_safe.data()).size(), std::size_t(1));
 
         const auto formatted_structure = std::format("{}", structure);
         test::expect(std::identity(), formatted_structure.find("[0]:") != std::string::npos);

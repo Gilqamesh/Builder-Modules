@@ -7,7 +7,7 @@
 namespace m03ge9ij49xkr5obofujoj7ltw_function_runtime {
 
 function_t::function_t(m03ge9ij43jyxy821pda20jhwh_typesystem::typesystem_t& typesystem, m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t function_ir, void (*call)(function_t&, uint8_t)):
-    m_typesystem(typesystem),
+    m_typesystem(&typesystem),
     m_function_ir(function_ir),
     m_call(call),
     m_parent(nullptr),
@@ -20,6 +20,9 @@ function_t::function_t(m03ge9ij43jyxy821pda20jhwh_typesystem::typesystem_t& type
     m_coordinate_system_height(0.0f),
     m_is_dimensions_finalized(false)
 {
+    if (m_call == nullptr) {
+        throw std::invalid_argument("function_t: function call must not be null");
+    }
 }
 
 function_t::~function_t() {
@@ -61,7 +64,9 @@ const std::string& function_t::argument_name(uint8_t argument_index) {
 }
 
 void function_t::connect(function_t* other, uint8_t other_argument_index, uint8_t self_argument_index) {
-    assert(other);
+    if (other == nullptr) {
+        throw std::invalid_argument("function_t::connect: other must not be null");
+    }
     if (m_arguments.size() <= self_argument_index) {
         throw std::runtime_error(std::format("argument_index out of range: {}", self_argument_index));
     }
@@ -119,11 +124,15 @@ void function_t::write(uint8_t argument_index, void* data, int data_type_id) {
     if (m_arguments.size() <= argument_index) {
         throw std::runtime_error(std::format("argument_index out of range: {}", argument_index));
     }
+    if (data == nullptr) {
+        throw std::invalid_argument("function_t::write: data must not be null");
+    }
     argument_t& argument = m_arguments[argument_index];
 
-    if (argument.m_data_type_id != data_type_id) {
+    const auto data_size = m_typesystem->sizeof_type(data_type_id);
+    if (argument.m_data_type_id != data_type_id || argument.m_data.size() != data_size) {
         argument.m_data_type_id = data_type_id;
-        argument.m_data.resize(m_typesystem.sizeof_type(data_type_id));
+        argument.m_data.resize(data_size);
     }
 
     std::memcpy((void*) argument.m_data.data(), data, argument.m_data.size());
@@ -132,14 +141,21 @@ void function_t::write(uint8_t argument_index, void* data, int data_type_id) {
 }
 
 void function_t::send(uint8_t argument_index) {
+    if (m_arguments.size() <= argument_index) {
+        throw std::runtime_error(std::format("argument_index out of range: {}", argument_index));
+    }
+
     argument_t& argument = m_arguments[argument_index];
     if (argument.m_data_type_id != -1 && argument.m_connection) {
-        argument_t& other_argument = argument.m_connection->m_arguments[argument.m_connection_argument_index];
-        if (other_argument.m_data_type_id != argument.m_data_type_id) {
-            other_argument.m_data_type_id = argument.m_data_type_id;
-            other_argument.m_data.resize(argument.m_data.size());
+        const auto data_size = m_typesystem->sizeof_type(argument.m_data_type_id);
+        if (argument.m_data.size() != data_size) {
+            throw std::runtime_error(std::format("argument {} has an invalid data size", argument_index));
         }
-        assert(other_argument.m_data.size() == argument.m_data.size());
+        argument_t& other_argument = argument.m_connection->m_arguments[argument.m_connection_argument_index];
+        if (other_argument.m_data_type_id != argument.m_data_type_id || other_argument.m_data.size() != data_size) {
+            other_argument.m_data_type_id = argument.m_data_type_id;
+            other_argument.m_data.resize(data_size);
+        }
         std::memcpy((void*) other_argument.m_data.data(), (void*) argument.m_data.data(), other_argument.m_data.size());
         argument.m_connection->call(argument.m_connection_argument_index);
     }
@@ -202,13 +218,16 @@ std::vector<function_t::argument_t>& function_t::arguments() {
 }
 
 void function_t::morph(m03ge9ij43jyxy821pda20jhwh_typesystem::typesystem_t& typesystem, m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t function_ir, void (*call)(function_t&, uint8_t)) {
+    if (call == nullptr) {
+        throw std::invalid_argument("function_t::morph: function call must not be null");
+    }
     if (m_is_expanded) {
         if (m_function_ir.function_id != function_ir.function_id) {
             shrink();
         }
     }
 
-    m_typesystem = typesystem;
+    m_typesystem = &typesystem;
     m_function_ir = std::move(function_ir);
     m_call = call;
 
@@ -219,11 +238,15 @@ void function_t::expand() {
     if (m_is_expanded) {
         return ;
     }
-    assert(m_children.empty());
+    if (!m_children.empty()) {
+        throw std::logic_error("function_t::expand: unexpanded function has children");
+    }
 
     for (const auto& child : m_function_ir.children) {
-        function_t* node = m_typesystem.coerce(child.function_id);
-        assert(node);
+        function_t* node = m_typesystem->coerce(child.function_id);
+        if (node == nullptr) {
+            throw std::runtime_error("function_t::expand: child coercion returned null");
+        }
         node->left(child.left);
         node->right(child.right);
         node->top(child.top);
@@ -251,7 +274,6 @@ void function_t::expand() {
             throw std::runtime_error(std::format("to function index out of range: {}", connection.to_function_index));
         }
 
-        assert(from_function && to_function);
         from_function->connect(to_function, connection.to_argument_index, connection.from_argument_index);
     }
 
@@ -288,8 +310,9 @@ void function_t::finalize_dimensions() {
     const int width = m_right - m_left;
     const int height = m_bottom - m_top;
 
-    assert(0 < width);
-    assert(0 < height);
+    if (width <= 0 || height <= 0) {
+        throw std::invalid_argument("function_t::finalize_dimensions: right and bottom must be greater than left and top");
+    }
 
     if (width < height) {
         m_coordinate_system_width = width / (float) height * std::numeric_limits<int16_t>::max();
@@ -303,36 +326,44 @@ void function_t::finalize_dimensions() {
 }
 
 float function_t::coordinate_system_width() {
-    assert(m_is_dimensions_finalized);
+    if (!m_is_dimensions_finalized) {
+        throw std::logic_error("function_t::coordinate_system_width: dimensions are not finalized");
+    }
     return m_coordinate_system_width;
 }
 
 float function_t::coordinate_system_height() {
-    assert(m_is_dimensions_finalized);
+    if (!m_is_dimensions_finalized) {
+        throw std::logic_error("function_t::coordinate_system_height: dimensions are not finalized");
+    }
     return m_coordinate_system_height;
 }
 
 int function_t::to_child_x(int x) {
-    assert(m_left < m_right);
-    assert(m_is_dimensions_finalized);
+    if (!m_is_dimensions_finalized) {
+        throw std::logic_error("function_t::to_child_x: dimensions are not finalized");
+    }
     return (x - m_left) / (float) (m_right - m_left) * m_coordinate_system_width - m_coordinate_system_width / 2.0f;
 }
 
 int function_t::to_child_y(int y) {
-    assert(m_top < m_bottom);
-    assert(m_is_dimensions_finalized);
+    if (!m_is_dimensions_finalized) {
+        throw std::logic_error("function_t::to_child_y: dimensions are not finalized");
+    }
     return (y - m_top) / (float) (m_bottom - m_top) * m_coordinate_system_height - m_coordinate_system_height / 2.0f;
 }
 
 int function_t::from_child_x(int x) {
-    assert(m_left < m_right);
-    assert(m_is_dimensions_finalized);
+    if (!m_is_dimensions_finalized) {
+        throw std::logic_error("function_t::from_child_x: dimensions are not finalized");
+    }
     return (x + m_coordinate_system_width / 2.0f) / m_coordinate_system_width * (m_right - m_left) + m_left;
 }
 
 int function_t::from_child_y(int y) {
-    assert(m_top < m_bottom);
-    assert(m_is_dimensions_finalized);
+    if (!m_is_dimensions_finalized) {
+        throw std::logic_error("function_t::from_child_y: dimensions are not finalized");
+    }
     return (y + m_coordinate_system_height / 2.0f) / m_coordinate_system_height * (m_bottom - m_top) + m_top;
 }
 

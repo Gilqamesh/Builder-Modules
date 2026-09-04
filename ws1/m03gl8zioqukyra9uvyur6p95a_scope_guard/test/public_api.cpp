@@ -2,6 +2,7 @@
 #include <m03gl8zioqukyra9uvyur6p95a_scope_guard/api.h>
 
 #include <functional>
+#include <type_traits>
 
 namespace api = m03gl8zioqukyra9uvyur6p95a_scope_guard;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
@@ -9,6 +10,12 @@ namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
 
 int main() {
     return test::run([] {
+        static_assert(!std::is_copy_constructible_v<api::scope_guard_t>);
+        static_assert(!std::is_copy_assignable_v<api::scope_guard_t>);
+        static_assert(!std::is_move_constructible_v<api::scope_guard_t>);
+        static_assert(!std::is_move_assignable_v<api::scope_guard_t>);
+        static_assert(std::is_nothrow_destructible_v<api::scope_guard_t>);
+
         int cleanup_count = 0;
         {
             api::scope_guard_t guard([&] { ++cleanup_count; });

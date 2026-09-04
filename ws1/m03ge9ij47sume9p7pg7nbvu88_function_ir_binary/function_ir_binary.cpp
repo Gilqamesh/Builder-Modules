@@ -1,7 +1,7 @@
 #include <m03ge9ij47sume9p7pg7nbvu88_function_ir_binary/function_ir_binary.h>
-#include <cassert>
 #include <chrono>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 #include <format>
@@ -12,6 +12,35 @@ enum class opcode_t : uint8_t {
     CREATE_FUNCTION,
     CONNECT_ARGUMENTS
 };
+
+static uint8_t serialize_function_index(uint16_t index) {
+    if (index == std::numeric_limits<uint16_t>::max()) {
+        return std::numeric_limits<uint8_t>::max();
+    }
+    if (std::numeric_limits<uint8_t>::max() <= index) {
+        throw std::invalid_argument(std::format("function index {} is not representable in the binary format", index));
+    }
+    return static_cast<uint8_t>(index);
+}
+
+static uint16_t deserialize_function_index(uint8_t index) {
+    if (index == std::numeric_limits<uint8_t>::max()) {
+        return std::numeric_limits<uint16_t>::max();
+    }
+    return index;
+}
+
+static void serialize_int16(std::vector<uint8_t>& bytes, int value) {
+    const auto serialized = static_cast<uint16_t>(static_cast<int16_t>(value));
+    bytes.emplace_back(static_cast<uint8_t>(serialized >> 8));
+    bytes.emplace_back(static_cast<uint8_t>(serialized & 0xFF));
+}
+
+static int deserialize_int16(uint8_t high, uint8_t low) {
+    const auto serialized = static_cast<uint16_t>(static_cast<uint16_t>(high) << 8)
+        | static_cast<uint16_t>(low);
+    return static_cast<int16_t>(serialized);
+}
 
 static std::chrono::system_clock::time_point deserialize_creation_time(uint64_t serialized_creation_time) {
     return std::chrono::system_clock::time_point(std::chrono::seconds(serialized_creation_time));
@@ -34,28 +63,25 @@ function_ir_binary_t::function_ir_binary_t(const m03ge9ij46lc986vpdamnc2fka_func
 
         serialize_function_id(child.function_id);
 
-        const int16_t left = (int16_t) child.left;
-        m_bytes.emplace_back((uint8_t) (left >> 8));
-        m_bytes.emplace_back((uint8_t) (left & 0xFF));
-        const int16_t right = (int16_t) child.right;
-        m_bytes.emplace_back((uint8_t) (right >> 8));
-        m_bytes.emplace_back((uint8_t) (right & 0xFF));
-        const int16_t top = (int16_t) child.top;
-        m_bytes.emplace_back((uint8_t) (top >> 8));
-        m_bytes.emplace_back((uint8_t) (top & 0xFF));
-        const int16_t bottom = (int16_t) child.bottom;
-        m_bytes.emplace_back((uint8_t) (bottom >> 8));
-        m_bytes.emplace_back((uint8_t) (bottom & 0xFF));
+        if (!std::in_range<int16_t>(child.left)
+            || !std::in_range<int16_t>(child.right)
+            || !std::in_range<int16_t>(child.top)
+            || !std::in_range<int16_t>(child.bottom)) {
+            throw std::invalid_argument("child coordinates are not representable in the binary format");
+        }
+
+        serialize_int16(m_bytes, child.left);
+        serialize_int16(m_bytes, child.right);
+        serialize_int16(m_bytes, child.top);
+        serialize_int16(m_bytes, child.bottom);
     }
 
     for (const auto& connection : ir.connections) {
         m_bytes.emplace_back(static_cast<uint8_t>(opcode_t::CONNECT_ARGUMENTS));
 
-        assert(connection.from_function_index <= UINT8_MAX);
-        m_bytes.emplace_back((uint8_t) connection.from_function_index);
+        m_bytes.emplace_back(serialize_function_index(connection.from_function_index));
         m_bytes.emplace_back(connection.from_argument_index);
-        assert(connection.to_function_index <= UINT8_MAX);
-        m_bytes.emplace_back((uint8_t) connection.to_function_index);
+        m_bytes.emplace_back(serialize_function_index(connection.to_function_index));
         m_bytes.emplace_back(connection.to_argument_index);
     }
 }
@@ -80,13 +106,16 @@ m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t function_ir_binary_t::func
                 m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t::child_t child;
 
                 child.function_id = deserialize_function_id(offset);
-                child.left = ((int16_t) m_bytes[offset] << 8) | (int16_t) m_bytes[offset + 1];
+                if (m_bytes.size() - offset < 8) {
+                    throw std::runtime_error("failed to deserialize function_ir: unexpected end of data while reading CREATE_FUNCTION coordinates");
+                }
+                child.left = deserialize_int16(m_bytes[offset], m_bytes[offset + 1]);
                 offset += 2;
-                child.right = ((int16_t) m_bytes[offset] << 8) | (int16_t) m_bytes[offset + 1];
+                child.right = deserialize_int16(m_bytes[offset], m_bytes[offset + 1]);
                 offset += 2;
-                child.top = ((int16_t) m_bytes[offset] << 8) | (int16_t) m_bytes[offset + 1];
+                child.top = deserialize_int16(m_bytes[offset], m_bytes[offset + 1]);
                 offset += 2;
-                child.bottom = ((int16_t) m_bytes[offset] << 8) | (int16_t) m_bytes[offset + 1];
+                child.bottom = deserialize_int16(m_bytes[offset], m_bytes[offset + 1]);
                 offset += 2;
 
                 result.children.emplace_back(std::move(child));
@@ -98,11 +127,11 @@ m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t function_ir_binary_t::func
 
                 m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t::connection_info_t connection;
 
-                connection.from_function_index = m_bytes[offset];
+                connection.from_function_index = deserialize_function_index(m_bytes[offset]);
                 ++offset;
                 connection.from_argument_index = m_bytes[offset];
                 ++offset;
-                connection.to_function_index = m_bytes[offset];
+                connection.to_function_index = deserialize_function_index(m_bytes[offset]);
                 ++offset;
                 connection.to_argument_index = m_bytes[offset];
                 ++offset;
@@ -119,6 +148,10 @@ m03ge9ij46lc986vpdamnc2fka_function_ir::function_ir_t function_ir_binary_t::func
 }
 
 void function_ir_binary_t::serialize_function_id(const m03ge9ij45dcznrmna12qow5r5_function_id::function_id_t& function_id) {
+    if (function_id.ns.find('\0') != std::string::npos || function_id.name.find('\0') != std::string::npos) {
+        throw std::invalid_argument("function id namespace and name must not contain null characters");
+    }
+
     for (uint8_t c : function_id.ns) {
         m_bytes.emplace_back(c);
     }

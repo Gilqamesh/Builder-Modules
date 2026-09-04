@@ -4,6 +4,7 @@
 #include <functional>
 #include <chrono>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -69,9 +70,9 @@ int main() {
             .children = {
                 ir_api::function_ir_t::child_t {
                     .function_id = first_child_id,
-                    .left = 0,
+                    .left = -32768,
                     .right = 1,
-                    .top = 255,
+                    .top = -255,
                     .bottom = 256
                 },
                 ir_api::function_ir_t::child_t {
@@ -107,9 +108,9 @@ int main() {
         );
         test::expect(std::equal_to<>(), decoded.children.size(), std::size_t(2));
         expect_id_equal(decoded.children[0].function_id, first_child_id);
-        test::expect(std::equal_to<>(), decoded.children[0].left, 0);
+        test::expect(std::equal_to<>(), decoded.children[0].left, -32768);
         test::expect(std::equal_to<>(), decoded.children[0].right, 1);
-        test::expect(std::equal_to<>(), decoded.children[0].top, 255);
+        test::expect(std::equal_to<>(), decoded.children[0].top, -255);
         test::expect(std::equal_to<>(), decoded.children[0].bottom, 256);
         expect_id_equal(decoded.children[1].function_id, second_child_id);
         test::expect(std::equal_to<>(), decoded.children[1].left, 1024);
@@ -128,11 +129,44 @@ int main() {
         test::expect(std::equal_to<>(), decoded.connections[1].to_argument_index, std::uint8_t(4));
 
         const api::function_ir_binary_t rebuilt(decoded);
-        test::expect(std::equal_to<>(), rebuilt.bytes(), binary.bytes());
+        test::expect(std::identity(), rebuilt.bytes() == binary.bytes());
+
+        auto root_connection_ir = ir;
+        root_connection_ir.connections = {
+            ir_api::function_ir_t::connection_info_t {
+                .from_function_index = std::numeric_limits<std::uint16_t>::max(),
+                .from_argument_index = 1,
+                .to_function_index = 0,
+                .to_argument_index = 2
+            }
+        };
+        const auto decoded_root_connection = api::function_ir_binary_t(root_connection_ir).function_ir();
+        test::expect(std::equal_to<>(), decoded_root_connection.connections[0].from_function_index,
+            std::numeric_limits<std::uint16_t>::max()
+        );
+        test::expect(std::equal_to<>(), decoded_root_connection.connections[0].to_function_index, std::uint16_t(0));
+
+        auto invalid_index_ir = ir;
+        invalid_index_ir.connections[0].from_function_index = std::numeric_limits<std::uint8_t>::max();
+        test::expect_throws<std::invalid_argument>([&] {
+            [[maybe_unused]] const api::function_ir_binary_t invalid(invalid_index_ir);
+        });
+
+        auto invalid_coordinate_ir = ir;
+        invalid_coordinate_ir.children[0].left = std::numeric_limits<std::int16_t>::max() + 1;
+        test::expect_throws<std::invalid_argument>([&] {
+            [[maybe_unused]] const api::function_ir_binary_t invalid(invalid_coordinate_ir);
+        });
+
+        auto invalid_id_ir = ir;
+        invalid_id_ir.function_id.name = std::string("bad\0name", 8);
+        test::expect_throws<std::invalid_argument>([&] {
+            [[maybe_unused]] const api::function_ir_binary_t invalid(invalid_id_ir);
+        });
 
         std::vector<std::uint8_t> raw { 1, 2, 3, 4 };
         const api::function_ir_binary_t from_bytes(raw);
-        test::expect(std::equal_to<>(), from_bytes.bytes(), raw);
+        test::expect(std::identity(), from_bytes.bytes() == raw);
         raw[0] = 99;
         test::expect(std::equal_to<>(), from_bytes.bytes()[0], std::uint8_t(1));
 

@@ -1,5 +1,5 @@
-#ifndef M03GINWY24NG8O487C4BEOMS6L_VECTOR_MODULE_H
-# define M03GINWY24NG8O487C4BEOMS6L_VECTOR_MODULE_H
+#ifndef M03GINWY24NG8O487C4BEOMS6L_VECTOR_API_H
+# define M03GINWY24NG8O487C4BEOMS6L_VECTOR_API_H
 
 # include <cmath>
 
@@ -165,7 +165,7 @@ private:
 namespace std {
 
 template <typename T, std::size_t N>
-struct std::formatter<m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>>;
+struct formatter<m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>>;
 
 template <typename T, std::size_t N>
 struct hash<m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>>;
@@ -458,7 +458,7 @@ vector_t<T, N> vector_t<T, N>::operator/(U value) const {
 namespace std {
 
 template <typename T, std::size_t N>
-struct std::formatter<m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>> {
+struct formatter<m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>> {
 
     constexpr auto parse(std::format_parse_context& ctx) {
         auto it = ctx.begin();
@@ -498,4 +498,4 @@ struct hash<m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>> {
 
 } // namespace std
 
-#endif // M03GINWY24NG8O487C4BEOMS6L_VECTOR_MODULE_H
+#endif // M03GINWY24NG8O487C4BEOMS6L_VECTOR_API_H
