@@ -4,14 +4,11 @@
 # include "camera.h"
 # include "render_item.h"
 
-# include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
 # include <m03gt1djvvy5atia5evkbg6rqy_software_shader/software_shader.h>
 
 # include <cstdint>
 # include <format>
-# include <memory>
 # include <span>
-# include <vector>
 
 namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
@@ -28,11 +25,23 @@ struct rgba8_t {
 static_assert(sizeof(rgba8_t) == 4);
 
 /**
- * @brief Renders camera-relative render items into a CPU framebuffer and presents it to a window.
+ * @brief Describes borrowed row-major, top-left-origin, non-premultiplied RGBA8 storage.
+ *
+ * Dimensions are non-negative, the pixel count equals `width * height`, and the
+ * storage must outlive every renderer operation that uses it.
+ */
+struct framebuffer_t {
+    std::span<rgba8_t> pixels;
+    int width;
+    int height;
+};
+
+/**
+ * @brief Renders camera-relative render items into a borrowed CPU framebuffer.
  */
 class software_renderer_t {
 public:
-    explicit software_renderer_t(std::shared_ptr<m03gkcdy62bnz808pmk4uzkjra_glfw::window_t> window);
+    explicit software_renderer_t(framebuffer_t framebuffer);
     ~software_renderer_t();
 
     software_renderer_t(const software_renderer_t&) = delete;
@@ -40,44 +49,25 @@ public:
     software_renderer_t(software_renderer_t&&) = delete;
     software_renderer_t& operator=(software_renderer_t&&) = delete;
 
-    /**
-     * @brief Begins and clears a frame after resizing the framebuffer to the window.
-     *
-     * @return Whether the framebuffer has a non-zero size.
-     */
-    bool begin_frame();
-    bool begin_frame(rgba8_t clear_color);
+    void framebuffer(framebuffer_t framebuffer);
+    framebuffer_t framebuffer() const noexcept;
 
+    void clear(rgba8_t color);
+
+    /**
+     * @brief Draws a render item into the current non-empty framebuffer.
+     */
     void draw(const camera_t<float, int, 2>& camera, const render_item_t<float, 2>& render_item);
 
-    /**
-     * @brief Presents an active frame and ends it, or does nothing when no frame is active.
-     */
-    void present();
-
-    /**
-     * @brief Returns borrowed row-major, top-left-origin framebuffer storage.
-     *
-     * The span may be invalidated when `begin_frame()` resizes the framebuffer.
-     */
-    std::span<rgba8_t> pixels() noexcept;
-    std::span<const rgba8_t> pixels() const noexcept;
-
-    int width() const noexcept;
-    int height() const noexcept;
+private:
+    void draw_pipeline(
+        const m03gt1djvvy5atia5evkbg6rqy_software_shader::bindings_t& bindings,
+        const geometry_t& geometry
+    );
 
 private:
-    class presentation_t;
-
-    void resize(int width, int height);
-
-private:
-    std::unique_ptr<presentation_t> m_presentation;
-    m03gt1djvvy5atia5evkbg6rqy_software_shader::program_t m_software_program;
-    std::vector<rgba8_t> m_pixels;
-    int m_width;
-    int m_height;
-    bool m_frame_active;
+    framebuffer_t m_framebuffer;
+    m03gt1djvvy5atia5evkbg6rqy_software_shader::program_t m_program;
 };
 
 } // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
@@ -86,6 +76,9 @@ namespace std {
 
 template <>
 struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::rgba8_t>;
+
+template <>
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::framebuffer_t>;
 
 template <>
 struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::software_renderer_t>;
@@ -107,7 +100,35 @@ struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::rgba8_t> {
     auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::rgba8_t& color, auto& ctx) const {
         auto out = ctx.out();
 
-        out = std::format_to(out, "{{ red: {}, green: {}, blue: {}, alpha: {} }}", color.red, color.green, color.blue, color.alpha);
+        out = std::format_to(out, "{{ ");
+        out = std::format_to(out, "red: {}", color.red);
+        out = std::format_to(out, ", green: {}", color.green);
+        out = std::format_to(out, ", blue: {}", color.blue);
+        out = std::format_to(out, ", alpha: {}", color.alpha);
+        out = std::format_to(out, " }}");
+
+        return out;
+    }
+};
+
+template <>
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::framebuffer_t> {
+    constexpr auto parse(std::format_parse_context& ctx) {
+        auto it = ctx.begin();
+        if (it != ctx.end() && *it != '}') {
+            throw std::format_error("invalid framebuffer_t format specifier");
+        }
+        return it;
+    }
+
+    auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::framebuffer_t& framebuffer, auto& ctx) const {
+        auto out = ctx.out();
+
+        out = std::format_to(out, "{{ ");
+        out = std::format_to(out, "width: {}", framebuffer.width);
+        out = std::format_to(out, ", height: {}", framebuffer.height);
+        out = std::format_to(out, ", pixels: {}", framebuffer.pixels.size());
+        out = std::format_to(out, " }}");
 
         return out;
     }
@@ -126,7 +147,9 @@ struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::software_renderer
     auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::software_renderer_t& renderer, auto& ctx) const {
         auto out = ctx.out();
 
-        out = std::format_to(out, "{{ width: {}, height: {} }}", renderer.width(), renderer.height());
+        out = std::format_to(out, "{{ ");
+        out = std::format_to(out, "framebuffer: {}", renderer.framebuffer());
+        out = std::format_to(out, " }}");
 
         return out;
     }

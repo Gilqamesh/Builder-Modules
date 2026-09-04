@@ -4,6 +4,7 @@
 # include <m03ginwy24ng8o487c4beoms6l_vector/api.h>
 # include <m03gkcdy62bnz808pmk4uzkjra_glfw/glfw.h>
 # include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
+# include <m03gl22hn0dqmosreqjie9tg5m_opengl_renderer/api.h>
 # include <m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer/software_renderer.h>
 
 # include <memory>
@@ -25,7 +26,9 @@ private:
 private:
     m03gkcdy62bnz808pmk4uzkjra_glfw::glfw_t glfw;
     std::shared_ptr<m03gkcdy62bnz808pmk4uzkjra_glfw::window_t> m_window;
-    std::shared_ptr<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::software_renderer_t> m_renderer;
+    std::vector<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::rgba8_t> m_pixels;
+    m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::software_renderer_t m_software_renderer;
+    m03gl22hn0dqmosreqjie9tg5m_opengl_renderer::opengl_renderer_t m_opengl_renderer;
     m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::camera_t<float, int, 2> m_camera;
     std::vector<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t<float, 2>> m_render_items;
 };

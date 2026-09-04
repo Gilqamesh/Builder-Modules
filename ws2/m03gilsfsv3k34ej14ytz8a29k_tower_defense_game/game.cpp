@@ -2,12 +2,21 @@
 
 #include <m03gt0l0q3l4b1k27eab5k7py1_texture/api.h>
 
-#include <random>
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <format>
 #include <iostream>
-#include <unordered_set>
-#include <chrono>
-#include <thread>
+#include <limits>
+#include <memory>
+#include <numbers>
+#include <span>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace {
 
@@ -15,6 +24,43 @@ namespace {
 #include "stb/stb_image.h"
 
 }
+
+namespace {
+
+namespace glfw = m03gkcdy62bnz808pmk4uzkjra_glfw;
+namespace software_renderer = m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer;
+
+std::shared_ptr<glfw::window_t> make_window() {
+    glfw::window_creation_settings_t settings;
+    settings.opengl(4, 6, glfw::opengl_profile_t::core);
+    auto window = glfw::window_t::create(
+        "Tower Defense Game",
+        m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 4> {100, 100, 1600, 1200},
+        settings
+    );
+    if (!window) {
+        throw std::runtime_error("game_t failed to create its window");
+    }
+    return window;
+}
+
+std::size_t framebuffer_pixel_count(int width, int height) {
+    if (width < 0 || height < 0) {
+        throw std::invalid_argument("game_t framebuffer dimensions must be non-negative");
+    }
+    const std::size_t width_size = static_cast<std::size_t>(width);
+    const std::size_t height_size = static_cast<std::size_t>(height);
+    if (width_size != 0 && height_size > std::numeric_limits<std::size_t>::max() / width_size) {
+        throw std::length_error("game_t framebuffer size overflows size_t");
+    }
+    return width_size * height_size;
+}
+
+constexpr software_renderer::rgba8_t ray_white() {
+    return {245, 245, 245, 255};
+}
+
+} // namespace
 
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
@@ -32,6 +78,10 @@ using software_renderer::vertex_attribute_type_t;
 using software_renderer::vertex_primitive_topology_t;
 
 game_t::game_t():
+    m_window(make_window()),
+    m_pixels(),
+    m_software_renderer({.pixels = m_pixels, .width = 0, .height = 0}),
+    m_opengl_renderer(m_window),
     m_camera({{-400, 400}, {-300, 300}}, {{0, 400}, {0, 200}})
 {
     std::vector<std::shared_ptr<texture_api::texture_t>> tile_textures;
@@ -145,12 +195,6 @@ game_t::game_t():
 
         m_render_items.push_back(std::move(render_item));
     }
-
-    // create window with opengl core profile and renderer
-    m03gkcdy62bnz808pmk4uzkjra_glfw::window_creation_settings_t window_settings;
-    window_settings.opengl(4, 6, m03gkcdy62bnz808pmk4uzkjra_glfw::opengl_profile_t::core);
-    m_window = m03gkcdy62bnz808pmk4uzkjra_glfw::window_t::create("Tower Defense Game", m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 4>{100, 100, 1600, 1200}, window_settings);
-    m_renderer = std::make_shared<software_renderer::software_renderer_t>(m_window);
 }
 
 game_t::~game_t() {
@@ -171,7 +215,8 @@ void game_t::run() {
 
         const auto frame_time_ms = std::chrono::duration<double, std::milli>(frame_time - previous_frame_time);
         previous_frame_time = frame_time;
-        std::cout << std::format("frame: {:.2f} ms, framebuffer: {}x{}\n", frame_time_ms.count(), m_renderer->width(), m_renderer->height());
+        const auto framebuffer = m_software_renderer.framebuffer();
+        std::cout << std::format("frame: {:.2f} ms, framebuffer: {}x{}\n", frame_time_ms.count(), framebuffer.width, framebuffer.height);
     }
 }
 
@@ -241,22 +286,31 @@ void game_t::update(float dt) {
 }
 
 void game_t::render() {
-    // ClearBackground(RAYWHITE);
-
-    // const auto camera_view_rect = m_camera.view_rect();
-    // const auto camera_view_top_left = camera_view_rect.corner();
-    // const auto camera_view_rect_bounds = camera_view_rect.bounds();
-    // const auto camera_view_rect_horizontal_length = camera_view_rect_bounds[0].length();
-    // const auto camera_view_rect_vertical_length = camera_view_rect_bounds[1].length();
-    // DrawRectangleLines(camera_view_top_left[0], camera_view_top_left[1], camera_view_rect_horizontal_length, camera_view_rect_vertical_length, RED);
-
-    if (m_renderer->begin_frame()) {
-        for (const auto& render_item : m_render_items) {
-            m_renderer->draw(m_camera, render_item);
-        }
-
-        m_renderer->present();
+    const auto size = m_window->framebuffer_size();
+    auto framebuffer = m_software_renderer.framebuffer();
+    if (framebuffer.width != size[0] || framebuffer.height != size[1]) {
+        m_pixels.resize(framebuffer_pixel_count(size[0], size[1]));
+        m_software_renderer.framebuffer({
+            .pixels = m_pixels,
+            .width = size[0],
+            .height = size[1]
+        });
+        framebuffer = m_software_renderer.framebuffer();
     }
+    if (framebuffer.width == 0 || framebuffer.height == 0) {
+        return;
+    }
+
+    m_software_renderer.clear(ray_white());
+    for (const auto& render_item : m_render_items) {
+        m_software_renderer.draw(m_camera, render_item);
+    }
+
+    m_opengl_renderer.present_rgba8(
+        std::as_bytes(std::span<const software_renderer::rgba8_t>(m_pixels)),
+        framebuffer.width,
+        framebuffer.height
+    );
 }
 
 } // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
