@@ -22,11 +22,10 @@ public:
      */
     const GladGLContext& get_gl() const;
 
-    /**
-     * @brief Temporarily presents externally rendered, tightly packed RGBA8 pixels to the window.
+     /**
+     * @brief Temporarily presents tightly packed RGBA8 pixels to the window.
      *
-     * Pixels have a top-left origin and are non-premultiplied. Dimensions must
-     * be positive and the byte count must equal `width * height * 4`.
+     * `width` and `height` are expected to match the current GLFW framebuffer size.
      */
     void present_rgba8(std::span<const std::byte> pixels, int width, int height);
 
