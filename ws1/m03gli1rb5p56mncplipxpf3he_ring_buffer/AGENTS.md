@@ -8,27 +8,24 @@ Provide a fixed-capacity, single-threaded history with an explicit staging value
 
 History offset zero denotes the newest committed value. `stage()` denotes the value intended for the next commit and is not itself a committed history entry.
 
-The implementation may support different staging/storage policies, but policy names must describe their observable aliasing and commit behavior rather than implementation accidents.
+`staging_policy_t` selects whether staging overlaps committed storage. `commit_policy_t` selects whether commit merely advances or first copies the staged value into the next staging slot.
 
 ## Invariants
 
 - Capacity is positive and fixed for the lifetime of the object.
-- `size()` counts committed history entries only and never exceeds `capacity()`.
+- `history_size()` counts committed entries only and never exceeds `history_capacity()`.
 - After a commit, `history(0)` is the newly committed value and increasing offsets move toward older committed values.
 - Wraparound preserves newest-to-oldest history order.
 - Construction establishes storage; ordinary staging, commit, and history access remain constant-time and do not resize storage.
 - An overlapping staging policy may alias the oldest committed entry when full, and that destructive staging behavior must remain explicit.
 - A dedicated staging policy must not modify committed history before `commit()`.
-- Copy/advance behavior on commit must be defined by the selected policy and tested at capacity one as well as larger capacities.
+- `advance` leaves the next staging slot unchanged; `copy_with_advance` initializes it from the committed value before advancing.
+- History access outside `history_size()` throws `std::out_of_range`.
 
-## Non-goals
+## Boundary
 
-The module is not thread-safe, dynamically resizable, persistent, or a replacement for the SPSC ring-buffer module.
+This module owns fixed-capacity, single-threaded staged history. Dynamic resizing, persistence, and concurrent producer/consumer coordination belong to other abstractions, including the SPSC ring-buffer module.
 
 ## Validation
 
-Test empty state, first commit, partial fill, full capacity, multiple wraparounds, capacity one, out-of-range history, staging before commit, and every supported staging/commit policy combination.
-
-## Open decisions
-
-The final public names and exact post-commit staging behavior of policy variants must follow explicit user direction. Do not rename or collapse policies merely because two implementations can share code.
+Build the module library to run `test/public_api.cpp`. Test zero-capacity rejection, empty state, first commit, partial fill, full capacity, multiple wraparounds, capacity one, out-of-range history, mutable and const history access, and every staging/commit policy combination.
