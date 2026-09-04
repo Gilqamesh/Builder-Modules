@@ -78,11 +78,9 @@ game_t::game_t():
     const auto number_of_entities = 1000;
     for (size_t i = 0; i < number_of_entities; ++i) {
         render_item_t<float, 2> render_item;
-        auto geometry = std::make_shared<geometry_t>();
 
         const auto mesh_index = rand() % meshes.size();
         std::shared_ptr<mesh_t> mesh = meshes[mesh_index];
-        geometry->mesh() = mesh;
 
         const auto number_of_vertices = mesh->number_of_vertices();
 
@@ -92,8 +90,8 @@ game_t::game_t():
         }
         auto index_buffer = std::make_shared<index_buffer_t>();
         index_buffer->indices() = std::move(indices);
-        geometry->index_buffer() = index_buffer;
-        geometry->index_range() = {0, static_cast<std::uint32_t>(index_buffer->indices().size() - 1)};
+        auto geometry = std::make_shared<geometry_t>(index_buffer);
+        geometry->mesh() = mesh;
 
         geometry->primitive_topology() = vertex_primitive_topology_t::triangle_fan;
         geometry->finalize();

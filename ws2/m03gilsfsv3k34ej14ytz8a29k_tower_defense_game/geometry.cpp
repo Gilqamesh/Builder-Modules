@@ -2,10 +2,30 @@
 
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
-geometry_t::geometry_t():
-    m_primitive_topology(vertex_primitive_topology_t::triangle),
-    m_index_range{0, 0}
+geometry_t::geometry_t(std::shared_ptr<index_buffer_t> index_buffer):
+    m_index_buffer(std::move(index_buffer)),
+    m_primitive_topology(vertex_primitive_topology_t::triangle)
 {
+    if (!m_index_buffer) {
+        throw std::invalid_argument("geometry_t: index_buffer is not set");
+    }
+
+    m_index_range = {0, m_index_buffer->indices().size()};
+}
+
+geometry_t::geometry_t(std::shared_ptr<index_buffer_t> index_buffer, index_range_t index_range):
+    m_index_buffer(std::move(index_buffer)),
+    m_primitive_topology(vertex_primitive_topology_t::triangle),
+    m_index_range(index_range)
+{
+    if (!m_index_buffer) {
+        throw std::invalid_argument("geometry_t: index_buffer is not set");
+    }
+
+    const auto index_count = m_index_buffer->indices().size();
+    if (m_index_range.offset > index_count || m_index_range.count > index_count - m_index_range.offset) {
+        throw std::out_of_range(std::format("geometry_t: index_range ({}) is out of bounds for index_buffer indices size ({})", m_index_range, index_count));
+    }
 }
 
 void geometry_t::finalize() {
@@ -13,26 +33,10 @@ void geometry_t::finalize() {
         throw std::runtime_error("geometry_t::finalize: mesh is not set");
     }
 
-    if (!m_index_buffer) {
-        throw std::runtime_error("geometry_t::finalize: index_buffer is not set");
-    }
-
-    const auto& indices = m_index_buffer->indices();
+    const auto indices = this->indices();
 
     if (indices.empty()) {
         throw std::runtime_error("geometry_t::finalize: does not support geometry with no indices");
-    }
-
-    if (m_index_range.end_index <= m_index_range.start_index) {
-        throw std::runtime_error(std::format("geometry_t::finalize: index_range end_index ({}) is not greater than start_index ({})", m_index_range.end_index, m_index_range.start_index));
-    }
-
-    if (indices.size() <= m_index_range.end_index) {
-        throw std::runtime_error(std::format("geometry_t::finalize: index_range end_index ({}) is out of bounds for index_buffer indices size ({})", m_index_range.end_index, indices.size()));
-    }
-
-    if (indices.size() <= m_index_range.start_index) {
-        throw std::runtime_error(std::format("geometry_t::finalize: index_range start_index ({}) is out of bounds for index_buffer indices size ({})", m_index_range.start_index, indices.size()));
     }
 
     size_t expected_index_count_divisor = 1;
@@ -102,20 +106,21 @@ std::shared_ptr<mesh_t> geometry_t::mesh() const {
     return m_mesh;
 }
 
-std::shared_ptr<index_buffer_t>& geometry_t::index_buffer() {
-    return m_index_buffer;
-}
-
 std::shared_ptr<index_buffer_t> geometry_t::index_buffer() const {
     return m_index_buffer;
 }
 
-index_range_t& geometry_t::index_range() {
+index_range_t geometry_t::index_range() const {
     return m_index_range;
 }
 
-index_range_t geometry_t::index_range() const {
-    return m_index_range;
+std::span<const index_buffer_t::index_t> geometry_t::indices() const {
+    const auto& indices = static_cast<const index_buffer_t&>(*m_index_buffer).indices();
+    const auto index_count = indices.size();
+    if (m_index_range.offset > index_count || m_index_range.count > index_count - m_index_range.offset) {
+        throw std::out_of_range(std::format("geometry_t::indices: index_range ({}) is out of bounds for index_buffer indices size ({})", m_index_range, index_count));
+    }
+    return std::span<const index_buffer_t::index_t>(indices).subspan(m_index_range.offset, m_index_range.count);
 }
 
 vertex_primitive_topology_t& geometry_t::primitive_topology() {

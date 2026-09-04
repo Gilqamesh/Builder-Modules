@@ -7,30 +7,32 @@
 
 # include <vector>
 # include <memory>
+# include <span>
+# include <cstddef>
 # include <format>
 # include <stdexcept>
 
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
 struct index_range_t {
-    std::uint32_t start_index;
-    std::uint32_t end_index;
+    std::size_t offset;
+    std::size_t count;
 };
 
 class geometry_t {
 public:
-    geometry_t();
+    explicit geometry_t(std::shared_ptr<index_buffer_t> index_buffer);
+    geometry_t(std::shared_ptr<index_buffer_t> index_buffer, index_range_t index_range);
 
     void finalize();
 
     std::shared_ptr<mesh_t>& mesh();
     std::shared_ptr<mesh_t> mesh() const;
 
-    std::shared_ptr<index_buffer_t>& index_buffer();
     std::shared_ptr<index_buffer_t> index_buffer() const;
 
-    index_range_t& index_range();
     index_range_t index_range() const;
+    std::span<const index_buffer_t::index_t> indices() const;
 
     vertex_primitive_topology_t& primitive_topology();
     vertex_primitive_topology_t primitive_topology() const;
@@ -61,8 +63,8 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::index_range_t> {
 
         out = std::format_to(out, "{{ ");
 
-        out = std::format_to(out, "start_index: {}", index_range.start_index);
-        out = std::format_to(out, ", end_index: {}", index_range.end_index);
+        out = std::format_to(out, "offset: {}", index_range.offset);
+        out = std::format_to(out, ", count: {}", index_range.count);
 
         out = std::format_to(out, " }}");
 

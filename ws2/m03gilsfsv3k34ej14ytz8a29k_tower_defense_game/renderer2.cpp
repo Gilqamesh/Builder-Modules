@@ -183,7 +183,7 @@ void require_supported_texture_format(tower_defense_api::texture_format_t format
 
 struct render_item_data_t {
     const m03gjfvd6i5jzbmngb2ldoooza_type_erased_array::type_erased_array_t* vertex_stream;
-    const std::vector<std::uint32_t>* indices;
+    std::span<const std::uint32_t> indices;
     tower_defense_api::vertex_primitive_topology_t primitive_topology;
     vector2f_t translation;
     vector2f_t scale;
@@ -198,11 +198,6 @@ render_item_data_t validate_render_item(const tower_defense_api::render_item_t<f
     const auto mesh = geometry->mesh();
     if (!mesh) {
         throw std::runtime_error("renderer2_t::draw: does not support geometry with no mesh");
-    }
-
-    const auto index_buffer = geometry->index_buffer();
-    if (!index_buffer) {
-        throw std::runtime_error("renderer2_t::draw: does not support geometry with no index buffer");
     }
 
     const auto material = render_item.material();
@@ -251,7 +246,7 @@ render_item_data_t validate_render_item(const tower_defense_api::render_item_t<f
 
     return {
         .vertex_stream = &vertex_stream,
-        .indices = &index_buffer->indices(),
+        .indices = geometry->indices(),
         .primitive_topology = geometry->primitive_topology(),
         .translation = render_item.translation(),
         .scale = render_item.scale()
@@ -280,7 +275,7 @@ void draw_render_item(
 ) {
     const auto render_data = validate_render_item(render_item);
     const auto view_positions = build_view_positions(camera, render_data);
-    const auto& indices = *render_data.indices;
+    const auto indices = render_data.indices;
     constexpr int point_radius = 3;
     const rgba8_t color = green_color();
 

@@ -73,12 +73,12 @@ const m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>& renderer_t::window_bo
 
 void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t<float, 2>& render_item) {
     const auto geometry = render_item.geometry();
-    if (!geometry || !geometry->mesh() || !geometry->index_buffer()) {
+    if (!geometry || !geometry->mesh()) {
         throw std::runtime_error("renderer_t::draw: render item has incomplete geometry");
     }
 
     const auto mesh = geometry->mesh();
-    const auto& indices = geometry->index_buffer()->indices();
+    const auto indices = geometry->indices();
     const auto primitive_topology = geometry->primitive_topology();
     const auto material = render_item.material();
     if (!material) {
