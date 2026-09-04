@@ -162,7 +162,7 @@ software_renderer_t::~software_renderer_t() {
 }
 
 bool software_renderer_t::begin_frame() {
-    if (!window()->make_context_current()) {
+    if (!window()->context_current(true)) {
         throw std::runtime_error("software_renderer_t::begin_frame: failed to make the OpenGL context current");
     }
 
@@ -196,7 +196,7 @@ void software_renderer_t::present() {
         return;
     }
 
-    if (!window()->make_context_current()) {
+    if (!window()->context_current(true)) {
         throw std::runtime_error("software_renderer_t::present: failed to make the OpenGL context current");
     }
 
@@ -221,7 +221,7 @@ void software_renderer_t::present() {
 }
 
 void software_renderer_t::create_resources() {
-    if (!window()->make_context_current()) {
+    if (!window()->context_current(true)) {
         throw std::runtime_error("software_renderer_t::create_resources: failed to make the OpenGL context current");
     }
 
@@ -257,7 +257,7 @@ void software_renderer_t::create_resources() {
 }
 
 void software_renderer_t::destroy_resources() noexcept {
-    if (!window() || !window()->make_context_current()) {
+    if (!window() || !window()->context_current(true)) {
         return;
     }
 
@@ -303,7 +303,7 @@ void software_renderer_t::resize(int width, int height) {
         return;
     }
 
-    if (!window()->make_context_current()) {
+    if (!window()->context_current(true)) {
         throw std::runtime_error("software_renderer_t::resize: failed to make the OpenGL context current");
     }
 

@@ -2,7 +2,7 @@
 # define M03GILSFSV3K34EJ14YTZ8A29K_GAME_H
 
 # include "camera.h"
-# include "entity.h"
+# include "render_item.h"
 # include "renderer3.h"
 
 # include <vector>
@@ -30,7 +30,7 @@ private:
     std::shared_ptr<m03gkcdy62bnz808pmk4uzkjra_glfw::window_t> m_window;
     std::shared_ptr<renderer3_t> m_renderer;
     camera_t<float, int, 2> m_camera;
-    std::vector<entity_t<float, 2>> m_entities;
+    std::vector<render_item_t<float, 2>> m_render_items;
 };
 
 } // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game

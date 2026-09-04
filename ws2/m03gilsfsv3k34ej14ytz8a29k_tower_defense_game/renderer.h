@@ -2,7 +2,7 @@
 # define M03GILSFSV3K34EJ14YTZ8A29K_RENDERER_H
 
 # include "camera.h"
-# include "entity.h"
+# include "render_item.h"
 
 # include <format>
 
@@ -23,7 +23,7 @@ public:
     void window_bounds(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>& bounds);
     const m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>& window_bounds() const;
 
-    void draw(const camera_t<float, int, 2>& camera, const entity_t<float, 2>& entity);
+    void draw(const camera_t<float, int, 2>& camera, const render_item_t<float, 2>& render_item);
 
 private:
     m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2> m_window_bounds;

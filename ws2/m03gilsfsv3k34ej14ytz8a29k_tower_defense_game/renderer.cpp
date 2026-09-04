@@ -71,14 +71,22 @@ const m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>& renderer_t::window_bo
     return m_window_bounds;
 }
 
-void renderer_t::draw(const camera_t<float, int, 2>& camera, const entity_t<float, 2>& entity) {
-    const auto& mesh = entity.mesh();
-    const auto& indices = entity.indices();
-    const auto primitive_topology = entity.primitive_topology();
-    const auto& material = entity.material();
-    const auto& translation = entity.translation();
-    const auto& rotation = entity.rotation();
-    const auto& scale = entity.scale();
+void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t<float, 2>& render_item) {
+    const auto geometry = render_item.geometry();
+    if (!geometry || !geometry->mesh() || !geometry->index_buffer()) {
+        throw std::runtime_error("renderer_t::draw: render item has incomplete geometry");
+    }
+
+    const auto mesh = geometry->mesh();
+    const auto& indices = geometry->index_buffer()->indices();
+    const auto primitive_topology = geometry->primitive_topology();
+    const auto material = render_item.material();
+    if (!material) {
+        throw std::runtime_error("renderer_t::draw: render item has no material");
+    }
+    const auto& translation = render_item.translation();
+    const auto& rotation = render_item.rotation();
+    const auto& scale = render_item.scale();
 
     const auto& texture_bindings = material->texture_bindings();
     if (texture_bindings.empty()) {

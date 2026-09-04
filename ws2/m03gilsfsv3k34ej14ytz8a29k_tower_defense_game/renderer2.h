@@ -2,7 +2,7 @@
 # define M03GILSFSV3K34EJ14YTZ8A29K_RENDERER2_H
 
 # include "camera.h"
-# include "entity.h"
+# include "render_item.h"
 
 # include <cstdint>
 # include <format>
@@ -37,7 +37,7 @@ public:
     int width() const noexcept;
     int height() const noexcept;
 
-    void draw(const camera_t<float, int, 2>& camera, const entity_t<float, 2>& entity);
+    void draw(const camera_t<float, int, 2>& camera, const render_item_t<float, 2>& render_item);
 
 private:
     m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::software_renderer_t m_software_renderer;

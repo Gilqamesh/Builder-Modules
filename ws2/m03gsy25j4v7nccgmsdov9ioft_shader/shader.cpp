@@ -4,15 +4,20 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gsy25j4v7nccgmsdov9ioft_shader {
 
 namespace {
 
 [[noreturn]] void invalid(std::string_view message) {
     throw std::invalid_argument(std::string("invalid shader AST: ") + std::string(message));
+}
+
+[[noreturn]] void invalid_interface(std::string_view message) {
+    throw std::invalid_argument(std::string("invalid shader interface: ") + std::string(message));
 }
 
 bool is_value(shader_data_type_t type) {
@@ -72,16 +77,91 @@ void consistent(Map& bindings, std::uint32_t binding, shader_data_type_t type, s
     }
 }
 
-class shader_validator_t final : public shader_ast_visitor_t {
+int binding_namespace(shader_data_type_t type) {
+    if (is_value(type)) {
+        return 0;
+    }
+    if (type == shader_data_type<shader_texture_2d_t>()) {
+        return 1;
+    }
+    if (type == shader_data_type<shader_sampler_t>()) {
+        return 2;
+    }
+    invalid_interface("binding has an unsupported shader type");
+}
+
+void canonicalize_locations(std::vector<shader_interface_element_t>& elements, std::string_view collection) {
+    for (const auto& element : elements) {
+        if (!valid(element.type) || !is_value(element.type)) {
+            invalid_interface(std::string(collection) + " element is not a shader value type");
+        }
+    }
+
+    std::ranges::sort(elements, {}, &shader_interface_element_t::index);
+
+    std::vector<shader_interface_element_t> canonical;
+    canonical.reserve(elements.size());
+    for (const auto& element : elements) {
+        if (!canonical.empty() && canonical.back().index == element.index) {
+            if (canonical.back().type != element.type) {
+                invalid_interface(std::string(collection) + " location has inconsistent types");
+            }
+            continue;
+        }
+        canonical.push_back(element);
+    }
+    elements = std::move(canonical);
+}
+
+void canonicalize_bindings(std::vector<shader_interface_element_t>& elements) {
+    for (const auto& element : elements) {
+        if (!valid(element.type)) {
+            invalid_interface("binding has an invalid shader type");
+        }
+        (void)binding_namespace(element.type);
+    }
+
+    std::ranges::sort(elements, [](const auto& lhs, const auto& rhs) {
+        return std::tuple(binding_namespace(lhs.type), lhs.index) <
+            std::tuple(binding_namespace(rhs.type), rhs.index);
+    });
+
+    std::vector<shader_interface_element_t> canonical;
+    canonical.reserve(elements.size());
+    for (const auto& element : elements) {
+        if (!canonical.empty() &&
+            binding_namespace(canonical.back().type) == binding_namespace(element.type) &&
+            canonical.back().index == element.index) {
+            if (canonical.back().type != element.type) {
+                invalid_interface("binding has inconsistent types");
+            }
+            continue;
+        }
+        canonical.push_back(element);
+    }
+    elements = std::move(canonical);
+}
+
+template <typename Map>
+std::vector<shader_interface_element_t> interface_elements(const Map& elements) {
+    std::vector<shader_interface_element_t> result;
+    result.reserve(elements.size());
+    for (const auto& [index, type] : elements) {
+        result.push_back({index, type});
+    }
+    return result;
+}
+
+class shader_analyzer_t final : public shader_ast_visitor_t {
 public:
-    shader_validator_t(shader_stage_t stage, const shader_expression_nodes_t& expressions, const shader_block_t& root):
+    shader_analyzer_t(shader_stage_t stage, const shader_expression_nodes_t& expressions, const shader_block_t& root):
         m_stage(stage),
         m_expressions(expressions),
         m_root(root)
     {
     }
 
-    void validate() {
+    shader_interface_t analyze() {
         if (m_stage != shader_stage_t::vertex && m_stage != shader_stage_t::fragment) {
             invalid("unknown shader stage");
         }
@@ -90,21 +170,25 @@ public:
                 invalid("null or duplicate expression arena entry");
             }
         }
-        for (const auto& expression : m_expressions) {
-            validate_expression(*expression);
-        }
         validate_block(m_root);
-        for (const auto* local : m_locals) {
-            if (!m_declared_locals.contains(local)) {
-                invalid("local has no declaration statement");
-            }
-        }
         if (m_stage == shader_stage_t::vertex && !m_position) {
             invalid("vertex shader does not write position");
         }
         if (m_stage == shader_stage_t::fragment && m_outputs.empty() && !m_discard) {
             invalid("fragment shader has no output");
         }
+
+        auto bindings = interface_elements(m_uniforms);
+        auto textures = interface_elements(m_textures);
+        auto samplers = interface_elements(m_samplers);
+        bindings.insert(bindings.end(), textures.begin(), textures.end());
+        bindings.insert(bindings.end(), samplers.begin(), samplers.end());
+        return {
+            m_stage,
+            interface_elements(m_inputs),
+            interface_elements(m_outputs),
+            std::move(bindings)
+        };
     }
 
     void visit(const shader_constant_node_t& node) override {
@@ -163,7 +247,6 @@ public:
         if (!is_value(node.type())) {
             invalid("local is not a value type");
         }
-        m_locals.insert(&node);
     }
 
     void visit(const shader_unary_node_t& node) override {
@@ -357,10 +440,13 @@ public:
         const auto& local = owned(statement.local_node());
         const auto& initial = owned(statement.initial_node());
         use(initial);
+        if (!valid(local.type()) || !is_value(local.type())) {
+            invalid("local target is not a shader value type");
+        }
         if (local.type() != initial.type()) {
             invalid("local initializer type mismatch");
         }
-        if (!m_locals.contains(statement.local_node()) || !m_declared_locals.insert(statement.local_node()).second) {
+        if (!m_declared_locals.insert(statement.local_node()).second) {
             invalid("local is declared more than once");
         }
         m_visible_locals.push_back(statement.local_node());
@@ -369,6 +455,9 @@ public:
     void visit(const shader_assignment_statement_t& statement) override {
         const auto& local = owned(statement.local_node());
         const auto& value = owned(statement.value_node());
+        if (!valid(local.type()) || !is_value(local.type())) {
+            invalid("assignment target is not a shader value type");
+        }
         if (!visible(statement.local())) {
             invalid("assignment targets an out-of-scope local");
         }
@@ -385,14 +474,12 @@ public:
             invalid("output is not a value type");
         }
         if (statement.output() == shader_output_t::position) {
-            if (m_stage != shader_stage_t::vertex || expression.type() != shader_data_type<vector_t<float, 4>>() || m_position) {
-                invalid("invalid or duplicate position output");
+            if (m_stage != shader_stage_t::vertex || expression.type() != shader_data_type<vector_t<float, 4>>()) {
+                invalid("invalid position output");
             }
             m_position = true;
         } else if (statement.output() == shader_output_t::location) {
-            if (!m_outputs.insert(statement.location()).second) {
-                invalid("duplicate output location");
-            }
+            consistent(m_outputs, statement.location(), expression.type(), "output location has inconsistent types");
         } else {
             invalid("unknown output semantic");
         }
@@ -476,7 +563,7 @@ private:
         return false;
     }
 
-    void validate_expression(const shader_expression_node_t& expression) {
+    void analyze(const shader_expression_node_t& expression) {
         if (!valid(expression.type())) {
             invalid("invalid shader data type");
         }
@@ -494,7 +581,7 @@ private:
             if (!operand || !m_owned.contains(operand)) {
                 invalid("expression operand is outside the arena");
             }
-            validate_expression(*operand);
+            analyze(*operand);
         }
         expression.accept(*this);
         iterator->second = true;
@@ -514,16 +601,19 @@ private:
         m_visible_locals.resize(scope);
     }
 
-    void use(const shader_expression_node_t& expression) {
-        if (!m_owned.contains(&expression)) {
-            invalid("statement expression is outside the arena");
-        }
+    void validate_local_reads(const shader_expression_node_t& expression) {
         if (const auto* local = dynamic_cast<const shader_local_node_t*>(&expression); local && !visible(*local)) {
             invalid("local is used before declaration or outside its scope");
         }
         for (const auto* operand : expression.operands()) {
-            use(*operand);
+            validate_local_reads(owned(operand));
         }
+    }
+
+    void use(const shader_expression_node_t& expression) {
+        owned(&expression);
+        analyze(expression);
+        validate_local_reads(expression);
     }
 
     bool visible(const shader_local_node_t& local) const {
@@ -567,20 +657,51 @@ private:
     const shader_block_t& m_root;
     std::unordered_set<const shader_expression_node_t*> m_owned;
     std::unordered_map<const shader_expression_node_t*, bool> m_visiting;
-    std::unordered_set<const shader_local_node_t*> m_locals;
     std::unordered_set<const shader_local_node_t*> m_declared_locals;
     std::vector<const shader_local_node_t*> m_visible_locals;
     std::unordered_map<std::uint32_t, shader_data_type_t> m_inputs;
     std::unordered_map<std::uint32_t, shader_data_type_t> m_uniforms;
     std::unordered_map<std::uint32_t, shader_data_type_t> m_textures;
     std::unordered_map<std::uint32_t, shader_data_type_t> m_samplers;
-    std::unordered_set<std::uint32_t> m_outputs;
+    std::unordered_map<std::uint32_t, shader_data_type_t> m_outputs;
     std::size_t m_loop_depth = 0;
     bool m_position = false;
     bool m_discard = false;
 };
 
+shader_interface_t analyze_shader(
+    shader_stage_t stage,
+    const shader_expression_nodes_t& expressions,
+    const shader_block_t& root
+) {
+    return shader_analyzer_t(stage, expressions, root).analyze();
+}
+
 } // namespace
+
+shader_interface_t::shader_interface_t(
+    shader_stage_t stage,
+    std::vector<shader_interface_element_t> inputs,
+    std::vector<shader_interface_element_t> outputs,
+    std::vector<shader_interface_element_t> bindings
+):
+    m_stage(stage),
+    m_inputs(std::move(inputs)),
+    m_outputs(std::move(outputs)),
+    m_bindings(std::move(bindings))
+{
+    if (m_stage != shader_stage_t::vertex && m_stage != shader_stage_t::fragment) {
+        invalid_interface("unknown shader stage");
+    }
+    canonicalize_locations(m_inputs, "input");
+    canonicalize_locations(m_outputs, "output");
+    canonicalize_bindings(m_bindings);
+}
+
+shader_stage_t shader_interface_t::stage() const { return m_stage; }
+std::span<const shader_interface_element_t> shader_interface_t::inputs() const { return m_inputs; }
+std::span<const shader_interface_element_t> shader_interface_t::outputs() const { return m_outputs; }
+std::span<const shader_interface_element_t> shader_interface_t::bindings() const { return m_bindings; }
 
 bool shader_expression_type_matches(const shader_expression_node_t* expression, shader_data_type_t type) {
     return expression && expression->type() == type;
@@ -822,13 +943,13 @@ void shader_discard_statement_t::accept(shader_ast_visitor_t& visitor) const { v
 shader_ast_t::shader_ast_t(shader_stage_t stage, shader_expression_nodes_t expressions, shader_block_t root):
     m_stage(stage),
     m_expressions(std::move(expressions)),
-    m_root(std::move(root))
+    m_root(std::move(root)),
+    m_interface(analyze_shader(m_stage, m_expressions, m_root))
 {
-    validate();
 }
 shader_stage_t shader_ast_t::stage() const { return m_stage; }
 const shader_block_t& shader_ast_t::root() const { return m_root; }
-void shader_ast_t::validate() const { shader_validator_t(m_stage, m_expressions, m_root).validate(); }
+const shader_interface_t& shader_ast_t::interface() const { return m_interface; }
 
 shader_ast_builder_t::shader_ast_builder_t(shader_stage_t stage):
     m_stage(stage),
@@ -908,4 +1029,4 @@ shader_expression_t<vector_t<float, 4>> sample(
 }
 shader_expression_t<vector_t<float, 4>> sample(shader_expression_t<shader_texture_2d_t> texture, shader_expression_t<shader_sampler_t> sampler, vector_t<float, 2> coordinates) { return sample(texture, sampler, texture.builder()->constant(std::move(coordinates))); }
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gsy25j4v7nccgmsdov9ioft_shader

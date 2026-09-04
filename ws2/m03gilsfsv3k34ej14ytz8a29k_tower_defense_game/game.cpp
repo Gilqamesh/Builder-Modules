@@ -37,13 +37,11 @@ game_t::game_t():
         tile_textures.push_back(tile_texture);
     }
     std::shared_ptr<sampler_t> tile_sampler = std::make_shared<sampler_t>();
-    std::shared_ptr<shader_t> tile_shader = std::make_shared<shader_t>();
     std::vector<std::shared_ptr<material_t>> materials;
     for (const auto& tile_texture : tile_textures) {
         std::shared_ptr<material_t> material = std::make_shared<material_t>();
-        material->shader(tile_shader);
         texture_binding_t texture_binding = {tile_texture, tile_sampler};
-        material->set_texture_binding(0, texture_binding);
+        material->texture_bindings().push_back(std::move(texture_binding));
         materials.push_back(material);
     }
 
@@ -79,11 +77,12 @@ game_t::game_t():
 
     const auto number_of_entities = 1000;
     for (size_t i = 0; i < number_of_entities; ++i) {
-        entity_t<float, 2> entity;
+        render_item_t<float, 2> render_item;
+        auto geometry = std::make_shared<geometry_t>();
 
         const auto mesh_index = rand() % meshes.size();
         std::shared_ptr<mesh_t> mesh = meshes[mesh_index];
-        entity.mesh(mesh);
+        geometry->mesh() = mesh;
 
         const auto number_of_vertices = mesh->number_of_vertices();
 
@@ -91,19 +90,18 @@ game_t::game_t():
         for (uint32_t i = 0; i < number_of_vertices; ++i) {
             indices.push_back(i);
         }
-        entity.indices(std::move(indices));
+        auto index_buffer = std::make_shared<index_buffer_t>();
+        index_buffer->indices() = std::move(indices);
+        geometry->index_buffer() = index_buffer;
+        geometry->index_range() = {0, static_cast<std::uint32_t>(index_buffer->indices().size() - 1)};
 
-        entity.primitive_topology(vertex_primitive_topology_t::triangle_fan);
-        // entity.primitive_topology(vertex_primitive_topology_t::triangle_strip);
-        // entity.primitive_topology(vertex_primitive_topology_t::triangle);
-        // entity.primitive_topology(vertex_primitive_topology_t::line_loop);
-        // entity.primitive_topology(vertex_primitive_topology_t::line_strip);
-        // entity.primitive_topology(vertex_primitive_topology_t::line);
-        // entity.primitive_topology(vertex_primitive_topology_t::point);
+        geometry->primitive_topology() = vertex_primitive_topology_t::triangle_fan;
+        geometry->finalize();
+        render_item.geometry(std::move(geometry));
 
         const auto material_index = rand() % materials.size();
         std::shared_ptr<material_t> material = materials[material_index];
-        entity.material(material);
+        render_item.material(material);
 
         const auto max_horizontal_translation = 5000;
         const auto max_vertical_translation = 3000;
@@ -111,9 +109,9 @@ game_t::game_t():
             static_cast<float>(rand() % max_horizontal_translation - max_horizontal_translation / 2),
             static_cast<float>(rand() % max_vertical_translation - max_vertical_translation / 2)
         };
-        entity.translation(translation);
+        render_item.translation(translation);
 
-        entity.rotation({0, 0});
+        render_item.rotation({0, 0});
 
         const auto max_horizontal_scale = 30;
         const auto max_vertical_scale = 20;
@@ -121,11 +119,9 @@ game_t::game_t():
             static_cast<float>(rand() % max_horizontal_scale + 1),
             static_cast<float>(rand() % max_vertical_scale + 1)
         };
-        entity.scale(scale);
+        render_item.scale(scale);
 
-        entity.finalize();
-
-        m_entities.push_back(std::move(entity));
+        m_render_items.push_back(std::move(render_item));
     }
 
     // create window with opengl core profile and renderer
@@ -233,8 +229,8 @@ void game_t::render() {
     // DrawRectangleLines(camera_view_top_left[0], camera_view_top_left[1], camera_view_rect_horizontal_length, camera_view_rect_vertical_length, RED);
 
     if (m_renderer->begin_frame()) {
-        for (const auto& entity : m_entities) {
-            m_renderer->draw(m_camera, entity);
+        for (const auto& render_item : m_render_items) {
+            m_renderer->draw(m_camera, render_item);
         }
 
         m_renderer->present();

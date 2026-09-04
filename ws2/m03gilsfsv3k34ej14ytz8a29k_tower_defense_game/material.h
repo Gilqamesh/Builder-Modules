@@ -1,7 +1,6 @@
 #ifndef M03GILSFSV3K34EJ14YTZ8A29K_MATERIAL_H
 # define M03GILSFSV3K34EJ14YTZ8A29K_MATERIAL_H
 
-# include "shader_program.h"
 # include "texture.h"
 # include "sampler.h"
 
@@ -19,16 +18,11 @@ struct texture_binding_t {
 class material_t {
 public:
     material_t();
-    explicit material_t(std::shared_ptr<shader_program_t> shader_program);
-
-    std::shared_ptr<shader_program_t>& shader_program();
-    std::shared_ptr<shader_program_t> shader_program() const;
 
     std::vector<texture_binding_t>& texture_bindings();
     const std::vector<texture_binding_t>& texture_bindings() const;
 
 private:
-    std::shared_ptr<shader_program_t> m_shader_program;
     std::vector<texture_binding_t> m_texture_bindings;
 };
 
@@ -57,9 +51,6 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::material_t> {
         auto out = ctx.out();
 
         out = std::format_to(out, "{{ ");
-
-        const auto& shader_program = material.shader_program();
-        out = std::format_to(out, "shader_program: {}, ", shader_program ? *shader_program : "-");
 
         out = std::format_to(out, "texture_bindings: [");
         const auto& texture_bindings = material.texture_bindings();

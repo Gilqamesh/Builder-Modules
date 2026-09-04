@@ -6,7 +6,7 @@
 # include <span>
 # include <vector>
 
-# include <m03gl22hn0dqmosreqjie9tg5m_opengl_renderer/opengl_renderer.h>
+# include <m03gl22hn0dqmosreqjie9tg5m_opengl_renderer/api.h>
 # include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
 
 namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {

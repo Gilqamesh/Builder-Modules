@@ -181,7 +181,7 @@ void require_supported_texture_format(tower_defense_api::texture_format_t format
     }
 }
 
-struct entity_render_data_t {
+struct render_item_data_t {
     const m03gjfvd6i5jzbmngb2ldoooza_type_erased_array::type_erased_array_t* vertex_stream;
     const std::vector<std::uint32_t>* indices;
     tower_defense_api::vertex_primitive_topology_t primitive_topology;
@@ -189,15 +189,25 @@ struct entity_render_data_t {
     vector2f_t scale;
 };
 
-entity_render_data_t validate_entity(const tower_defense_api::entity_t<float, 2>& entity) {
-    const auto mesh = entity.mesh();
-    if (!mesh) {
-        throw std::runtime_error("renderer2_t::draw: does not support entity with no mesh");
+render_item_data_t validate_render_item(const tower_defense_api::render_item_t<float, 2>& render_item) {
+    const auto geometry = render_item.geometry();
+    if (!geometry) {
+        throw std::runtime_error("renderer2_t::draw: does not support a render item with no geometry");
     }
 
-    const auto material = entity.material();
+    const auto mesh = geometry->mesh();
+    if (!mesh) {
+        throw std::runtime_error("renderer2_t::draw: does not support geometry with no mesh");
+    }
+
+    const auto index_buffer = geometry->index_buffer();
+    if (!index_buffer) {
+        throw std::runtime_error("renderer2_t::draw: does not support geometry with no index buffer");
+    }
+
+    const auto material = render_item.material();
     if (!material) {
-        throw std::runtime_error("renderer2_t::draw: does not support entity with no material");
+        throw std::runtime_error("renderer2_t::draw: does not support a render item with no material");
     }
 
     const auto& texture_bindings = material->texture_bindings();
@@ -241,16 +251,16 @@ entity_render_data_t validate_entity(const tower_defense_api::entity_t<float, 2>
 
     return {
         .vertex_stream = &vertex_stream,
-        .indices = &entity.indices(),
-        .primitive_topology = entity.primitive_topology(),
-        .translation = entity.translation(),
-        .scale = entity.scale()
+        .indices = &index_buffer->indices(),
+        .primitive_topology = geometry->primitive_topology(),
+        .translation = render_item.translation(),
+        .scale = render_item.scale()
     };
 }
 
 std::vector<vector2i_t> build_view_positions(
     const tower_defense_api::camera_t<float, int, 2>& camera,
-    const entity_render_data_t& render_data
+    const render_item_data_t& render_data
 ) {
     std::vector<vector2i_t> view_positions;
     view_positions.reserve(render_data.vertex_stream->element_count());
@@ -263,12 +273,12 @@ std::vector<vector2i_t> build_view_positions(
     return view_positions;
 }
 
-void draw_entity(
+void draw_render_item(
     framebuffer_view_t framebuffer,
     const tower_defense_api::camera_t<float, int, 2>& camera,
-    const tower_defense_api::entity_t<float, 2>& entity
+    const tower_defense_api::render_item_t<float, 2>& render_item
 ) {
-    const auto render_data = validate_entity(entity);
+    const auto render_data = validate_render_item(render_item);
     const auto view_positions = build_view_positions(camera, render_data);
     const auto& indices = *render_data.indices;
     constexpr int point_radius = 3;
@@ -368,19 +378,19 @@ int renderer2_t::height() const noexcept {
     return m_software_renderer.height();
 }
 
-void renderer2_t::draw(const camera_t<float, int, 2>& camera, const entity_t<float, 2>& entity) {
+void renderer2_t::draw(const camera_t<float, int, 2>& camera, const render_item_t<float, 2>& render_item) {
     if (!m_frame_active) {
         throw std::runtime_error("renderer2_t::draw: begin_frame must be called before draw");
     }
 
-    draw_entity(
+    draw_render_item(
         {
             .width = m_software_renderer.width(),
             .height = m_software_renderer.height(),
             .pixels = m_software_renderer.pixels()
         },
         camera,
-        entity
+        render_item
     );
 }
 

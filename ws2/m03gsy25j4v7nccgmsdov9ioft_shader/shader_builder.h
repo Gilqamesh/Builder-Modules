@@ -1,5 +1,5 @@
-#ifndef M03GILSFSV3K34EJ14YTZ8A29K_SHADER_BUILDER_H
-# define M03GILSFSV3K34EJ14YTZ8A29K_SHADER_BUILDER_H
+#ifndef M03GSY25J4V7NCCGMSDOV9IOFT_SHADER_BUILDER_H
+# define M03GSY25J4V7NCCGMSDOV9IOFT_SHADER_BUILDER_H
 
 # include "shader_expression.h"
 
@@ -13,11 +13,37 @@
 # include <utility>
 # include <vector>
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gsy25j4v7nccgmsdov9ioft_shader {
 
 enum class shader_stage_t { vertex, fragment };
 enum class shader_builtin_t { vertex_index, instance_index, fragment_coordinate, front_facing };
 enum class shader_output_t { location, position };
+
+struct shader_interface_element_t {
+    std::uint32_t index;
+    shader_data_type_t type;
+};
+
+class shader_interface_t {
+public:
+    shader_interface_t(
+        shader_stage_t stage,
+        std::vector<shader_interface_element_t> inputs,
+        std::vector<shader_interface_element_t> outputs,
+        std::vector<shader_interface_element_t> bindings
+    );
+
+    shader_stage_t stage() const;
+    std::span<const shader_interface_element_t> inputs() const;
+    std::span<const shader_interface_element_t> outputs() const;
+    std::span<const shader_interface_element_t> bindings() const;
+
+private:
+    shader_stage_t m_stage;
+    std::vector<shader_interface_element_t> m_inputs;
+    std::vector<shader_interface_element_t> m_outputs;
+    std::vector<shader_interface_element_t> m_bindings;
+};
 
 class shader_ast_visitor_t;
 class shader_constant_node_t;
@@ -92,13 +118,13 @@ public:
 
     shader_stage_t stage() const;
     const shader_block_t& root() const;
+    const shader_interface_t& interface() const;
 
 private:
-    void validate() const;
-
     shader_stage_t m_stage;
     shader_expression_nodes_t m_expressions;
     shader_block_t m_root;
+    shader_interface_t m_interface;
 };
 
 class shader_ast_builder_t {
@@ -430,9 +456,9 @@ public:
     void accept(shader_ast_visitor_t& visitor) const override;
 };
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gsy25j4v7nccgmsdov9ioft_shader
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gsy25j4v7nccgmsdov9ioft_shader {
 
 template <shader_value T>
 shader_constant_node_t::shader_constant_node_t(T value):
@@ -607,6 +633,6 @@ const shader_expression_node_t* shader_ast_builder_t::require(shader_expression_
     return expression.node();
 }
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gsy25j4v7nccgmsdov9ioft_shader
 
-#endif // M03GILSFSV3K34EJ14YTZ8A29K_SHADER_BUILDER_H
+#endif // M03GSY25J4V7NCCGMSDOV9IOFT_SHADER_BUILDER_H

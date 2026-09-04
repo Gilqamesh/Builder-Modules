@@ -93,10 +93,18 @@ struct formatter<m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::geometry_t> {
         out = std::format_to(out, "{{ ");
 
         const auto& mesh = geometry.mesh();
-        out = std::format_to(out, "mesh: {}", mesh ? *mesh : "-");
+        if (mesh) {
+            out = std::format_to(out, "mesh: {}", *mesh);
+        } else {
+            out = std::format_to(out, "mesh: -");
+        }
 
         const auto& index_buffer = geometry.index_buffer();
-        out = std::format_to(out, ", index_buffer: {}", index_buffer ? *index_buffer : "-");
+        if (index_buffer) {
+            out = std::format_to(out, ", index_buffer: {}", *index_buffer);
+        } else {
+            out = std::format_to(out, ", index_buffer: -");
+        }
 
         out = std::format_to(out, ", index_range: {}", geometry.index_range());
 

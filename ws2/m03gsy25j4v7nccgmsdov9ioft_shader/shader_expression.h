@@ -1,5 +1,5 @@
-#ifndef M03GILSFSV3K34EJ14YTZ8A29K_SHADER_EXPRESSION_H
-# define M03GILSFSV3K34EJ14YTZ8A29K_SHADER_EXPRESSION_H
+#ifndef M03GSY25J4V7NCCGMSDOV9IOFT_SHADER_EXPRESSION_H
+# define M03GSY25J4V7NCCGMSDOV9IOFT_SHADER_EXPRESSION_H
 
 # include <concepts>
 # include <cstddef>
@@ -13,7 +13,7 @@
 # include <m03ginwy24ng8o487c4beoms6l_vector/api.h>
 # include <m03glv28yaiwc5hbnvz43r14zr_matrix/api.h>
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gsy25j4v7nccgmsdov9ioft_shader {
 
 using m03ginwy24ng8o487c4beoms6l_vector::vector_t;
 using m03glv28yaiwc5hbnvz43r14zr_matrix::matrix_t;
@@ -504,9 +504,9 @@ const shader_expression_node_t* shader_swizzle_expression(
     shader_ast_builder_t* builder, shader_data_type_t type, const shader_expression_node_t* expression,
     std::vector<std::uint8_t> components);
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gsy25j4v7nccgmsdov9ioft_shader
 
-namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
+namespace m03gsy25j4v7nccgmsdov9ioft_shader {
 
 template <shader_type T>
 constexpr shader_data_type_t shader_data_type() {
@@ -758,6 +758,6 @@ auto swizzle(shader_expression_t<vector_t<T, N>> expression) -> shader_expressio
     return {expression.builder(), shader_swizzle_expression(expression.builder(), shader_data_type<result_type>(), expression.node(), {static_cast<std::uint8_t>(Components)...})};
 }
 
-} // namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game
+} // namespace m03gsy25j4v7nccgmsdov9ioft_shader
 
-#endif // M03GILSFSV3K34EJ14YTZ8A29K_SHADER_EXPRESSION_H
+#endif // M03GSY25J4V7NCCGMSDOV9IOFT_SHADER_EXPRESSION_H
