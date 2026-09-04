@@ -1,5 +1,7 @@
 #include "renderer3.h"
 
+#include <m03gt0l0q3l4b1k27eab5k7py1_texture/api.h>
+
 #include <array>
 #include <cstddef>
 #include <cstring>
@@ -15,6 +17,7 @@ namespace {
 
 namespace tower_defense_api = m03gilsfsv3k34ej14ytz8a29k_tower_defense_game;
 namespace vector_api = m03ginwy24ng8o487c4beoms6l_vector;
+namespace texture_api = m03gt0l0q3l4b1k27eab5k7py1_texture;
 
 using renderer3_color_t = tower_defense_api::renderer3_color_t;
 using vector2f_t = vector_api::vector_t<float, 2>;
@@ -203,12 +206,12 @@ vector2i_t transform_position(
     return camera.to_view(position * scale + translation);
 }
 
-void require_supported_texture_format(tower_defense_api::texture_format_t format) {
+void require_supported_texture_format(texture_api::format_t format) {
     switch (format) {
-        case tower_defense_api::texture_format_t::RGBA_U8_NORMALIZED:
-        case tower_defense_api::texture_format_t::RGBA_U8_SRGB:
-        case tower_defense_api::texture_format_t::RGBA_F16:
-        case tower_defense_api::texture_format_t::RGBA_F32: {
+        case texture_api::format_t::rgba8_unorm:
+        case texture_api::format_t::rgba8_srgb:
+        case texture_api::format_t::rgba16_float:
+        case texture_api::format_t::rgba32_float: {
             return;
         } break;
         default: {

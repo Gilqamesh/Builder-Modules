@@ -1,18 +1,17 @@
 #ifndef M03GILSFSV3K34EJ14YTZ8A29K_MATERIAL_H
 # define M03GILSFSV3K34EJ14YTZ8A29K_MATERIAL_H
 
-# include "texture.h"
-# include "sampler.h"
-
 # include <memory>
 # include <vector>
 # include <format>
 
+# include <m03gt0l0q3l4b1k27eab5k7py1_texture/api.h>
+
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
 struct texture_binding_t {
-    std::shared_ptr<texture_t> texture;
-    std::shared_ptr<sampler_t> sampler;
+    std::shared_ptr<m03gt0l0q3l4b1k27eab5k7py1_texture::texture_t> texture;
+    std::shared_ptr<m03gt0l0q3l4b1k27eab5k7py1_texture::sampler_t> sampler;
 };
 
 class material_t {

@@ -1,5 +1,7 @@
 #include "renderer2.h"
 
+#include <m03gt0l0q3l4b1k27eab5k7py1_texture/api.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -16,6 +18,7 @@ namespace tower_defense_api = m03gilsfsv3k34ej14ytz8a29k_tower_defense_game;
 namespace vector_api = m03ginwy24ng8o487c4beoms6l_vector;
 namespace hyperrectangle_api = m03gintxczohr63y44o77b4pyj_hyperrectangle;
 namespace software_renderer_api = m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer;
+namespace texture_api = m03gt0l0q3l4b1k27eab5k7py1_texture;
 
 using rgba8_t = software_renderer_api::rgba8_t;
 using renderer2_color_t = tower_defense_api::renderer2_color_t;
@@ -164,12 +167,12 @@ bool point_intersects_camera_view(
     return !point_rect.intersect(camera.view_rect()).is_empty();
 }
 
-void require_supported_texture_format(tower_defense_api::texture_format_t format) {
+void require_supported_texture_format(texture_api::format_t format) {
     switch (format) {
-        case tower_defense_api::texture_format_t::RGBA_U8_NORMALIZED:
-        case tower_defense_api::texture_format_t::RGBA_U8_SRGB:
-        case tower_defense_api::texture_format_t::RGBA_F16:
-        case tower_defense_api::texture_format_t::RGBA_F32: {
+        case texture_api::format_t::rgba8_unorm:
+        case texture_api::format_t::rgba8_srgb:
+        case texture_api::format_t::rgba16_float:
+        case texture_api::format_t::rgba32_float: {
             return;
         } break;
         default: {

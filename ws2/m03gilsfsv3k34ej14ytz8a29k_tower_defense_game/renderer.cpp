@@ -3,10 +3,13 @@
 #include <unordered_map>
 
 #include <m03gagbht17w4tser1fescqxye_raylib/raylib.h>
+#include <m03gt0l0q3l4b1k27eab5k7py1_texture/api.h>
 
 namespace {
 
-int texture_format_to_raylib_pixel_format(m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::texture_format_t format) {
+namespace texture_api = m03gt0l0q3l4b1k27eab5k7py1_texture;
+
+int texture_format_to_raylib_pixel_format(texture_api::format_t format) {
 // Pixel formats
 // NOTE: Support depends on OpenGL version and platform
 // typedef enum {
@@ -36,10 +39,10 @@ int texture_format_to_raylib_pixel_format(m03gilsfsv3k34ej14ytz8a29k_tower_defen
 //     PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA    // 2 bpp
 // } PixelFormat;
     switch (format) {
-        case m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::texture_format_t::RGBA_U8_NORMALIZED: return PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-        case m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::texture_format_t::RGBA_U8_SRGB: return PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-        case m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::texture_format_t::RGBA_F16: return PIXELFORMAT_UNCOMPRESSED_R16G16B16A16;
-        case m03gilsfsv3k34ej14ytz8a29k_tower_defense_game::texture_format_t::RGBA_F32: return PIXELFORMAT_UNCOMPRESSED_R32G32B32A32;
+        case texture_api::format_t::rgba8_unorm: return PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+        case texture_api::format_t::rgba8_srgb: return PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+        case texture_api::format_t::rgba16_float: return PIXELFORMAT_UNCOMPRESSED_R16G16B16A16;
+        case texture_api::format_t::rgba32_float: return PIXELFORMAT_UNCOMPRESSED_R32G32B32A32;
         default: throw std::runtime_error(std::format("texture_format_to_raylib_pixel_format: does not support texture format {}", static_cast<int>(format)));
     }
 }
@@ -122,7 +125,7 @@ void renderer_t::draw(const camera_t<float, int, 2>& camera, const render_item_t
 
     const auto& texture = texture_binding.texture;
     Image image;
-    image.data = const_cast<std::byte*>(texture->bytes().bytes().data());
+    image.data = const_cast<std::byte*>(texture->bytes().data());
     image.width = texture->width();
     image.height = texture->height();
     image.mipmaps = 1;

@@ -1,0 +1,160 @@
+#ifndef M03GT0L0Q3L4B1K27EAB5K7PY1_TEXTURE_TEXTURE_H
+# define M03GT0L0Q3L4B1K27EAB5K7PY1_TEXTURE_TEXTURE_H
+
+# include <m03gagbht2l61mj6qitacwbmea_byte_stream/byte_stream.h>
+
+# include <cstddef>
+# include <format>
+# include <span>
+# include <stdexcept>
+
+namespace m03gt0l0q3l4b1k27eab5k7py1_texture {
+
+/**
+ * @brief Identifies the packed RGBA texel format.
+ */
+enum class format_t {
+    /** Four RGBA UNORM8 components interpreted linearly. */
+    rgba8_unorm,
+
+    /** sRGB-encoded UNORM8 RGB and linear UNORM8 alpha. */
+    rgba8_srgb,
+
+    /** Four little-endian IEEE-754 binary16 RGBA components; no transfer function or clamping is applied. */
+    rgba16_float,
+
+    /** Four little-endian IEEE-754 binary32 RGBA components; no transfer function or clamping is applied. */
+    rgba32_float
+};
+
+/**
+ * @brief Returns the packed byte count of one texel in the specified format.
+ *
+ * @throws std::invalid_argument if format is not recognized.
+ */
+std::size_t bytes_per_texel(format_t format);
+
+/**
+ * @brief Owns tightly packed, row-major two-dimensional RGBA texels.
+ *
+ * Texel `(0, 0)` begins at byte zero and `x` varies fastest. The texture defines no image-space orientation or implicit vertical flip. Construction from texel bytes requires non-zero extent. A moved-from texture retains its format but has zero extent and no bytes.
+ */
+class texture_t {
+public:
+    /**
+     * @brief Constructs a texture from packed texel bytes.
+     *
+     * @throws std::invalid_argument if the format is not recognized, either dimension is zero, or the byte count does not match the format and dimensions.
+     * @throws std::length_error if the required byte count is not representable by std::size_t.
+     */
+    texture_t(
+        format_t format,
+        std::size_t width,
+        std::size_t height,
+        m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t bytes
+    );
+
+    texture_t(const texture_t& other);
+
+    texture_t(texture_t&& other) noexcept;
+
+    texture_t& operator=(const texture_t& other);
+
+    texture_t& operator=(texture_t&& other) noexcept;
+
+    format_t format() const noexcept;
+
+    std::size_t width() const noexcept;
+
+    std::size_t height() const noexcept;
+
+    /**
+     * @brief Provides read-only access to the packed texel bytes.
+     *
+     * The view remains valid until the texture is assigned, moved from, or destroyed.
+     */
+    std::span<const std::byte> bytes() const& noexcept;
+    std::span<const std::byte> bytes() const&& = delete;
+
+private:
+    // Copy assignment updates the potentially throwing storage before the non-throwing metadata so an allocation failure preserves the invariant.
+    m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t m_bytes;
+    format_t m_format;
+    std::size_t m_width;
+    std::size_t m_height;
+};
+
+} // namespace m03gt0l0q3l4b1k27eab5k7py1_texture
+
+namespace std {
+
+template <>
+struct formatter<m03gt0l0q3l4b1k27eab5k7py1_texture::format_t>;
+
+template <>
+struct formatter<m03gt0l0q3l4b1k27eab5k7py1_texture::texture_t>;
+
+} // namespace std
+
+namespace std {
+
+template <>
+struct formatter<m03gt0l0q3l4b1k27eab5k7py1_texture::format_t> {
+    constexpr auto parse(std::format_parse_context& context) {
+        auto iterator = context.begin();
+        if (iterator != context.end() && *iterator != '}') {
+            throw std::format_error("invalid format_t format specifier");
+        }
+        return iterator;
+    }
+
+    auto format(const m03gt0l0q3l4b1k27eab5k7py1_texture::format_t& format, auto& ctx) const {
+        auto out = ctx.out();
+
+        switch (format) {
+            case m03gt0l0q3l4b1k27eab5k7py1_texture::format_t::rgba8_unorm:
+                out = std::format_to(out, "rgba8_unorm");
+                break;
+            case m03gt0l0q3l4b1k27eab5k7py1_texture::format_t::rgba8_srgb:
+                out = std::format_to(out, "rgba8_srgb");
+                break;
+            case m03gt0l0q3l4b1k27eab5k7py1_texture::format_t::rgba16_float:
+                out = std::format_to(out, "rgba16_float");
+                break;
+            case m03gt0l0q3l4b1k27eab5k7py1_texture::format_t::rgba32_float:
+                out = std::format_to(out, "rgba32_float");
+                break;
+            default:
+                throw std::runtime_error("formatter<format_t>::format: unknown texture format");
+        }
+
+        return out;
+    }
+};
+
+template <>
+struct formatter<m03gt0l0q3l4b1k27eab5k7py1_texture::texture_t> {
+    constexpr auto parse(std::format_parse_context& context) {
+        auto iterator = context.begin();
+        if (iterator != context.end() && *iterator != '}') {
+            throw std::format_error("invalid texture_t format specifier");
+        }
+        return iterator;
+    }
+
+    auto format(const m03gt0l0q3l4b1k27eab5k7py1_texture::texture_t& texture, auto& ctx) const {
+        auto out = ctx.out();
+
+        out = std::format_to(out, "{{ ");
+        out = std::format_to(out, "format: {}", texture.format());
+        out = std::format_to(out, ", width: {}", texture.width());
+        out = std::format_to(out, ", height: {}", texture.height());
+        out = std::format_to(out, " }}");
+
+        return out;
+    }
+};
+
+} // namespace std
+
+#endif // M03GT0L0Q3L4B1K27EAB5K7PY1_TEXTURE_TEXTURE_H

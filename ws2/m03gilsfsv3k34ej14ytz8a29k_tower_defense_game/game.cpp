@@ -1,5 +1,7 @@
 #include "game.h"
 
+#include <m03gt0l0q3l4b1k27eab5k7py1_texture/api.h>
+
 #include <random>
 #include <format>
 #include <iostream>
@@ -16,10 +18,12 @@ namespace {
 
 namespace m03gilsfsv3k34ej14ytz8a29k_tower_defense_game {
 
+namespace texture_api = m03gt0l0q3l4b1k27eab5k7py1_texture;
+
 game_t::game_t():
     m_camera({{-400, 400}, {-300, 300}}, {{0, 400}, {0, 200}})
 {
-    std::vector<std::shared_ptr<texture_t>> tile_textures;
+    std::vector<std::shared_ptr<texture_api::texture_t>> tile_textures;
     std::vector<std::string> tile_texture_paths = {
         "assets/grass.png",
         "assets/road_four_way.png",
@@ -33,10 +37,19 @@ game_t::game_t():
         int tile_texture_channels;
         unsigned char* tile_texture_data = stbi_load(tile_texture_path.c_str(), &tile_texture_width, &tile_texture_height, &tile_texture_channels, 4);
         m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t tile_texture_bytes(std::span<const std::byte>(reinterpret_cast<const std::byte*>(tile_texture_data), tile_texture_width * tile_texture_height * 4));
-        std::shared_ptr<texture_t> tile_texture = std::make_shared<texture_t>(texture_format_t::RGBA_U8_NORMALIZED, tile_texture_width, tile_texture_height, std::move(tile_texture_bytes));
+        std::shared_ptr<texture_api::texture_t> tile_texture = std::make_shared<texture_api::texture_t>(
+            texture_api::format_t::rgba8_unorm,
+            tile_texture_width,
+            tile_texture_height,
+            std::move(tile_texture_bytes)
+        );
         tile_textures.push_back(tile_texture);
     }
-    std::shared_ptr<sampler_t> tile_sampler = std::make_shared<sampler_t>();
+    std::shared_ptr<texture_api::sampler_t> tile_sampler = std::make_shared<texture_api::sampler_t>(
+        texture_api::filter_t::nearest,
+        texture_api::address_mode_t::clamp_to_edge,
+        texture_api::address_mode_t::clamp_to_edge
+    );
     std::vector<std::shared_ptr<material_t>> materials;
     for (const auto& tile_texture : tile_textures) {
         std::shared_ptr<material_t> material = std::make_shared<material_t>();
