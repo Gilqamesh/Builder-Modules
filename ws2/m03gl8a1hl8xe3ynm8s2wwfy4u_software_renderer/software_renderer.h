@@ -63,6 +63,42 @@ public:
 
     /**
      * @brief Draws a render item into the current non-empty framebuffer.
+     *
+     * Each dimension must be at most 2^23. Vertex positions are finite homogeneous
+     * clip coordinates, clipped in X, Y, Z to [-W,W]. A surviving zero-W vertex
+     * makes its primitive empty; positive W must have a reciprocal representable
+     * by the float fragment-coordinate interface. Unsupported dimensions and W,
+     * and non-finite shader positions, are rejected.
+     *
+     * Triangle X/Y positions are projected and rounded once to a 1/256-pixel grid;
+     * half-grid ties go toward the greater coordinate. Samples are pixel centers
+     * (x+0.5,y+0.5). Coverage is the nonzero winding fill of the snapped boundary,
+     * with top/left inclusion: equivalently, classify the sample infinitesimally
+     * to the right, then infinitesimally below. Each covered sample is shaded once
+     * per original triangle. Collapsed or cancelling boundaries emit no fragments;
+     * snapped crossings, touches and overlaps are handled without geometry errors.
+     * Matching shared boundaries with filled interiors on opposite sides have
+     * complementary sample ownership; overlapping interiors of separate primitives
+     * retain their independent coverage.
+     *
+     * Simple polygons use deterministic ears: normalize screen winding, start at
+     * the least (X,Y), and remove the first unblocked convex ear. Collinear and
+     * coincident occurrences retain their own payloads; a zero-area occurrence
+     * may contribute no samples. Non-simple polygons use winding scanline spans,
+     * interpolating reciprocal W, Z/W and varying/W along their boundary edges and
+     * across each span. Equal crossing positions choose the least endpoint-record
+     * key with the net crossing direction (geometry, projection, then payload bits).
+     * Both paths divide interpolated varying/W by interpolated reciprocal W.
+     * Interpolation describes the snapped geometry and preserves primitive-local
+     * payloads; distinct coincident values can cause interpolation discontinuities.
+     *
+     * Every generated piece has one original-primitive facing value. For a simple
+     * snapped polygon, CCW NDC (negative screen winding) is front-facing. A non-simple
+     * boundary uses the largest absolute fan determinant of its least cyclic grid
+     * sequence over both directions, first on ties, with submitted direction restored.
+     * Fragment Z is (interpolated Z/W+1)/2 clamped to [0,1]; fragment W is reciprocal W.
+     * There is no depth test, blending or culling. Point/line coverage and the
+     * established 2D camera and T*R*S transforms are preserved.
      */
     void draw(const camera_t<float, int, 2>& camera, const render_item_t& render_item);
 

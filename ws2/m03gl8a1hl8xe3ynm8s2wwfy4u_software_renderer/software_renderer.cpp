@@ -1,5 +1,6 @@
 #include "software_renderer.h"
 
+#include <m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer/detail/rasterization.h>
 #include <m03gjfvd6i5jzbmngb2ldoooza_type_erased_array/api.h>
 #include <m03gsy25j4v7nccgmsdov9ioft_shader/api.h>
 
@@ -38,6 +39,7 @@ std::size_t framebuffer_pixel_count(int width, int height) {
 namespace {
 
 namespace renderer = m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer;
+namespace raster = renderer::detail;
 namespace shader = m03gsy25j4v7nccgmsdov9ioft_shader;
 namespace software_shader = m03gt1djvvy5atia5evkbg6rqy_software_shader;
 namespace type_erased_array = m03gjfvd6i5jzbmngb2ldoooza_type_erased_array;
@@ -46,9 +48,15 @@ using vector2f_t = shader::vector_t<float, 2>;
 using vector3f_t = shader::vector_t<float, 3>;
 using vector4f_t = shader::vector_t<float, 4>;
 using matrix4f_t = shader::matrix_t<float, 4, 4>;
-using varying_t = std::variant<float, vector2f_t, vector3f_t, vector4f_t>;
-using varying_entry_t = std::pair<std::uint32_t, varying_t>;
-using varying_values_t = std::vector<varying_entry_t>;
+using raster::varying_t;
+using raster::varying_entry_t;
+using raster::varying_values_t;
+using raster::pipeline_vertex_t;
+using raster::pipeline_vertex_view_t;
+using raster::clipping_workspace_t;
+using raster::view;
+using raster::clip_line;
+using raster::inside_clip_volume;
 
 renderer::framebuffer_t validated_framebuffer(renderer::framebuffer_t framebuffer) {
     const std::size_t pixel_count = renderer::framebuffer_pixel_count(framebuffer.width, framebuffer.height);
@@ -65,21 +73,6 @@ renderer::framebuffer_t validated_framebuffer(renderer::framebuffer_t framebuffe
     return framebuffer;
 }
 
-struct varying_range_t {
-    std::size_t offset;
-    std::size_t count;
-};
-
-struct pipeline_vertex_t {
-    vector4f_t clip_position;
-    varying_range_t outputs;
-};
-
-struct pipeline_vertex_view_t {
-    vector4f_t clip_position;
-    std::span<const varying_entry_t> outputs;
-};
-
 struct screen_vertex_t {
     float x;
     float y;
@@ -87,24 +80,8 @@ struct screen_vertex_t {
     float ndc_y;
     float ndc_z;
     float reciprocal_w;
-    std::span<const varying_entry_t> outputs;
+    std::span<const varying_entry_t> m_outputs;
 };
-
-struct clipping_buffer_t {
-    std::vector<pipeline_vertex_t> vertices;
-    varying_values_t values;
-};
-
-struct clipping_workspace_t {
-    std::array<clipping_buffer_t, 2> buffers;
-};
-
-pipeline_vertex_view_t view(const pipeline_vertex_t& vertex, const varying_values_t& values) {
-    return {
-        .clip_position = vertex.clip_position,
-        .outputs = std::span<const varying_entry_t>(values).subspan(vertex.outputs.offset, vertex.outputs.count)
-    };
-}
 
 bool finite(const vector4f_t& vector) {
     return std::ranges::all_of(vector, [](float component) { return std::isfinite(component); });
@@ -265,200 +242,19 @@ varying_t vertex_output(
     throw std::logic_error("unsupported validated fragment input type");
 }
 
-varying_t interpolate(const varying_t& from, const varying_t& to, float factor) {
-    return std::visit([&](const auto& first) -> varying_t {
-        using type = std::remove_cvref_t<decltype(first)>;
-        const auto* second = std::get_if<type>(&to);
-        if (!second) {
-            throw std::logic_error("inconsistent varying types during clipping");
-        }
-        return first + (*second - first) * factor;
-    }, from);
-}
-
-void append_vertex(clipping_buffer_t& destination, const pipeline_vertex_view_t& source) {
-    const std::size_t offset = destination.values.size();
-    destination.values.insert(destination.values.end(), source.outputs.begin(), source.outputs.end());
-    destination.vertices.push_back({
-        .clip_position = source.clip_position,
-        .outputs = {offset, source.outputs.size()}
-    });
-}
-
-void append_interpolated_vertex(
-    clipping_buffer_t& destination,
-    const pipeline_vertex_view_t& from,
-    const pipeline_vertex_view_t& to,
-    float factor
-) {
-    if (from.outputs.size() != to.outputs.size()) {
-        throw std::logic_error("inconsistent vertex output counts during clipping");
-    }
-
-    const std::size_t offset = destination.values.size();
-    for (std::size_t index = 0; index < from.outputs.size(); ++index) {
-        const auto& [from_location, from_value] = from.outputs[index];
-        const auto& [to_location, to_value] = to.outputs[index];
-        if (from_location != to_location) {
-            throw std::logic_error("inconsistent vertex output locations during clipping");
-        }
-        destination.values.emplace_back(from_location, interpolate(from_value, to_value, factor));
-    }
-    destination.vertices.push_back({
-        .clip_position = from.clip_position + (to.clip_position - from.clip_position) * factor,
-        .outputs = {offset, from.outputs.size()}
-    });
-}
-
-void clear(clipping_buffer_t& buffer) {
-    buffer.vertices.clear();
-    buffer.values.clear();
-}
-
-float clip_distance(const pipeline_vertex_view_t& vertex, std::size_t plane) {
-    const auto& position = vertex.clip_position;
-    switch (plane) {
-        case 0: {
-            return position[0] + position[3];
-        }
-        case 1: {
-            return position[3] - position[0];
-        }
-        case 2: {
-            return position[1] + position[3];
-        }
-        case 3: {
-            return position[3] - position[1];
-        }
-        case 4: {
-            return position[2] + position[3];
-        }
-        case 5: {
-            return position[3] - position[2];
-        }
-        default: {
-            throw std::logic_error(std::format("unknown clip plane: {}", plane));
-        }
-    }
-}
-
-bool inside_clip_volume(const pipeline_vertex_view_t& vertex) {
-    for (std::size_t plane = 0; plane < 6; ++plane) {
-        if (clip_distance(vertex, plane) < 0.0F) {
-            return false;
-        }
-    }
-    return vertex.clip_position[3] != 0.0F;
-}
-
-std::optional<std::size_t> clip_line(
-    const pipeline_vertex_view_t& first,
-    const pipeline_vertex_view_t& second,
-    clipping_workspace_t& workspace
-) {
-    clear(workspace.buffers[0]);
-    append_vertex(workspace.buffers[0], first);
-    append_vertex(workspace.buffers[0], second);
-
-    std::size_t source_index = 0;
-    for (std::size_t plane = 0; plane < 6; ++plane) {
-        const std::size_t destination_index = 1 - source_index;
-        auto& source = workspace.buffers[source_index];
-        auto& destination = workspace.buffers[destination_index];
-        clear(destination);
-
-        const auto from = view(source.vertices[0], source.values);
-        const auto to = view(source.vertices[1], source.values);
-        const float from_distance = clip_distance(from, plane);
-        const float to_distance = clip_distance(to, plane);
-        const bool from_inside = 0.0F <= from_distance;
-        const bool to_inside = 0.0F <= to_distance;
-
-        if (!from_inside && !to_inside) {
-            return std::nullopt;
-        }
-        if (from_inside == to_inside) {
-            append_vertex(destination, from);
-            append_vertex(destination, to);
-        } else {
-            const float factor = from_distance / (from_distance - to_distance);
-            if (!from_inside) {
-                append_interpolated_vertex(destination, from, to, factor);
-                append_vertex(destination, to);
-            } else {
-                append_vertex(destination, from);
-                append_interpolated_vertex(destination, from, to, factor);
-            }
-        }
-        source_index = destination_index;
-    }
-
-    const auto& result = workspace.buffers[source_index].vertices;
-    if (result[0].clip_position[3] == 0.0F || result[1].clip_position[3] == 0.0F) {
-        return std::nullopt;
-    }
-    return source_index;
-}
-
-std::optional<std::size_t> clip_triangle(
-    const pipeline_vertex_view_t& first,
-    const pipeline_vertex_view_t& second,
-    const pipeline_vertex_view_t& third,
-    clipping_workspace_t& workspace
-) {
-    clear(workspace.buffers[0]);
-    append_vertex(workspace.buffers[0], first);
-    append_vertex(workspace.buffers[0], second);
-    append_vertex(workspace.buffers[0], third);
-
-    std::size_t source_index = 0;
-    for (std::size_t plane = 0; plane < 6 && !workspace.buffers[source_index].vertices.empty(); ++plane) {
-        const std::size_t destination_index = 1 - source_index;
-        auto& source = workspace.buffers[source_index];
-        auto& destination = workspace.buffers[destination_index];
-        clear(destination);
-
-        auto previous = view(source.vertices.back(), source.values);
-        float previous_distance = clip_distance(previous, plane);
-        bool previous_inside = 0.0F <= previous_distance;
-        for (const auto& current_vertex : source.vertices) {
-            const auto current = view(current_vertex, source.values);
-            const float current_distance = clip_distance(current, plane);
-            const bool current_inside = 0.0F <= current_distance;
-            if (current_inside != previous_inside) {
-                const float factor = previous_distance / (previous_distance - current_distance);
-                append_interpolated_vertex(destination, previous, current, factor);
-            }
-            if (current_inside) {
-                append_vertex(destination, current);
-            }
-            previous = current;
-            previous_distance = current_distance;
-            previous_inside = current_inside;
-        }
-        source_index = destination_index;
-    }
-
-    const auto& result = workspace.buffers[source_index].vertices;
-    if (result.empty() || std::ranges::any_of(result, [](const auto& vertex) { return vertex.clip_position[3] == 0.0F; })) {
-        return std::nullopt;
-    }
-    return source_index;
-}
-
 std::optional<screen_vertex_t> project(
     const pipeline_vertex_view_t& vertex,
     int width,
     int height
 ) {
-    const float w = vertex.clip_position[3];
+    const float w = vertex.m_clip_position[3];
     if (w == 0.0F) {
         return std::nullopt;
     }
-    const float reciprocal_w = 1.0F / w;
-    const float ndc_x = vertex.clip_position[0] * reciprocal_w;
-    const float ndc_y = vertex.clip_position[1] * reciprocal_w;
-    const float ndc_z = vertex.clip_position[2] * reciprocal_w;
+    const float reciprocal_w = float(raster::projectable_reciprocal_w(w));
+    const float ndc_x = vertex.m_clip_position[0] * reciprocal_w;
+    const float ndc_y = vertex.m_clip_position[1] * reciprocal_w;
+    const float ndc_z = vertex.m_clip_position[2] * reciprocal_w;
     const float x = (ndc_x * 0.5F + 0.5F) * static_cast<float>(width);
     const float y = (0.5F - ndc_y * 0.5F) * static_cast<float>(height);
     if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(ndc_z) || !std::isfinite(reciprocal_w)) {
@@ -471,52 +267,8 @@ std::optional<screen_vertex_t> project(
         .ndc_y = ndc_y,
         .ndc_z = ndc_z,
         .reciprocal_w = reciprocal_w,
-        .outputs = vertex.outputs
+        .m_outputs = vertex.m_outputs
     };
-}
-
-varying_t perspective_line(
-    const varying_t& first,
-    const varying_t& second,
-    float factor,
-    float first_reciprocal_w,
-    float second_reciprocal_w,
-    float denominator
-) {
-    return std::visit([&](const auto& first_value) -> varying_t {
-        using type = std::remove_cvref_t<decltype(first_value)>;
-        const auto* second_value = std::get_if<type>(&second);
-        if (!second_value) {
-            throw std::logic_error("inconsistent line varying types");
-        }
-        return (
-            first_value * ((1.0F - factor) * first_reciprocal_w)
-            + *second_value * (factor * second_reciprocal_w)
-        ) / denominator;
-    }, first);
-}
-
-varying_t perspective_triangle(
-    const varying_t& first,
-    const varying_t& second,
-    const varying_t& third,
-    const std::array<float, 3>& weights,
-    const std::array<float, 3>& reciprocal_w,
-    float denominator
-) {
-    return std::visit([&](const auto& first_value) -> varying_t {
-        using type = std::remove_cvref_t<decltype(first_value)>;
-        const auto* second_value = std::get_if<type>(&second);
-        const auto* third_value = std::get_if<type>(&third);
-        if (!second_value || !third_value) {
-            throw std::logic_error("inconsistent triangle varying types");
-        }
-        return (
-            first_value * (weights[0] * reciprocal_w[0])
-            + *second_value * (weights[1] * reciprocal_w[1])
-            + *third_value * (weights[2] * reciprocal_w[2])
-        ) / denominator;
-    }, first);
 }
 
 void set_fragment_inputs(
@@ -615,7 +367,7 @@ void rasterize_point(
             const int dx = x - center_x;
             const int dy = y - center_y;
             if (dx * dx + dy * dy <= radius_squared) {
-                fragment_inputs.assign(screen->outputs.begin(), screen->outputs.end());
+                fragment_inputs.assign(screen->m_outputs.begin(), screen->m_outputs.end());
                 shade_sample(
                     program,
                     bindings,
@@ -651,9 +403,9 @@ void rasterize_line(
     if (!clipped_index) {
         return;
     }
-    const auto& clipped = clipping.buffers[*clipped_index];
-    const auto clipped_first = view(clipped.vertices[0], clipped.values);
-    const auto clipped_second = view(clipped.vertices[1], clipped.values);
+    const auto& clipped = clipping.m_buffers[*clipped_index];
+    const auto clipped_first = view(clipped.m_vertices[0], clipped.m_values);
+    const auto clipped_second = view(clipped.m_vertices[1], clipped.m_values);
     const auto first_screen = project(clipped_first, width, height);
     const auto second_screen = project(clipped_second, width, height);
     if (!first_screen || !second_screen) {
@@ -670,6 +422,10 @@ void rasterize_line(
     const int step_y = y < target_y ? 1 : -1;
     int error = dx + dy;
 
+    const std::array<raster::projected_vertex_t, 2> endpoints {{
+        {{0, 0}, first_screen->ndc_z, first_screen->reciprocal_w, clipped_first},
+        {{0, 0}, second_screen->ndc_z, second_screen->reciprocal_w, clipped_second}
+    }};
     const float line_x = second_screen->x - first_screen->x;
     const float line_y = second_screen->y - first_screen->y;
     const float line_length_squared = line_x * line_x + line_y * line_y;
@@ -683,43 +439,10 @@ void rasterize_line(
             factor = std::clamp(factor, 0.0F, 1.0F);
         }
 
-        const float reciprocal_w = (1.0F - factor) * first_screen->reciprocal_w + factor * second_screen->reciprocal_w;
-        if (reciprocal_w != 0.0F) {
-            fragment_inputs.clear();
-            if (first_screen->outputs.size() != second_screen->outputs.size()) {
-                throw std::logic_error("inconsistent line varying counts");
-            }
-            for (std::size_t index = 0; index < first_screen->outputs.size(); ++index) {
-                const auto& [first_location, first_output] = first_screen->outputs[index];
-                const auto& [second_location, second_output] = second_screen->outputs[index];
-                if (first_location != second_location) {
-                    throw std::logic_error("inconsistent line varying locations");
-                }
-                fragment_inputs.emplace_back(first_location, perspective_line(
-                    first_output,
-                    second_output,
-                    factor,
-                    first_screen->reciprocal_w,
-                    second_screen->reciprocal_w,
-                    reciprocal_w
-                ));
-            }
-            const float ndc_z = (1.0F - factor) * first_screen->ndc_z + factor * second_screen->ndc_z;
-            shade_sample(
-                program,
-                bindings,
-                width,
-                height,
-                framebuffer,
-                x,
-                y,
-                ndc_z * 0.5F + 0.5F,
-                reciprocal_w,
-                true,
-                fragment_inputs,
-                fragment_io
-            );
-        }
+        const raster::sample_t sample {x, y, {0, 1, 0, 0}, {1.0 - double(factor), double(factor), 0.0, 0.0}, 2};
+        const auto depth_w = raster::interpolate_sample(endpoints, sample, fragment_inputs);
+        shade_sample(program, bindings, width, height, framebuffer, x, y,
+            float(depth_w[0]), float(depth_w[1]), true, fragment_inputs, fragment_io);
 
         if (x == target_x && y == target_y) {
             break;
@@ -736,119 +459,6 @@ void rasterize_line(
     }
 }
 
-float edge(float ax, float ay, float bx, float by, float px, float py) {
-    return (bx - ax) * (py - ay) - (by - ay) * (px - ax);
-}
-
-bool top_left_edge(const screen_vertex_t& from, const screen_vertex_t& to) {
-    const float dx = to.x - from.x;
-    const float dy = to.y - from.y;
-    return dy < 0.0F || (dy == 0.0F && 0.0F < dx);
-}
-
-bool covered(float edge_value, bool top_left) {
-    return 0.0F < edge_value || (edge_value == 0.0F && top_left);
-}
-
-void rasterize_projected_triangle(
-    const software_shader::program_t& program,
-    const software_shader::bindings_t& bindings,
-    int width,
-    int height,
-    std::span<renderer::rgba8_t> framebuffer,
-    screen_vertex_t first,
-    screen_vertex_t second,
-    screen_vertex_t third,
-    varying_values_t& fragment_inputs,
-    software_shader::fragment_io_t& fragment_io
-) {
-    const float front_area = edge(
-        first.ndc_x, first.ndc_y,
-        second.ndc_x, second.ndc_y,
-        third.ndc_x, third.ndc_y
-    );
-    const bool front_facing = 0.0F < front_area;
-
-    float area = edge(first.x, first.y, second.x, second.y, third.x, third.y);
-    if (area == 0.0F) {
-        return;
-    }
-    if (area < 0.0F) {
-        std::swap(second, third);
-        area = -area;
-    }
-
-    const int minimum_x = std::max(0, static_cast<int>(std::ceil(std::min({first.x, second.x, third.x}) - 0.5F)));
-    const int maximum_x = std::min(width - 1, static_cast<int>(std::floor(std::max({first.x, second.x, third.x}) - 0.5F)));
-    const int minimum_y = std::max(0, static_cast<int>(std::ceil(std::min({first.y, second.y, third.y}) - 0.5F)));
-    const int maximum_y = std::min(height - 1, static_cast<int>(std::floor(std::max({first.y, second.y, third.y}) - 0.5F)));
-    if (maximum_x < minimum_x || maximum_y < minimum_y) {
-        return;
-    }
-
-    const bool first_edge_top_left = top_left_edge(second, third);
-    const bool second_edge_top_left = top_left_edge(third, first);
-    const bool third_edge_top_left = top_left_edge(first, second);
-    const std::array<float, 3> reciprocal_w {first.reciprocal_w, second.reciprocal_w, third.reciprocal_w};
-
-    for (int y = minimum_y; y <= maximum_y; ++y) {
-        for (int x = minimum_x; x <= maximum_x; ++x) {
-            const float sample_x = static_cast<float>(x) + 0.5F;
-            const float sample_y = static_cast<float>(y) + 0.5F;
-            const float first_edge = edge(second.x, second.y, third.x, third.y, sample_x, sample_y);
-            const float second_edge = edge(third.x, third.y, first.x, first.y, sample_x, sample_y);
-            const float third_edge = edge(first.x, first.y, second.x, second.y, sample_x, sample_y);
-            if (!covered(first_edge, first_edge_top_left)
-                || !covered(second_edge, second_edge_top_left)
-                || !covered(third_edge, third_edge_top_left)) {
-                continue;
-            }
-
-            const std::array<float, 3> weights {first_edge / area, second_edge / area, third_edge / area};
-            const float interpolated_reciprocal_w = weights[0] * reciprocal_w[0] + weights[1] * reciprocal_w[1] + weights[2] * reciprocal_w[2];
-            if (interpolated_reciprocal_w == 0.0F) {
-                continue;
-            }
-
-            fragment_inputs.clear();
-            if (first.outputs.size() != second.outputs.size() || first.outputs.size() != third.outputs.size()) {
-                throw std::logic_error("inconsistent triangle varying counts");
-            }
-            for (std::size_t index = 0; index < first.outputs.size(); ++index) {
-                const auto& [first_location, first_output] = first.outputs[index];
-                const auto& [second_location, second_output] = second.outputs[index];
-                const auto& [third_location, third_output] = third.outputs[index];
-                if (first_location != second_location || first_location != third_location) {
-                    throw std::logic_error("inconsistent triangle varying locations");
-                }
-                fragment_inputs.emplace_back(first_location, perspective_triangle(
-                    first_output,
-                    second_output,
-                    third_output,
-                    weights,
-                    reciprocal_w,
-                    interpolated_reciprocal_w
-                ));
-            }
-            const float ndc_z = weights[0] * first.ndc_z + weights[1] * second.ndc_z + weights[2] * third.ndc_z;
-            shade_sample(
-                program,
-                bindings,
-                width,
-                height,
-                framebuffer,
-                x,
-                y,
-                ndc_z * 0.5F + 0.5F,
-                interpolated_reciprocal_w,
-                front_facing,
-                fragment_inputs,
-                fragment_io
-            );
-        }
-    }
-}
-
 void rasterize_triangle(
     const software_shader::program_t& program,
     const software_shader::bindings_t& bindings,
@@ -858,35 +468,17 @@ void rasterize_triangle(
     const pipeline_vertex_view_t& first,
     const pipeline_vertex_view_t& second,
     const pipeline_vertex_view_t& third,
-    clipping_workspace_t& clipping,
+    raster::raster_workspace_t& workspace,
     varying_values_t& fragment_inputs,
     software_shader::fragment_io_t& fragment_io
 ) {
-    const auto clipped_index = clip_triangle(first, second, third, clipping);
-    if (!clipped_index) {
-        return;
-    }
-
-    const auto& polygon = clipping.buffers[*clipped_index];
-    for (std::size_t index = 1; index + 1 < polygon.vertices.size(); ++index) {
-        const auto projected_first = project(view(polygon.vertices[0], polygon.values), width, height);
-        const auto projected_second = project(view(polygon.vertices[index], polygon.values), width, height);
-        const auto projected_third = project(view(polygon.vertices[index + 1], polygon.values), width, height);
-        if (projected_first && projected_second && projected_third) {
-            rasterize_projected_triangle(
-                program,
-                bindings,
-                width,
-                height,
-                framebuffer,
-                *projected_first,
-                *projected_second,
-                *projected_third,
-                fragment_inputs,
-                fragment_io
-            );
-        }
-    }
+    raster::prepare_triangle(first, second, third, width, height, workspace);
+    raster::visit_samples(workspace, width, height, [&](const raster::sample_t& sample) {
+        const auto depth_w = raster::interpolate_sample(workspace.m_vertices, sample, fragment_inputs);
+        shade_sample(program, bindings, width, height, framebuffer,
+            sample.m_x, sample.m_y, float(depth_w[0]), float(depth_w[1]),
+            workspace.m_front_facing, fragment_inputs, fragment_io);
+    });
 }
 
 matrix4f_t object_to_world_matrix(const renderer::render_item_t& render_item) {
@@ -950,6 +542,7 @@ public:
     std::vector<pipeline_vertex_t> vertex_results;
     varying_values_t vertex_values;
     clipping_workspace_t clipping;
+    raster::raster_workspace_t raster;
     varying_values_t fragment_inputs;
     software_shader::vertex_io_t vertex_io {0, 0};
     software_shader::fragment_io_t fragment_io {vector4f_t(0.0F), true};
@@ -981,6 +574,10 @@ void software_renderer_t::draw(
 ) {
     if (m_framebuffer.width == 0 || m_framebuffer.height == 0) {
         throw std::invalid_argument("software_renderer_t::draw requires a non-empty framebuffer");
+    }
+
+    if (raster::maximum_extent < m_framebuffer.width || raster::maximum_extent < m_framebuffer.height) {
+        throw std::out_of_range(std::format("software_renderer_t::draw dimensions {}x{} exceed the supported limit {}", m_framebuffer.width, m_framebuffer.height, raster::maximum_extent));
     }
 
     const auto geometry = render_item.geometry();
@@ -1075,8 +672,8 @@ void software_renderer_t::draw_pipeline(
             scratch.vertex_values.emplace_back(input.index, vertex_output(io, input));
         }
         scratch.vertex_results.push_back({
-            .clip_position = clip_position,
-            .outputs = {output_offset, program.fragment_interface().inputs().size()}
+            .m_clip_position = clip_position,
+            .m_outputs = {output_offset, program.fragment_interface().inputs().size()}
         });
     }
 
@@ -1157,7 +754,7 @@ void software_renderer_t::draw_pipeline(
                     vertex(index),
                     vertex(index + 1),
                     vertex(index + 2),
-                    scratch.clipping,
+                    scratch.raster,
                     scratch.fragment_inputs,
                     scratch.fragment_io
                 );
@@ -1175,7 +772,7 @@ void software_renderer_t::draw_pipeline(
                         vertex(index + 1),
                         vertex(index),
                         vertex(index + 2),
-                        scratch.clipping,
+                        scratch.raster,
                         scratch.fragment_inputs,
                         scratch.fragment_io
                     );
@@ -1189,7 +786,7 @@ void software_renderer_t::draw_pipeline(
                         vertex(index),
                         vertex(index + 1),
                         vertex(index + 2),
-                        scratch.clipping,
+                        scratch.raster,
                         scratch.fragment_inputs,
                         scratch.fragment_io
                     );
@@ -1207,7 +804,7 @@ void software_renderer_t::draw_pipeline(
                     vertex(0),
                     vertex(index),
                     vertex(index + 1),
-                    scratch.clipping,
+                    scratch.raster,
                     scratch.fragment_inputs,
                     scratch.fragment_io
                 );

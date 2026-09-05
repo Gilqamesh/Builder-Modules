@@ -27,7 +27,8 @@ Backend-independent shader construction and reflection belong to `m03gsy25j4v7nc
 - The module has no windowing, OpenGL, or presentation responsibility.
 - Renderer resource validation observes current shared mutable state on every draw.
 - Renderer-owned reusable storage retains its peak capacity for the renderer lifetime.
-- Large finite coordinates can lose precision during clipping and rasterization; this remains deferred without an epsilon workaround.
+- Canonical homogeneous clipping precedes one-time 1/256-pixel triangle snapping. Coverage uses bounded int64 determinants and nonzero winding fill with top-left ownership. See `software_renderer_t::draw()` for numerical limits and interpolation/facing behavior.
+- Rounding-induced collapse, crossings, touching edges and retraces are rendering cases, not geometry errors. Simple polygons use deterministic ear clipping; non-simple polygons use exact rational scanline crossings. Coverage is measured before shading.
 
 ## Validation
 
@@ -50,15 +51,19 @@ See the proposed [feature milestones](docs/milestones.md) for scope and completi
 
 ## Rasterization correctness
 
-Adjacent triangles with identical shared-edge endpoints must assign
-boundary samples consistently, without cracks or duplicate coverage.
-Half-open edge ownership requires numerically consistent edge evaluation,
-including after clipping.
+Each clipped original triangle emits its nonzero-winding grid sample region
+exactly once before shading. Canonical clipping preserves equal shared endpoints
+while retaining each primitive's varying values. Matching shared boundaries whose
+filled interiors lie on opposite sides use complementary top-left ownership.
+Independent snapped interiors can overlap; this contract does not suppress their
+separate coverage or coordinate ownership across draws.
+
+Public numerical, facing, depth and degeneracy behavior is owned by
+[`software_renderer_t::draw()`](software_renderer.h). Tests exercise its actual
+private preparation and sample visitor in addition to public framebuffer results.
 
 ## Open decisions
 
-- Coordinate conventions, clip-depth range, and compatibility with the
-  existing 2D camera and transforms.
 - Ownership of draw state and color/depth/stencil attachments.
 - Color-space and alpha conventions; fragment discard and attachment-write
   ordering.
