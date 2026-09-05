@@ -6,8 +6,10 @@
 
 # include <m03gt1djvvy5atia5evkbg6rqy_software_shader/software_shader.h>
 
+# include <cstddef>
 # include <cstdint>
 # include <format>
+# include <memory>
 # include <span>
 
 namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
@@ -37,6 +39,11 @@ struct framebuffer_t {
 };
 
 /**
+ * @brief Returns the checked pixel count for non-negative framebuffer dimensions.
+ */
+std::size_t framebuffer_pixel_count(int width, int height);
+
+/**
  * @brief Renders camera-relative render items into a borrowed CPU framebuffer.
  */
 class software_renderer_t {
@@ -57,17 +64,22 @@ public:
     /**
      * @brief Draws a render item into the current non-empty framebuffer.
      */
-    void draw(const camera_t<float, int, 2>& camera, const render_item_t<float, 2>& render_item);
+    void draw(const camera_t<float, int, 2>& camera, const render_item_t& render_item);
 
 private:
     void draw_pipeline(
+        const m03gt1djvvy5atia5evkbg6rqy_software_shader::program_t& program,
         const m03gt1djvvy5atia5evkbg6rqy_software_shader::bindings_t& bindings,
-        const geometry_t& geometry
+        const geometry_t& geometry,
+        const m03gt1djvvy5atia5evkbg6rqy_software_shader::shader::matrix_t<float, 4, 4>& object_to_world,
+        const m03gt1djvvy5atia5evkbg6rqy_software_shader::shader::matrix_t<float, 4, 4>& world_to_clip
     );
 
 private:
+    class scratch_t;
+
     framebuffer_t m_framebuffer;
-    m03gt1djvvy5atia5evkbg6rqy_software_shader::program_t m_program;
+    std::unique_ptr<scratch_t> m_scratch;
 };
 
 } // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer

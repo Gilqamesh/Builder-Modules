@@ -10,10 +10,10 @@ Backend-independent shader construction and reflection belong to `m03gsy25j4v7nc
 
 - A `mesh_t` combines vertex streams with location-corresponding vertex attributes. Shader input location `N` consumes mesh stream `N` when their declared types are exactly compatible.
 - A `geometry_t` combines a shared mesh, a selected range from a shared mutable index buffer, and primitive topology.
-- A `material_t` supplies texture and sampler binding pair `N` to shader resource binding `N`; it does not own a shader program or generic uniform values.
-- A `render_item_t` combines geometry, material, and object transform state for one draw.
+- A `material_t` owns shared access to one immutable software-shader program, owns its uniform values, and owns shared texture and sampler lifetimes in independent binding namespaces.
+- A `render_item_t` combines geometry, material, and 2D translation, counter-clockwise rotation in radians, and scale for one draw.
 - A `framebuffer_t` borrows caller-owned RGBA8 storage; the caller keeps it valid during renderer operations and rebinds after allocation changes.
-- `software_renderer_t::draw()` synchronously consumes a camera and render item through its renderer-owned shader program.
+- `software_renderer_t::draw()` synchronously consumes a camera and render item through the material-owned shader program.
 - Points, lines, and triangles remain distinct rasterized primitive classes. Strip, loop, and fan topologies only define assembly within their corresponding primitive class.
 
 ## Invariants
@@ -21,9 +21,13 @@ Backend-independent shader construction and reflection belong to `m03gsy25j4v7nc
 - The CPU framebuffer is row-major, top-left-origin, non-premultiplied RGBA8 storage.
 - The application owns framebuffer allocation, resizing, frame sequencing, and presentation.
 - Shader vertex position is homogeneous clip position. Floating-point scalar and vector fragment inputs are perspective-correctly interpolated; unsupported interpolation types are rejected.
+- Object-to-world is `T * R * S` for column vectors and is supplied with the current camera-derived world-to-clip matrix through vertex invocation state. Both are homogeneous float 4x4 matrices that preserve Z and W.
+- The existing camera mapping sends increasing world Y toward increasing framebuffer Y; mathematical counter-clockwise object rotation therefore appears clockwise in the top-left-origin framebuffer.
 - Rendering has no depth test, blending, or culling. Fragment discard or an unwritten fragment color preserves the destination pixel.
 - The module has no windowing, OpenGL, or presentation responsibility.
 - Renderer resource validation observes current shared mutable state on every draw.
+- Renderer-owned reusable storage retains its peak capacity for the renderer lifetime.
+- Large finite coordinates can lose precision during clipping and rasterization; this remains deferred without an epsilon workaround.
 
 ## Validation
 

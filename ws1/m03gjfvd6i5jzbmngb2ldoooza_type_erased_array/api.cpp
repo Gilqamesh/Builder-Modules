@@ -1,5 +1,9 @@
 #include "api.h"
 
+#include <format>
+#include <stdexcept>
+#include <string_view>
+
 namespace m03gjfvd6i5jzbmngb2ldoooza_type_erased_array {
 
 type_erased_array_t::type_erased_array_t():
@@ -33,6 +37,30 @@ size_t type_erased_array_t::byte_size() const noexcept {
 
 void type_erased_array_t::clear() {
     m_data.clear();
+}
+
+size_t type_erased_array_t::checked_byte_offset(
+    size_t expected_element_size,
+    size_t index,
+    std::string_view operation
+) const {
+    if (m_element_size != expected_element_size) {
+        throw std::invalid_argument(std::format(
+            "{}: type mismatch, expected element size {}, got {}",
+            operation,
+            m_element_size,
+            expected_element_size
+        ));
+    }
+    if (element_count() <= index) {
+        throw std::out_of_range(std::format(
+            "{}: index {} exceeds element count {}",
+            operation,
+            index,
+            element_count()
+        ));
+    }
+    return index * m_element_size;
 }
 
 } // namespace m03gjfvd6i5jzbmngb2ldoooza_type_erased_array

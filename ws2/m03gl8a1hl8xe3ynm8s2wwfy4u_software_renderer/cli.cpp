@@ -1,21 +1,25 @@
 #include "software_renderer.h"
 
+#include <m03gagbht2l61mj6qitacwbmea_byte_stream/byte_stream.h>
+#include <m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays/api.h>
 #include <m03gkcdy62bnz808pmk4uzkjra_glfw/glfw.h>
 #include <m03gkcdy62bnz808pmk4uzkjra_glfw/window.h>
 #include <m03gl22hn0dqmosreqjie9tg5m_opengl_renderer/api.h>
+#include <m03gsy25j4v7nccgmsdov9ioft_shader/api.h>
+#include <m03gt0l0q3l4b1k27eab5k7py1_texture/api.h>
+#include <m03gt1djvvy5atia5evkbg6rqy_software_shader/api.h>
 
-#include <algorithm>
+#include <array>
 #include <chrono>
-#include <cmath>
 #include <cstddef>
-#include <cstdint>
 #include <exception>
 #include <format>
 #include <iostream>
-#include <limits>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -23,58 +27,77 @@ namespace {
 namespace glfw_api = m03gkcdy62bnz808pmk4uzkjra_glfw;
 namespace opengl_renderer_api = m03gl22hn0dqmosreqjie9tg5m_opengl_renderer;
 namespace software_renderer_api = m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer;
+namespace byte_stream = m03gagbht2l61mj6qitacwbmea_byte_stream;
+namespace shader = m03gsy25j4v7nccgmsdov9ioft_shader;
+namespace soa = m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays;
+namespace software_shader = m03gt1djvvy5atia5evkbg6rqy_software_shader;
+namespace texture = m03gt0l0q3l4b1k27eab5k7py1_texture;
 
 using steady_clock_t = std::chrono::steady_clock;
 using rgba8_t = software_renderer_api::rgba8_t;
+using vector2f_t = shader::vector_t<float, 2>;
+using vector4f_t = shader::vector_t<float, 4>;
 
-std::uint8_t color_channel(float value) {
-    const float clamped = std::clamp(value, 0.0f, 1.0f);
-    return static_cast<std::uint8_t>(clamped * 255.0f + 0.5f);
+std::shared_ptr<const software_shader::program_t> make_program() {
+    shader::vertex_shader_ast_builder_t vertex;
+    const auto position = vertex.input<vector2f_t>(0);
+    const auto local = vertex.construct<vector4f_t>(position, 0.0F, 1.0F);
+    vertex.position(vertex.world_to_clip() * vertex.object_to_world() * local);
+    vertex.output(0, position * 0.5F + vector2f_t({0.5F, 0.5F}));
+
+    shader::fragment_shader_ast_builder_t fragment;
+    const auto coordinates = fragment.input<vector2f_t>(0);
+    const auto image = fragment.resource<shader::shader_texture_2d_t>(0);
+    const auto sampler = fragment.resource<shader::shader_sampler_t>(0);
+    fragment.color(shader::sample(image, sampler, coordinates));
+
+    return std::make_shared<const software_shader::program_t>(
+        std::move(vertex).finalize(),
+        std::move(fragment).finalize()
+    );
 }
 
-rgba8_t shade_pixel(int x, int y, int width, int height, float seconds) {
-    const float fx = (static_cast<float>(x) + 0.5f) / static_cast<float>(width);
-    const float fy = (static_cast<float>(y) + 0.5f) / static_cast<float>(height);
-    const float aspect = static_cast<float>(width) / static_cast<float>(height);
-    const float centered_x = (fx * 2.0f - 1.0f) * aspect;
-    const float centered_y = fy * 2.0f - 1.0f;
-
-    const float distance = std::sqrt(centered_x * centered_x + centered_y * centered_y);
-    const float wave = 0.5f + 0.5f * std::sin(18.0f * distance - seconds * 4.0f);
-    const bool checker = ((x / 32) + (y / 32)) % 2 == 0;
-
-    const float red = checker ? 0.12f + wave * 0.55f : 0.08f + fx * 0.35f;
-    const float green = 0.18f + fy * 0.55f;
-    const float blue = checker ? 0.38f + fx * 0.45f : 0.20f + wave * 0.50f;
-
-    return {
-        .red = color_channel(red),
-        .green = color_channel(green),
-        .blue = color_channel(blue),
-        .alpha = 255
-    };
-}
-
-void render_frame(std::span<rgba8_t> pixels, int width, int height, float seconds) {
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            const std::size_t index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
-                + static_cast<std::size_t>(x);
-            pixels[index] = shade_pixel(x, y, width, height, seconds);
+std::shared_ptr<software_renderer_api::geometry_t> make_geometry() {
+    soa::structure_of_arrays_t<std::array<float, 2>> streams;
+    for (const auto& position : std::array {
+        std::array {-1.0F, -1.0F},
+        std::array {-1.0F, 1.0F},
+        std::array {1.0F, -1.0F},
+        std::array {1.0F, 1.0F}
+    }) {
+        streams.push_back(position);
+    }
+    auto mesh = std::make_shared<software_renderer_api::mesh_t>(
+        std::move(streams),
+        std::vector<software_renderer_api::vertex_attribute_t> {
+            software_renderer_api::vertex_attribute_t(
+                software_renderer_api::vertex_attribute_type_t::R32,
+                2
+            )
         }
-    }
+    );
+    auto indices = std::make_shared<software_renderer_api::index_buffer_t>();
+    indices->indices() = {0, 1, 2, 3};
+    auto geometry = std::make_shared<software_renderer_api::geometry_t>(std::move(indices));
+    geometry->mesh() = std::move(mesh);
+    geometry->primitive_topology() = software_renderer_api::vertex_primitive_topology_t::triangle_strip;
+    geometry->finalize();
+    return geometry;
 }
 
-std::size_t framebuffer_pixel_count(int width, int height) {
-    if (width < 0 || height < 0) {
-        throw std::invalid_argument("software_renderer CLI framebuffer dimensions must be non-negative");
-    }
-    const std::size_t width_size = static_cast<std::size_t>(width);
-    const std::size_t height_size = static_cast<std::size_t>(height);
-    if (width_size != 0 && height_size > std::numeric_limits<std::size_t>::max() / width_size) {
-        throw std::length_error("software_renderer CLI framebuffer size overflows size_t");
-    }
-    return width_size * height_size;
+std::shared_ptr<texture::texture_t> make_texture() {
+    const std::array texels {
+        rgba8_t {255, 72, 72, 255},
+        rgba8_t {72, 255, 128, 255},
+        rgba8_t {72, 128, 255, 255},
+        rgba8_t {255, 232, 72, 255}
+    };
+    return std::make_shared<texture::texture_t>(
+        texture::format_t::rgba8_unorm,
+        2,
+        2,
+        byte_stream::byte_stream_t(std::as_bytes(std::span<const rgba8_t>(texels)))
+    );
 }
 
 } // namespace
@@ -99,6 +122,17 @@ int main() {
             .height = 0
         });
         opengl_renderer_api::opengl_renderer_t opengl_renderer(window);
+        auto material = std::make_shared<software_renderer_api::material_t>(make_program());
+        material->texture(0, make_texture());
+        material->sampler(0, std::make_shared<texture::sampler_t>(
+            texture::filter_t::nearest,
+            texture::address_mode_t::clamp_to_edge,
+            texture::address_mode_t::clamp_to_edge
+        ));
+        software_renderer_api::render_item_t render_item;
+        render_item.geometry(make_geometry());
+        render_item.material(std::move(material));
+        render_item.scale({0.72F, 0.72F});
 
         const auto started_at = steady_clock_t::now();
         auto previous_frame_started_at = started_at;
@@ -112,7 +146,7 @@ int main() {
             const auto size = window->framebuffer_size();
             auto framebuffer = renderer.framebuffer();
             if (framebuffer.width != size[0] || framebuffer.height != size[1]) {
-                pixels.resize(framebuffer_pixel_count(size[0], size[1]));
+                pixels.resize(software_renderer_api::framebuffer_pixel_count(size[0], size[1]));
                 renderer.framebuffer({
                     .pixels = pixels,
                     .width = size[0],
@@ -125,7 +159,12 @@ int main() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(16));
             } else {
                 renderer.clear({0, 0, 0, 255});
-                render_frame(pixels, framebuffer.width, framebuffer.height, seconds);
+                render_item.rotation(seconds * 0.35F);
+                const software_renderer_api::camera_t<float, int, 2> camera(
+                    {{-1.0F, 1.0F}, {-1.0F, 1.0F}},
+                    {{0, framebuffer.width}, {0, framebuffer.height}}
+                );
+                renderer.draw(camera, render_item);
                 opengl_renderer.present_rgba8(
                     std::as_bytes(std::span<const rgba8_t>(pixels)),
                     framebuffer.width,

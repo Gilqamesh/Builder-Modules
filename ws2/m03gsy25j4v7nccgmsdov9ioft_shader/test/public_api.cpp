@@ -20,6 +20,7 @@ using vector4f_t = shader::vector_t<float, 4>;
 using matrix2x3f_t = shader::matrix_t<float, 2, 3>;
 using matrix2x4f_t = shader::matrix_t<float, 2, 4>;
 using matrix3x4f_t = shader::matrix_t<float, 3, 4>;
+using matrix4f_t = shader::matrix_t<float, 4, 4>;
 
 void expect_element(
     const shader::shader_interface_element_t& element,
@@ -283,6 +284,19 @@ void test_matrix_multiplication_validation() {
     expect_element(outputs[2], 2, shader::shader_data_type<matrix2x3f_t>());
 }
 
+void test_vertex_matrix_builtins() {
+    shader::vertex_shader_ast_builder_t vertex;
+    const auto local = vertex.constant(vector4f_t({1.0F, 2.0F, 3.0F, 1.0F}));
+    vertex.position(vertex.world_to_clip() * vertex.object_to_world() * local);
+    vertex.output(7, vertex.object_to_world());
+
+    const auto ast = std::move(vertex).finalize();
+    test::expect(std::identity(), ast.interface().inputs().empty());
+    test::expect(std::identity(), ast.interface().bindings().empty());
+    test::expect(std::equal_to<>(), ast.interface().outputs().size(), std::size_t(1));
+    expect_element(ast.interface().outputs()[0], 7, shader::shader_data_type<matrix4f_t>());
+}
+
 } // namespace
 
 int main() {
@@ -296,5 +310,6 @@ int main() {
         test_fragment_color_is_a_special_output();
         test_null_arena_entry_is_rejected();
         test_matrix_multiplication_validation();
+        test_vertex_matrix_builtins();
     });
 }

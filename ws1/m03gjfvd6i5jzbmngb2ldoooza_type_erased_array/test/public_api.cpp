@@ -8,11 +8,28 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 namespace api = m03gjfvd6i5jzbmngb2ldoooza_type_erased_array;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
+
+namespace {
+
+struct no_default_t {
+    no_default_t() = delete;
+    explicit no_default_t(int value):
+        value(value)
+    {
+    }
+
+    int value;
+};
+
+static_assert(std::is_trivially_copyable_v<no_default_t>);
+
+} // namespace
 
 int main() {
     return test::run([] {
@@ -30,6 +47,8 @@ int main() {
         test::expect(std::equal_to<>(), values.element_size(), sizeof(int));
         test::expect(std::equal_to<>(), values.byte_size(), sizeof(int) * 3);
         test::expect(std::equal_to<>(), values.data().size(), sizeof(int) * 3);
+        test::expect(std::equal_to<>(), values.read<int>(0), 10);
+        test::expect(std::equal_to<>(), values.read<int>(2), 30);
         test::expect(std::equal_to<>(), values.operator[]<int>(0), 10);
         test::expect(std::equal_to<>(), values.operator[]<int>(2), 30);
 
@@ -52,6 +71,15 @@ int main() {
         test::expect_throws<std::out_of_range>([&] {
             [[maybe_unused]] const auto& value = const_values.operator[]<int>(99);
         });
+        test::expect_throws<std::invalid_argument>([&] {
+            [[maybe_unused]] const auto value = values.read<mismatched_t>(0);
+        });
+        test::expect_throws<std::out_of_range>([&] {
+            [[maybe_unused]] const auto value = values.read<int>(3);
+        });
+
+        const array_t without_default(std::vector<no_default_t> {no_default_t(37)});
+        test::expect(std::equal_to<>(), without_default.read<no_default_t>(0).value, 37);
 
         array_t appended;
         appended.push_back(7);

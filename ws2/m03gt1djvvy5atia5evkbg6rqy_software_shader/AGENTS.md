@@ -9,7 +9,9 @@ This module owns program-link compatibility and per-invocation execution. Vertex
 ## Invariants
 
 - Every `run()` starts with fresh locals and invalidates prior stage results before execution.
+- Clearing execution results preserves caller-supplied inputs and vertex matrices. Reusable invocation state is reset explicitly by its caller.
 - Program linking rejects incompatible stages, interfaces, and resource bindings before execution.
+- Vertex invocation state supplies identity object-to-world and world-to-clip matrices by default and permits explicit overrides.
 - Expressions are evaluated where they execute and observe the current local state rather than cached expression values.
 - A normally completed vertex invocation has written position.
 - Fragment color is an optional special result distinct from numbered outputs. Fragment discard terminates the invocation and invalidates color and all numbered outputs.

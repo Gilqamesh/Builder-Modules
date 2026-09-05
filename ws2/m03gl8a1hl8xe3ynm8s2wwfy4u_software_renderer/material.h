@@ -2,28 +2,54 @@
 # define M03GL8A1HL8XE3YNM8S2WWFY4U_SOFTWARE_RENDERER_MATERIAL_H
 
 # include <m03gt0l0q3l4b1k27eab5k7py1_texture/api.h>
+# include <m03gt1djvvy5atia5evkbg6rqy_software_shader/software_shader.h>
 
-# include <cstddef>
+# include <cstdint>
 # include <format>
 # include <memory>
-# include <vector>
+# include <unordered_map>
+# include <utility>
 
 namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
-struct texture_binding_t {
-    std::shared_ptr<m03gt0l0q3l4b1k27eab5k7py1_texture::texture_t> texture;
-    std::shared_ptr<m03gt0l0q3l4b1k27eab5k7py1_texture::sampler_t> sampler;
-};
+namespace software_shader = m03gt1djvvy5atia5evkbg6rqy_software_shader;
+namespace texture = m03gt0l0q3l4b1k27eab5k7py1_texture;
 
+/**
+ * @brief Owns one immutable shader program and the values and resources bound to it.
+ *
+ * Uniform, texture, and sampler locations occupy independent namespaces. Extra
+ * bindings not used by the program are accepted.
+ */
 class material_t {
 public:
-    material_t();
+    /**
+     * @brief Constructs a material with a required program that remains fixed for its lifetime.
+     */
+    explicit material_t(std::shared_ptr<const software_shader::program_t> program);
 
-    std::vector<texture_binding_t>& texture_bindings();
-    const std::vector<texture_binding_t>& texture_bindings() const;
+    const std::shared_ptr<const software_shader::program_t>& program() const;
+
+    template <software_shader::shader::shader_value T>
+    void uniform(std::uint32_t location, T value);
+
+    /**
+     * @brief Replaces a texture binding and its shared owner, or clears both when the value is null.
+     */
+    void texture(std::uint32_t location, std::shared_ptr<texture::texture_t> value);
+
+    /**
+     * @brief Replaces a sampler binding and its shared owner, or clears both when the value is null.
+     */
+    void sampler(std::uint32_t location, std::shared_ptr<texture::sampler_t> value);
+
+    const software_shader::bindings_t& bindings() const;
 
 private:
-    std::vector<texture_binding_t> m_texture_bindings;
+    const std::shared_ptr<const software_shader::program_t> m_program;
+    software_shader::bindings_t m_bindings;
+    std::unordered_map<std::uint32_t, std::shared_ptr<texture::texture_t>> m_textures;
+    std::unordered_map<std::uint32_t, std::shared_ptr<texture::sampler_t>> m_samplers;
 };
 
 } // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
@@ -31,45 +57,20 @@ private:
 namespace std {
 
 template <>
-struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::texture_binding_t>;
-
-template <>
 struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::material_t>;
 
 } // namespace std
 
+namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
+
+template <software_shader::shader::shader_value T>
+void material_t::uniform(std::uint32_t location, T value) {
+    m_bindings.uniform(location, std::move(value));
+}
+
+} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
+
 namespace std {
-
-template <>
-struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::texture_binding_t> {
-    constexpr auto parse(std::format_parse_context& ctx) {
-        auto it = ctx.begin();
-        if (it != ctx.end() && *it != '}') {
-            throw std::format_error("invalid texture_binding_t format specifier");
-        }
-        return it;
-    }
-
-    auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::texture_binding_t& binding, auto& ctx) const {
-        auto out = ctx.out();
-
-        out = std::format_to(out, "{{ texture: ");
-        if (binding.texture) {
-            out = std::format_to(out, "{}", *binding.texture);
-        } else {
-            out = std::format_to(out, "-");
-        }
-        out = std::format_to(out, ", sampler: ");
-        if (binding.sampler) {
-            out = std::format_to(out, "{}", *binding.sampler);
-        } else {
-            out = std::format_to(out, "-");
-        }
-        out = std::format_to(out, " }}");
-
-        return out;
-    }
-};
 
 template <>
 struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::material_t> {
@@ -85,17 +86,8 @@ struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::material_t> {
         auto out = ctx.out();
 
         out = std::format_to(out, "{{ ");
-
-        out = std::format_to(out, "texture_bindings: [");
-        const auto& texture_bindings = material.texture_bindings();
-        for (std::size_t i = 0; i < texture_bindings.size(); ++i) {
-            if (0 < i) {
-                out = std::format_to(out, ", ");
-            }
-            out = std::format_to(out, "[{}]: {}", i, texture_bindings[i]);
-        }
-        out = std::format_to(out, "]");
-
+        out = std::format_to(out, "program: {}", *material.program());
+        out = std::format_to(out, ", bindings: {}", material.bindings());
         out = std::format_to(out, " }}");
 
         return out;

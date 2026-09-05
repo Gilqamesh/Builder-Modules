@@ -1,16 +1,16 @@
-# include <m03gagbht2l61mj6qitacwbmea_byte_stream/byte_stream.h>
-# include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
-# include <m03gt1djvvy5atia5evkbg6rqy_software_shader/api.h>
+#include <m03gagbht2l61mj6qitacwbmea_byte_stream/byte_stream.h>
+#include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
+#include <m03gt1djvvy5atia5evkbg6rqy_software_shader/api.h>
 
-# include <array>
-# include <cmath>
-# include <cstddef>
-# include <cstdint>
-# include <format>
-# include <functional>
-# include <string>
-# include <utility>
-# include <vector>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <format>
+#include <functional>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace byte_stream = m03gagbht2l61mj6qitacwbmea_byte_stream;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
@@ -26,6 +26,7 @@ using vector4f_t = shader::vector_t<float, 4>;
 using matrix2f_t = shader::matrix_t<float, 2, 2>;
 using matrix2x3f_t = shader::matrix_t<float, 2, 3>;
 using matrix3x2f_t = shader::matrix_t<float, 3, 2>;
+using matrix4f_t = shader::matrix_t<float, 4, 4>;
 
 template <typename T>
 concept accepts_temporary_texture = requires(software_shader::bindings_t& bindings, T&& value) {
@@ -153,6 +154,47 @@ void test_vertex_execution_is_fresh_and_reads_current_state() {
     test::expect(std::logical_not<>(), io.output<float>(2).has_value());
 }
 
+void test_vertex_transform_state_defaults_overrides_and_reset() {
+    shader::vertex_shader_ast_builder_t vertex;
+    const auto local = vertex.input<vector4f_t>(0);
+    vertex.position(vertex.world_to_clip() * vertex.object_to_world() * local);
+    vertex.output(7, vertex.object_to_world());
+    vertex.output(19, vertex.world_to_clip());
+
+    software_shader::program_t program(std::move(vertex).finalize(), trivial_fragment());
+    software_shader::bindings_t bindings;
+    software_shader::vertex_io_t io(3, 2);
+    io.input(0, vector4f_t({1.0F, 2.0F, 3.0F, 1.0F}));
+    program.run(bindings, io);
+    test::expect(std::equal_to<>(), io.position(), vector4f_t({1.0F, 2.0F, 3.0F, 1.0F}));
+
+    const matrix4f_t object_to_world {
+        1.0F, 0.0F, 0.0F, 2.0F,
+        0.0F, 1.0F, 0.0F, 3.0F,
+        0.0F, 0.0F, 1.0F, 0.0F,
+        0.0F, 0.0F, 0.0F, 1.0F
+    };
+    const matrix4f_t world_to_clip {
+        2.0F, 0.0F, 0.0F, 0.0F,
+        0.0F, 3.0F, 0.0F, 0.0F,
+        0.0F, 0.0F, 4.0F, 0.0F,
+        0.0F, 0.0F, 0.0F, 1.0F
+    };
+    io.object_to_world(object_to_world);
+    io.world_to_clip(world_to_clip);
+    io.input(0, vector4f_t({1.0F, 2.0F, 3.0F, 1.0F}));
+    program.run(bindings, io);
+    test::expect(std::equal_to<>(), io.position(), vector4f_t({6.0F, 15.0F, 12.0F, 1.0F}));
+    test::expect(std::equal_to<>(), *io.output<matrix4f_t>(7), object_to_world);
+    test::expect(std::equal_to<>(), *io.output<matrix4f_t>(19), world_to_clip);
+
+    io.reset(11, 5);
+    test::expect(std::equal_to<>(), io.object_to_world(), object_to_world);
+    test::expect(std::equal_to<>(), io.world_to_clip(), world_to_clip);
+    test::expect_throws<std::invalid_argument>([&] { program.run(bindings, io); });
+    test::expect(std::logical_not<>(), io.output<matrix4f_t>(7).has_value());
+}
+
 void test_vertex_position_is_required_on_the_executed_path() {
     shader::vertex_shader_ast_builder_t vertex;
     const auto writes_position = vertex.input<bool>(0);
@@ -213,6 +255,15 @@ void test_fragment_discard_terminates_and_invalidates_outputs() {
     test::expect(std::identity(), io.output<vector4f_t>(1).has_value());
     test::expect(std::equal_to<>(), *io.output<vector4f_t>(2), vector4f_t({10.5F, 20.5F, 0.0F, 1.0F}));
     test::expect(std::identity(), *io.output<bool>(3));
+
+    io.reset(vector4f_t({1.5F, 2.5F, 0.25F, 1.0F}), false);
+    test::expect_throws<std::invalid_argument>([&] { program.run(bindings, io); });
+    test::expect(std::logical_not<>(), io.discarded());
+    test::expect(std::logical_not<>(), io.color().has_value());
+    io.input(0, false);
+    program.run(bindings, io);
+    test::expect(std::equal_to<>(), *io.output<vector4f_t>(2), vector4f_t({1.5F, 2.5F, 0.25F, 1.0F}));
+    test::expect(std::logical_not<>(), *io.output<bool>(3));
 }
 
 void test_bindings_own_uniforms_and_borrow_separate_resources() {
@@ -282,6 +333,68 @@ void test_bindings_own_uniforms_and_borrow_separate_resources() {
     wrong_bindings.sampler(0, sampler);
     test::expect_throws<std::invalid_argument>([&] { program.run(wrong_bindings, vertex_io); });
     test::expect(std::logical_not<>(), vertex_io.output<float>(0).has_value());
+
+    bindings.clear_texture(0);
+    test::expect_throws<std::invalid_argument>([&] { program.validate_bindings(bindings); });
+    bindings.texture(0, image);
+    bindings.clear_sampler(0);
+    test::expect_throws<std::invalid_argument>([&] { program.validate_bindings(bindings); });
+    bindings.sampler(0, sampler);
+    test::expect_no_throw([&] { program.validate_bindings(bindings); });
+}
+
+template <typename T>
+void expect_io_round_trip(
+    software_shader::vertex_io_t& vertex_io,
+    software_shader::fragment_io_t& fragment_io,
+    std::uint32_t location,
+    const T& value
+) {
+    vertex_io.input(location, value);
+    vertex_io.output(location + 100, value);
+    test::expect(std::equal_to<>(), vertex_io.input<T>(location), value);
+    test::expect(std::equal_to<>(), *vertex_io.output<T>(location + 100), value);
+
+    fragment_io.input(location, value);
+    fragment_io.output(location + 100, value);
+    test::expect(std::equal_to<>(), fragment_io.input<T>(location), value);
+    test::expect(std::equal_to<>(), *fragment_io.output<T>(location + 100), value);
+}
+
+void test_complete_io_value_storage() {
+    software_shader::vertex_io_t vertex_io(0, 0);
+    software_shader::fragment_io_t fragment_io(vector4f_t(0.0F), true);
+    std::uint32_t location = 0;
+    const auto check = [&](const auto& value) {
+        expect_io_round_trip(vertex_io, fragment_io, location, value);
+        location += 3;
+    };
+
+    check(false);
+    check(std::int32_t(-7));
+    check(std::uint32_t(9));
+    check(1.25F);
+    check(shader::vector_t<bool, 2>({true, false}));
+    check(shader::vector_t<bool, 3>({true, false, true}));
+    check(shader::vector_t<bool, 4>({true, false, true, false}));
+    check(shader::vector_t<std::int32_t, 2>({-1, 2}));
+    check(shader::vector_t<std::int32_t, 3>({-1, 2, -3}));
+    check(shader::vector_t<std::int32_t, 4>({-1, 2, -3, 4}));
+    check(shader::vector_t<std::uint32_t, 2>({1, 2}));
+    check(shader::vector_t<std::uint32_t, 3>({1, 2, 3}));
+    check(shader::vector_t<std::uint32_t, 4>({1, 2, 3, 4}));
+    check(shader::vector_t<float, 2>({1.0F, 2.0F}));
+    check(shader::vector_t<float, 3>({1.0F, 2.0F, 3.0F}));
+    check(shader::vector_t<float, 4>({1.0F, 2.0F, 3.0F, 4.0F}));
+    check(shader::matrix_t<float, 2, 2>({1.0F, 2.0F, 3.0F, 4.0F}));
+    check(shader::matrix_t<float, 2, 3>({1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F}));
+    check(shader::matrix_t<float, 2, 4>({1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F, 7.0F, 8.0F}));
+    check(shader::matrix_t<float, 3, 2>({1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F}));
+    check(shader::matrix_t<float, 3, 3>({1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F, 7.0F, 8.0F, 9.0F}));
+    check(shader::matrix_t<float, 3, 4>({1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F, 7.0F, 8.0F, 9.0F, 10.0F, 11.0F, 12.0F}));
+    check(shader::matrix_t<float, 4, 2>({1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F, 7.0F, 8.0F}));
+    check(shader::matrix_t<float, 4, 3>({1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F, 7.0F, 8.0F, 9.0F, 10.0F, 11.0F, 12.0F}));
+    check(shader::matrix_t<float, 4, 4>({1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F, 7.0F, 8.0F, 9.0F, 10.0F, 11.0F, 12.0F, 13.0F, 14.0F, 15.0F, 16.0F}));
 }
 
 void test_value_operations_and_builtins() {
@@ -443,9 +556,11 @@ int main() {
     return test::run([] {
         test_program_link_validation();
         test_vertex_execution_is_fresh_and_reads_current_state();
+        test_vertex_transform_state_defaults_overrides_and_reset();
         test_vertex_position_is_required_on_the_executed_path();
         test_fragment_discard_terminates_and_invalidates_outputs();
         test_bindings_own_uniforms_and_borrow_separate_resources();
+        test_complete_io_value_storage();
         test_value_operations_and_builtins();
         test_rectangular_matrix_operations();
         test_scalar_operations();

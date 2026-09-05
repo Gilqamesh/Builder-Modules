@@ -1,23 +1,32 @@
-# include "software_shader.h"
+#include "software_shader.h"
 
-# include <algorithm>
-# include <bit>
-# include <cmath>
-# include <concepts>
-# include <cstddef>
-# include <limits>
-# include <map>
-# include <optional>
-# include <stdexcept>
-# include <tuple>
-# include <type_traits>
-# include <utility>
-# include <variant>
-# include <vector>
+#include <algorithm>
+#include <bit>
+#include <cmath>
+#include <concepts>
+#include <cstddef>
+#include <limits>
+#include <map>
+#include <optional>
+#include <stdexcept>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace m03gt1djvvy5atia5evkbg6rqy_software_shader {
 
 namespace {
+
+shader::matrix_t<float, 4, 4> identity_matrix() {
+    return {
+        1.0F, 0.0F, 0.0F, 0.0F,
+        0.0F, 1.0F, 0.0F, 0.0F,
+        0.0F, 0.0F, 1.0F, 0.0F,
+        0.0F, 0.0F, 0.0F, 1.0F
+    };
+}
 
 class value_t {
 public:
@@ -345,8 +354,8 @@ bool compare_components(shader::shader_binary_operation_t operation, const value
     switch (operation) {
         case shader::shader_binary_operation_t::less: return left < right;
         case shader::shader_binary_operation_t::less_equal: return left <= right;
-        case shader::shader_binary_operation_t::greater: return left > right;
-        case shader::shader_binary_operation_t::greater_equal: return left >= right;
+        case shader::shader_binary_operation_t::greater: return right < left;
+        case shader::shader_binary_operation_t::greater_equal: return right <= left;
         default: throw std::logic_error("software shader selected a non-comparison operation");
     }
 }
@@ -537,19 +546,27 @@ public:
 
     void visit(const shader::shader_builtin_node_t& node) override {
         switch (node.builtin()) {
-            case shader::shader_builtin_t::vertex_index:
+            case shader::shader_builtin_t::vertex_index: {
                 m_evaluation = make_value(m_vertex_io->vertex_index());
-                break;
-            case shader::shader_builtin_t::instance_index:
+            } break;
+            case shader::shader_builtin_t::instance_index: {
                 m_evaluation = make_value(m_vertex_io->instance_index());
-                break;
-            case shader::shader_builtin_t::fragment_coordinate:
+            } break;
+            case shader::shader_builtin_t::object_to_world: {
+                m_evaluation = make_value(m_vertex_io->object_to_world());
+            } break;
+            case shader::shader_builtin_t::world_to_clip: {
+                m_evaluation = make_value(m_vertex_io->world_to_clip());
+            } break;
+            case shader::shader_builtin_t::fragment_coordinate: {
                 m_evaluation = make_value(m_fragment_io->fragment_coordinate());
-                break;
-            case shader::shader_builtin_t::front_facing:
+            } break;
+            case shader::shader_builtin_t::front_facing: {
                 m_evaluation = make_value(m_fragment_io->front_facing());
-                break;
-            default: throw std::logic_error("software shader encountered an unsupported builtin");
+            } break;
+            default: {
+                throw std::logic_error("software shader encountered an unsupported builtin");
+            }
         }
     }
 
@@ -918,20 +935,20 @@ void validate_inputs(const shader::shader_interface_t& interface, const IO& io) 
     }
 }
 
-void validate_bindings(const shader::shader_interface_t& interface, const bindings_t& bindings) {
+void validate_interface_bindings(const shader::shader_interface_t& interface, const bindings_t& bindings) {
     for (const auto& binding : interface.bindings()) {
         switch (binding.type.category()) {
-            case shader::shader_data_category_t::texture_2d:
+            case shader::shader_data_category_t::texture_2d: {
                 (void)bindings.texture(binding.index);
-                break;
-            case shader::shader_data_category_t::sampler:
+            } break;
+            case shader::shader_data_category_t::sampler: {
                 (void)bindings.sampler(binding.index);
-                break;
-            default:
+            } break;
+            default: {
                 dispatch_value_type<void>(binding.type, [&]<typename T>() {
                     (void)bindings.uniform<T>(binding.index);
                 });
-                break;
+            } break;
         }
     }
 }
@@ -983,9 +1000,13 @@ void bindings_t::texture(std::uint32_t binding, const texture::texture_t& textur
 const texture::texture_t& bindings_t::texture(std::uint32_t binding) const {
     const auto iterator = m_textures.find(binding);
     if (iterator == m_textures.end()) {
-        throw std::invalid_argument("missing software shader texture binding");
+        throw std::invalid_argument(std::format("software shader texture binding {} is missing", binding));
     }
     return iterator->second.get();
+}
+
+void bindings_t::clear_texture(std::uint32_t binding) {
+    m_textures.erase(binding);
 }
 
 void bindings_t::sampler(std::uint32_t binding, const texture::sampler_t& sampler) {
@@ -995,15 +1016,28 @@ void bindings_t::sampler(std::uint32_t binding, const texture::sampler_t& sample
 const texture::sampler_t& bindings_t::sampler(std::uint32_t binding) const {
     const auto iterator = m_samplers.find(binding);
     if (iterator == m_samplers.end()) {
-        throw std::invalid_argument("missing software shader sampler binding");
+        throw std::invalid_argument(std::format("software shader sampler binding {} is missing", binding));
     }
     return iterator->second.get();
 }
 
+void bindings_t::clear_sampler(std::uint32_t binding) {
+    m_samplers.erase(binding);
+}
+
 vertex_io_t::vertex_io_t(std::int32_t vertex_index, std::int32_t instance_index):
     m_vertex_index(vertex_index),
-    m_instance_index(instance_index)
+    m_instance_index(instance_index),
+    m_object_to_world(identity_matrix()),
+    m_world_to_clip(identity_matrix())
 {
+}
+
+void vertex_io_t::reset(std::int32_t vertex_index, std::int32_t instance_index) {
+    m_vertex_index = vertex_index;
+    m_instance_index = instance_index;
+    m_inputs.clear();
+    clear_results();
 }
 
 std::int32_t vertex_io_t::vertex_index() const {
@@ -1012,6 +1046,22 @@ std::int32_t vertex_io_t::vertex_index() const {
 
 std::int32_t vertex_io_t::instance_index() const {
     return m_instance_index;
+}
+
+void vertex_io_t::object_to_world(shader::matrix_t<float, 4, 4> matrix) {
+    m_object_to_world = std::move(matrix);
+}
+
+shader::matrix_t<float, 4, 4> vertex_io_t::object_to_world() const {
+    return m_object_to_world;
+}
+
+void vertex_io_t::world_to_clip(shader::matrix_t<float, 4, 4> matrix) {
+    m_world_to_clip = std::move(matrix);
+}
+
+shader::matrix_t<float, 4, 4> vertex_io_t::world_to_clip() const {
+    return m_world_to_clip;
 }
 
 void vertex_io_t::position(shader::vector_t<float, 4> position) {
@@ -1035,6 +1085,13 @@ fragment_io_t::fragment_io_t(shader::vector_t<float, 4> fragment_coordinate, boo
     m_front_facing(front_facing),
     m_discarded(false)
 {
+}
+
+void fragment_io_t::reset(shader::vector_t<float, 4> fragment_coordinate, bool front_facing) {
+    m_fragment_coordinate = std::move(fragment_coordinate);
+    m_front_facing = front_facing;
+    m_inputs.clear();
+    clear_results();
 }
 
 shader::vector_t<float, 4> fragment_io_t::fragment_coordinate() const {
@@ -1084,11 +1141,16 @@ const shader::shader_interface_t& program_t::fragment_interface() const {
     return m_fragment.interface();
 }
 
+void program_t::validate_bindings(const bindings_t& bindings) const {
+    validate_interface_bindings(m_vertex.interface(), bindings);
+    validate_interface_bindings(m_fragment.interface(), bindings);
+}
+
 void program_t::run(const bindings_t& bindings, vertex_io_t& io) const {
     io.clear_results();
     try {
         validate_inputs(m_vertex.interface(), io);
-        validate_bindings(m_vertex.interface(), bindings);
+        validate_interface_bindings(m_vertex.interface(), bindings);
         interpreter_t(bindings, io).execute(m_vertex.root());
         try {
             (void)io.position();
@@ -1105,7 +1167,7 @@ void program_t::run(const bindings_t& bindings, fragment_io_t& io) const {
     io.clear_results();
     try {
         validate_inputs(m_fragment.interface(), io);
-        validate_bindings(m_fragment.interface(), bindings);
+        validate_interface_bindings(m_fragment.interface(), bindings);
         interpreter_t(bindings, io).execute(m_fragment.root());
     } catch (...) {
         io.clear_results();

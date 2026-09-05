@@ -4,6 +4,7 @@
 # include <m03gsy25j4v7nccgmsdov9ioft_shader/api.h>
 # include <m03gt0l0q3l4b1k27eab5k7py1_texture/api.h>
 
+# include <algorithm>
 # include <any>
 # include <cstdint>
 # include <format>
@@ -13,6 +14,8 @@
 # include <type_traits>
 # include <unordered_map>
 # include <utility>
+# include <variant>
+# include <vector>
 
 namespace m03gt1djvvy5atia5evkbg6rqy_software_shader {
 
@@ -36,11 +39,13 @@ public:
     void texture(std::uint32_t binding, texture::texture_t&& texture) = delete;
     void texture(std::uint32_t binding, const texture::texture_t&& texture) = delete;
     const texture::texture_t& texture(std::uint32_t binding) const;
+    void clear_texture(std::uint32_t binding);
 
     void sampler(std::uint32_t binding, const texture::sampler_t& sampler);
     void sampler(std::uint32_t binding, texture::sampler_t&& sampler) = delete;
     void sampler(std::uint32_t binding, const texture::sampler_t&& sampler) = delete;
     const texture::sampler_t& sampler(std::uint32_t binding) const;
+    void clear_sampler(std::uint32_t binding);
 
 private:
     std::unordered_map<std::uint32_t, std::any> m_uniforms;
@@ -55,8 +60,19 @@ class vertex_io_t {
 public:
     vertex_io_t(std::int32_t vertex_index, std::int32_t instance_index);
 
+    /**
+     * @brief Starts reuse with new indices, empty inputs, and empty results while preserving matrix state.
+     */
+    void reset(std::int32_t vertex_index, std::int32_t instance_index);
+
     std::int32_t vertex_index() const;
     std::int32_t instance_index() const;
+
+    void object_to_world(shader::matrix_t<float, 4, 4> matrix);
+    shader::matrix_t<float, 4, 4> object_to_world() const;
+
+    void world_to_clip(shader::matrix_t<float, 4, 4> matrix);
+    shader::matrix_t<float, 4, 4> world_to_clip() const;
 
     template <shader::shader_value T>
     void input(std::uint32_t location, T input);
@@ -76,10 +92,40 @@ public:
     void clear_results();
 
 private:
+    using value_t = std::variant<
+        bool,
+        std::int32_t,
+        std::uint32_t,
+        float,
+        shader::vector_t<bool, 2>,
+        shader::vector_t<bool, 3>,
+        shader::vector_t<bool, 4>,
+        shader::vector_t<std::int32_t, 2>,
+        shader::vector_t<std::int32_t, 3>,
+        shader::vector_t<std::int32_t, 4>,
+        shader::vector_t<std::uint32_t, 2>,
+        shader::vector_t<std::uint32_t, 3>,
+        shader::vector_t<std::uint32_t, 4>,
+        shader::vector_t<float, 2>,
+        shader::vector_t<float, 3>,
+        shader::vector_t<float, 4>,
+        shader::matrix_t<float, 2, 2>,
+        shader::matrix_t<float, 2, 3>,
+        shader::matrix_t<float, 2, 4>,
+        shader::matrix_t<float, 3, 2>,
+        shader::matrix_t<float, 3, 3>,
+        shader::matrix_t<float, 3, 4>,
+        shader::matrix_t<float, 4, 2>,
+        shader::matrix_t<float, 4, 3>,
+        shader::matrix_t<float, 4, 4>
+    >;
+
     std::int32_t m_vertex_index;
     std::int32_t m_instance_index;
-    std::unordered_map<std::uint32_t, std::any> m_inputs;
-    std::unordered_map<std::uint32_t, std::any> m_outputs;
+    shader::matrix_t<float, 4, 4> m_object_to_world;
+    shader::matrix_t<float, 4, 4> m_world_to_clip;
+    std::vector<std::pair<std::uint32_t, value_t>> m_inputs;
+    std::vector<std::pair<std::uint32_t, value_t>> m_outputs;
     std::optional<shader::vector_t<float, 4>> m_position;
 };
 
@@ -89,6 +135,11 @@ private:
 class fragment_io_t {
 public:
     fragment_io_t(shader::vector_t<float, 4> fragment_coordinate, bool front_facing);
+
+    /**
+     * @brief Starts reuse with new built-ins and empty inputs and results.
+     */
+    void reset(shader::vector_t<float, 4> fragment_coordinate, bool front_facing);
 
     shader::vector_t<float, 4> fragment_coordinate() const;
     bool front_facing() const;
@@ -113,11 +164,39 @@ public:
     void clear_results();
 
 private:
+    using value_t = std::variant<
+        bool,
+        std::int32_t,
+        std::uint32_t,
+        float,
+        shader::vector_t<bool, 2>,
+        shader::vector_t<bool, 3>,
+        shader::vector_t<bool, 4>,
+        shader::vector_t<std::int32_t, 2>,
+        shader::vector_t<std::int32_t, 3>,
+        shader::vector_t<std::int32_t, 4>,
+        shader::vector_t<std::uint32_t, 2>,
+        shader::vector_t<std::uint32_t, 3>,
+        shader::vector_t<std::uint32_t, 4>,
+        shader::vector_t<float, 2>,
+        shader::vector_t<float, 3>,
+        shader::vector_t<float, 4>,
+        shader::matrix_t<float, 2, 2>,
+        shader::matrix_t<float, 2, 3>,
+        shader::matrix_t<float, 2, 4>,
+        shader::matrix_t<float, 3, 2>,
+        shader::matrix_t<float, 3, 3>,
+        shader::matrix_t<float, 3, 4>,
+        shader::matrix_t<float, 4, 2>,
+        shader::matrix_t<float, 4, 3>,
+        shader::matrix_t<float, 4, 4>
+    >;
+
     shader::vector_t<float, 4> m_fragment_coordinate;
     bool m_front_facing;
     bool m_discarded;
-    std::unordered_map<std::uint32_t, std::any> m_inputs;
-    std::unordered_map<std::uint32_t, std::any> m_outputs;
+    std::vector<std::pair<std::uint32_t, value_t>> m_inputs;
+    std::vector<std::pair<std::uint32_t, value_t>> m_outputs;
     std::optional<shader::vector_t<float, 4>> m_color;
 };
 
@@ -135,7 +214,14 @@ public:
     const shader::shader_interface_t& fragment_interface() const;
 
     /**
+     * @brief Validates every reflected binding in both stages while accepting unused extras.
+     */
+    void validate_bindings(const bindings_t& bindings) const;
+
+    /**
      * @brief Runs a fresh vertex invocation and replaces all prior vertex results.
+     *
+     * Caller-supplied inputs, indices, and matrices remain available after execution.
      *
      * Fails if a required input or binding is absent or has the wrong type.
      * Fails if execution completes without writing position.
@@ -144,6 +230,8 @@ public:
 
     /**
      * @brief Runs a fresh fragment invocation and replaces all prior fragment results.
+     *
+     * Caller-supplied inputs and built-ins remain available after execution.
      *
      * Discard terminates execution, clears all outputs, and is reported by `fragment_io_t::discarded()`.
      *
@@ -187,11 +275,11 @@ std::remove_cvref_t<T> bindings_t::uniform(std::uint32_t binding) const {
     using type = std::remove_cvref_t<T>;
     const auto iterator = m_uniforms.find(binding);
     if (iterator == m_uniforms.end()) {
-        throw std::invalid_argument("missing software shader uniform binding");
+        throw std::invalid_argument(std::format("software shader uniform binding {} is missing", binding));
     }
     const auto* uniform = std::any_cast<type>(&iterator->second);
     if (!uniform) {
-        throw std::invalid_argument("software shader uniform binding has the wrong type");
+        throw std::invalid_argument(std::format("software shader uniform binding {} has the wrong type", binding));
     }
     return *uniform;
 }
@@ -199,19 +287,24 @@ std::remove_cvref_t<T> bindings_t::uniform(std::uint32_t binding) const {
 template <shader::shader_value T>
 void vertex_io_t::input(std::uint32_t location, T input) {
     using type = std::remove_cvref_t<T>;
-    m_inputs.insert_or_assign(location, std::any(type(std::move(input))));
+    const auto iterator = std::ranges::find_if(m_inputs, [location](const auto& entry) { return entry.first == location; });
+    if (iterator == m_inputs.end()) {
+        m_inputs.emplace_back(location, value_t(type(std::move(input))));
+    } else {
+        iterator->second = type(std::move(input));
+    }
 }
 
 template <shader::shader_value T>
 std::remove_cvref_t<T> vertex_io_t::input(std::uint32_t location) const {
     using type = std::remove_cvref_t<T>;
-    const auto iterator = m_inputs.find(location);
+    const auto iterator = std::ranges::find_if(m_inputs, [location](const auto& entry) { return entry.first == location; });
     if (iterator == m_inputs.end()) {
-        throw std::invalid_argument("missing software shader vertex input");
+        throw std::invalid_argument(std::format("software shader vertex input location {} is missing", location));
     }
-    const auto* input = std::any_cast<type>(&iterator->second);
+    const auto* input = std::get_if<type>(&iterator->second);
     if (!input) {
-        throw std::invalid_argument("software shader vertex input has the wrong type");
+        throw std::invalid_argument(std::format("software shader vertex input location {} has the wrong type", location));
     }
     return *input;
 }
@@ -219,19 +312,24 @@ std::remove_cvref_t<T> vertex_io_t::input(std::uint32_t location) const {
 template <shader::shader_value T>
 void vertex_io_t::output(std::uint32_t location, T output) {
     using type = std::remove_cvref_t<T>;
-    m_outputs.insert_or_assign(location, std::any(type(std::move(output))));
+    const auto iterator = std::ranges::find_if(m_outputs, [location](const auto& entry) { return entry.first == location; });
+    if (iterator == m_outputs.end()) {
+        m_outputs.emplace_back(location, value_t(type(std::move(output))));
+    } else {
+        iterator->second = type(std::move(output));
+    }
 }
 
 template <shader::shader_value T>
 std::optional<std::remove_cvref_t<T>> vertex_io_t::output(std::uint32_t location) const {
     using type = std::remove_cvref_t<T>;
-    const auto iterator = m_outputs.find(location);
+    const auto iterator = std::ranges::find_if(m_outputs, [location](const auto& entry) { return entry.first == location; });
     if (iterator == m_outputs.end()) {
         return std::nullopt;
     }
-    const auto* output = std::any_cast<type>(&iterator->second);
+    const auto* output = std::get_if<type>(&iterator->second);
     if (!output) {
-        throw std::invalid_argument("software shader vertex output has the wrong type");
+        throw std::invalid_argument(std::format("software shader vertex output location {} has the wrong type", location));
     }
     return *output;
 }
@@ -239,19 +337,24 @@ std::optional<std::remove_cvref_t<T>> vertex_io_t::output(std::uint32_t location
 template <shader::shader_value T>
 void fragment_io_t::input(std::uint32_t location, T input) {
     using type = std::remove_cvref_t<T>;
-    m_inputs.insert_or_assign(location, std::any(type(std::move(input))));
+    const auto iterator = std::ranges::find_if(m_inputs, [location](const auto& entry) { return entry.first == location; });
+    if (iterator == m_inputs.end()) {
+        m_inputs.emplace_back(location, value_t(type(std::move(input))));
+    } else {
+        iterator->second = type(std::move(input));
+    }
 }
 
 template <shader::shader_value T>
 std::remove_cvref_t<T> fragment_io_t::input(std::uint32_t location) const {
     using type = std::remove_cvref_t<T>;
-    const auto iterator = m_inputs.find(location);
+    const auto iterator = std::ranges::find_if(m_inputs, [location](const auto& entry) { return entry.first == location; });
     if (iterator == m_inputs.end()) {
-        throw std::invalid_argument("missing software shader fragment input");
+        throw std::invalid_argument(std::format("software shader fragment input location {} is missing", location));
     }
-    const auto* input = std::any_cast<type>(&iterator->second);
+    const auto* input = std::get_if<type>(&iterator->second);
     if (!input) {
-        throw std::invalid_argument("software shader fragment input has the wrong type");
+        throw std::invalid_argument(std::format("software shader fragment input location {} has the wrong type", location));
     }
     return *input;
 }
@@ -259,19 +362,24 @@ std::remove_cvref_t<T> fragment_io_t::input(std::uint32_t location) const {
 template <shader::shader_value T>
 void fragment_io_t::output(std::uint32_t location, T output) {
     using type = std::remove_cvref_t<T>;
-    m_outputs.insert_or_assign(location, std::any(type(std::move(output))));
+    const auto iterator = std::ranges::find_if(m_outputs, [location](const auto& entry) { return entry.first == location; });
+    if (iterator == m_outputs.end()) {
+        m_outputs.emplace_back(location, value_t(type(std::move(output))));
+    } else {
+        iterator->second = type(std::move(output));
+    }
 }
 
 template <shader::shader_value T>
 std::optional<std::remove_cvref_t<T>> fragment_io_t::output(std::uint32_t location) const {
     using type = std::remove_cvref_t<T>;
-    const auto iterator = m_outputs.find(location);
+    const auto iterator = std::ranges::find_if(m_outputs, [location](const auto& entry) { return entry.first == location; });
     if (iterator == m_outputs.end()) {
         return std::nullopt;
     }
-    const auto* output = std::any_cast<type>(&iterator->second);
+    const auto* output = std::get_if<type>(&iterator->second);
     if (!output) {
-        throw std::invalid_argument("software shader fragment output has the wrong type");
+        throw std::invalid_argument(std::format("software shader fragment output location {} has the wrong type", location));
     }
     return *output;
 }

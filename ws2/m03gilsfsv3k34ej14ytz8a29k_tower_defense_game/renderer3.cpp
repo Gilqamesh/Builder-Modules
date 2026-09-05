@@ -4,7 +4,6 @@
 
 #include <array>
 #include <cstddef>
-#include <cstring>
 #include <format>
 #include <limits>
 #include <span>
@@ -191,10 +190,7 @@ vector2f_t read_position(
     const m03gjfvd6i5jzbmngb2ldoooza_type_erased_array::type_erased_array_t& vertex_stream,
     std::uint32_t index
 ) {
-    std::array<float, 2> values;
-    const auto bytes = vertex_stream.data();
-    const std::size_t offset = static_cast<std::size_t>(index) * sizeof(values);
-    std::memcpy(values.data(), bytes.data() + offset, sizeof(values));
+    const auto values = vertex_stream.read<std::array<float, 2>>(index);
     return { values[0], values[1] };
 }
 
@@ -224,7 +220,7 @@ void require_supported_texture_format(texture_api::format_t format) {
     }
 }
 
-render_item_data_t validate_render_item(const software_renderer_api::render_item_t<float, 2>& render_item) {
+render_item_data_t validate_render_item(const software_renderer_api::render_item_t& render_item) {
     const auto geometry = render_item.geometry();
     if (!geometry) {
         throw std::runtime_error("renderer3_t::draw: does not support a render item with no geometry");
@@ -240,16 +236,7 @@ render_item_data_t validate_render_item(const software_renderer_api::render_item
         throw std::runtime_error("renderer3_t::draw: does not support a render item with no material");
     }
 
-    const auto& texture_bindings = material->texture_bindings();
-    if (texture_bindings.empty()) {
-        throw std::runtime_error("renderer3_t::draw: does not support entity_material with no texture_bindings");
-    }
-
-    const auto& texture_binding = texture_bindings[0];
-    if (!texture_binding.texture) {
-        throw std::runtime_error("renderer3_t::draw: does not support entity_material with no texture in first texture_binding");
-    }
-    require_supported_texture_format(texture_binding.texture->format());
+    require_supported_texture_format(material->bindings().texture(0).format());
 
     const auto& vertex_streams = mesh->vertex_streams();
     if (vertex_streams.size() == 0) {
@@ -446,7 +433,7 @@ int renderer3_t::height() const noexcept {
 
 void renderer3_t::draw(
     const software_renderer_api::camera_t<float, int, 2>& camera,
-    const software_renderer_api::render_item_t<float, 2>& render_item
+    const software_renderer_api::render_item_t& render_item
 ) {
     if (!m_frame_active) {
         throw std::runtime_error("renderer3_t::draw: begin_frame must be called before draw");

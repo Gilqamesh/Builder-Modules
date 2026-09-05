@@ -2,7 +2,9 @@
 #include <m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays/api.h>
 #include <m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer/software_renderer.h>
 #include <m03gn97n4iusbtl7uthb01wu9m_test_framework/test_framework.h>
+#include <m03gsy25j4v7nccgmsdov9ioft_shader/api.h>
 #include <m03gt0l0q3l4b1k27eab5k7py1_texture/api.h>
+#include <m03gt1djvvy5atia5evkbg6rqy_software_shader/api.h>
 
 #include <algorithm>
 #include <array>
@@ -11,8 +13,10 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <numbers>
 #include <span>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -20,11 +24,16 @@ namespace api = m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer;
 namespace byte_stream = m03gagbht2l61mj6qitacwbmea_byte_stream;
 namespace soa = m03gjbxryz3suyoumjyd80j3r2_structure_of_arrays;
 namespace test = m03gn97n4iusbtl7uthb01wu9m_test_framework;
+namespace shader = m03gsy25j4v7nccgmsdov9ioft_shader;
 namespace texture = m03gt0l0q3l4b1k27eab5k7py1_texture;
+namespace software_shader = m03gt1djvvy5atia5evkbg6rqy_software_shader;
 
 namespace {
 
 using position_t = std::array<float, 2>;
+using vector2f_t = shader::vector_t<float, 2>;
+using vector4f_t = shader::vector_t<float, 4>;
+using program_ptr_t = std::shared_ptr<const software_shader::program_t>;
 
 constexpr api::rgba8_t clear_color {3, 5, 7, 11};
 constexpr api::rgba8_t red {255, 0, 0, 255};
@@ -98,6 +107,40 @@ std::shared_ptr<texture::texture_t> make_float_texture(std::array<float, 4> colo
     );
 }
 
+program_ptr_t make_textured_program() {
+    shader::vertex_shader_ast_builder_t vertex;
+    const auto position = vertex.input<vector2f_t>(0);
+    const auto local = vertex.construct<vector4f_t>(position, 0.0F, 1.0F);
+    vertex.position(vertex.world_to_clip() * vertex.object_to_world() * local);
+    vertex.output(0, position * 0.5F + vector2f_t({0.5F, 0.5F}));
+
+    shader::fragment_shader_ast_builder_t fragment;
+    const auto coordinates = fragment.input<vector2f_t>(0);
+    const auto image = fragment.resource<shader::shader_texture_2d_t>(0);
+    const auto sampler = fragment.resource<shader::shader_sampler_t>(0);
+    fragment.color(shader::sample(image, sampler, coordinates));
+
+    return std::make_shared<const software_shader::program_t>(
+        std::move(vertex).finalize(),
+        std::move(fragment).finalize()
+    );
+}
+
+program_ptr_t make_constant_program(vector4f_t color) {
+    shader::vertex_shader_ast_builder_t vertex;
+    const auto position = vertex.input<vector2f_t>(0);
+    const auto local = vertex.construct<vector4f_t>(position, 0.0F, 1.0F);
+    vertex.position(vertex.world_to_clip() * vertex.object_to_world() * local);
+
+    shader::fragment_shader_ast_builder_t fragment;
+    fragment.color(color);
+
+    return std::make_shared<const software_shader::program_t>(
+        std::move(vertex).finalize(),
+        std::move(fragment).finalize()
+    );
+}
+
 std::shared_ptr<api::index_buffer_t> make_indices(api::index_buffer_t::indices_t values) {
     auto result = std::make_shared<api::index_buffer_t>();
     result->indices() = std::move(values);
@@ -144,21 +187,23 @@ std::shared_ptr<api::geometry_t> make_geometry(
 
 std::shared_ptr<api::material_t> make_material(
     std::shared_ptr<texture::texture_t> image,
-    std::shared_ptr<texture::sampler_t> sampler = make_sampler()
+    std::shared_ptr<texture::sampler_t> sampler = make_sampler(),
+    program_ptr_t program = nullptr
 ) {
-    auto material = std::make_shared<api::material_t>();
-    material->texture_bindings().push_back({
-        .texture = std::move(image),
-        .sampler = std::move(sampler)
-    });
+    if (!program) {
+        program = make_textured_program();
+    }
+    auto material = std::make_shared<api::material_t>(std::move(program));
+    material->texture(0, std::move(image));
+    material->sampler(0, std::move(sampler));
     return material;
 }
 
-api::render_item_t<float, 2> make_render_item(
+api::render_item_t make_render_item(
     std::shared_ptr<api::geometry_t> geometry,
     std::shared_ptr<api::material_t> material
 ) {
-    api::render_item_t<float, 2> render_item;
+    api::render_item_t render_item;
     render_item.geometry(std::move(geometry));
     render_item.material(std::move(material));
     render_item.translation({0.0F, 0.0F});
@@ -182,7 +227,7 @@ std::vector<api::rgba8_t> draw_scene(
     std::shared_ptr<texture::texture_t> image = make_unorm_texture(red)
 ) {
     std::vector<api::rgba8_t> pixels(
-        static_cast<std::size_t>(width) * static_cast<std::size_t>(height),
+        api::framebuffer_pixel_count(width, height),
         clear_color
     );
     api::software_renderer_t renderer({
@@ -260,6 +305,10 @@ void test_resource_model() {
 }
 
 void test_framebuffer() {
+    test::expect(std::equal_to<>(), api::framebuffer_pixel_count(3, 2), std::size_t(6));
+    test::expect(std::equal_to<>(), api::framebuffer_pixel_count(0, 2), std::size_t(0));
+    test::expect_throws<std::invalid_argument>([] { (void)api::framebuffer_pixel_count(-1, 2); });
+
     std::vector<api::rgba8_t> pixels(6);
     test::expect_throws<std::invalid_argument>([&] {
         [[maybe_unused]] const api::software_renderer_t invalid({
@@ -421,6 +470,226 @@ void test_texture_coordinate_interpolation() {
     expect_color(framebuffer[pixel_index(6, 1, 8)], green);
     expect_color(framebuffer[pixel_index(1, 6, 8)], blue);
     expect_color(framebuffer[pixel_index(6, 6, 8)], white);
+
+    std::vector<api::rgba8_t> transformed_pixels(32 * 32, clear_color);
+    api::software_renderer_t renderer({
+        .pixels = transformed_pixels,
+        .width = 32,
+        .height = 32
+    });
+    api::render_item_t transformed;
+    transformed.geometry(make_geometry(
+        {{-1.0F, -1.0F}, {-1.0F, 1.0F}, {1.0F, -1.0F}, {1.0F, 1.0F}},
+        {0, 1, 2, 3},
+        api::vertex_primitive_topology_t::triangle_strip
+    ));
+    transformed.material(make_material(make_unorm_texture(2, 2, texels)));
+    transformed.translation({0.25F, 0.25F});
+    transformed.scale({0.5F, 0.5F});
+    renderer.draw(make_camera(32, 32), transformed);
+    expect_color(transformed_pixels[pixel_index(14, 14, 32)], red);
+    expect_color(transformed_pixels[pixel_index(26, 14, 32)], green);
+    expect_color(transformed_pixels[pixel_index(14, 26, 32)], blue);
+    expect_color(transformed_pixels[pixel_index(26, 26, 32)], white);
+}
+
+void test_shared_material_transform_semantics() {
+    std::vector<api::rgba8_t> pixels(64 * 64, clear_color);
+    api::software_renderer_t renderer({.pixels = pixels, .width = 64, .height = 64});
+    const auto camera = make_camera(64, 64);
+    const auto geometry = make_geometry(
+        {{0.0F, 0.0F}},
+        {0},
+        api::vertex_primitive_topology_t::point
+    );
+    const auto material = std::make_shared<api::material_t>(
+        make_constant_program(vector4f_t({1.0F, 0.0F, 0.0F, 1.0F}))
+    );
+    auto left = make_render_item(geometry, material);
+    left.translation({-0.5F, 0.0F});
+    auto right = make_render_item(geometry, material);
+    right.translation({0.5F, 0.0F});
+    renderer.draw(camera, left);
+    renderer.draw(camera, right);
+    expect_color(pixels[pixel_index(16, 32, 64)], red);
+    expect_color(pixels[pixel_index(48, 32, 64)], red);
+
+    renderer.clear(clear_color);
+    auto trs = make_render_item(
+        make_geometry({{0.25F, 0.0F}}, {0}, api::vertex_primitive_topology_t::point),
+        material
+    );
+    trs.scale({2.0F, 1.0F});
+    trs.rotation(std::numbers::pi_v<float> * 0.5F);
+    trs.translation({0.25F, -0.25F});
+    renderer.draw(camera, trs);
+    expect_color(pixels[pixel_index(40, 40, 64)], red);
+    expect_color(pixels[pixel_index(48, 48, 64)], clear_color);
+}
+
+void test_matrix_zw_and_sparse_consumed_outputs() {
+    shader::vertex_shader_ast_builder_t vertex;
+    const auto position = vertex.input<vector2f_t>(0);
+    const auto local = vertex.construct<vector4f_t>(position, 0.25F, 1.0F);
+    const auto world = vertex.object_to_world() * local;
+    const auto clip = vertex.world_to_clip() * world;
+    vertex.position(clip);
+    vertex.output(4, true);
+    vertex.output(11, shader::swizzle<2, 3>(world));
+    vertex.output(29, shader::swizzle<2, 3>(clip));
+    vertex.output(41, vertex.object_to_world());
+
+    shader::fragment_shader_ast_builder_t fragment;
+    const auto world_zw = fragment.input<vector2f_t>(11);
+    const auto clip_zw = fragment.input<vector2f_t>(29);
+    fragment.color(fragment.construct<vector4f_t>(world_zw, clip_zw));
+
+    const auto program = std::make_shared<const software_shader::program_t>(
+        std::move(vertex).finalize(),
+        std::move(fragment).finalize()
+    );
+    const auto material = std::make_shared<api::material_t>(program);
+    const auto item = make_render_item(
+        make_geometry({{0.0F, 0.0F}}, {0}, api::vertex_primitive_topology_t::point),
+        material
+    );
+    std::vector<api::rgba8_t> pixels(16 * 16, clear_color);
+    api::software_renderer_t renderer({.pixels = pixels, .width = 16, .height = 16});
+    renderer.draw(make_camera(16, 16), item);
+    expect_color(pixels[pixel_index(8, 8, 16)], {64, 255, 64, 255});
+
+    shader::vertex_shader_ast_builder_t smaller_vertex;
+    const auto smaller_position = smaller_vertex.input<vector2f_t>(0);
+    const auto smaller_local = smaller_vertex.construct<vector4f_t>(smaller_position, 0.0F, 1.0F);
+    smaller_vertex.position(smaller_vertex.world_to_clip() * smaller_vertex.object_to_world() * smaller_local);
+    smaller_vertex.output(73, 1.0F);
+    shader::fragment_shader_ast_builder_t smaller_fragment;
+    const auto green_component = smaller_fragment.input<float>(73);
+    smaller_fragment.color(smaller_fragment.construct<vector4f_t>(0.0F, green_component, 0.0F, 1.0F));
+    const auto smaller_program = std::make_shared<const software_shader::program_t>(
+        std::move(smaller_vertex).finalize(),
+        std::move(smaller_fragment).finalize()
+    );
+    const auto smaller_item = make_render_item(
+        make_geometry({{0.0F, 0.0F}}, {0}, api::vertex_primitive_topology_t::point),
+        std::make_shared<api::material_t>(smaller_program)
+    );
+    renderer.clear(clear_color);
+    renderer.draw(make_camera(16, 16), smaller_item);
+    expect_color(pixels[pixel_index(8, 8, 16)], green);
+}
+
+void test_selected_range_indices_and_pre_raster_validation() {
+    shader::vertex_shader_ast_builder_t indexed_vertex;
+    const auto position = indexed_vertex.input<vector2f_t>(0);
+    const auto local = indexed_vertex.construct<vector4f_t>(position, 0.0F, 1.0F);
+    const auto selected = indexed_vertex.local(0.0F);
+    indexed_vertex.branch(indexed_vertex.vertex_index() == std::int32_t(5), [&] {
+        indexed_vertex.assign(selected, 1.0F);
+    });
+    indexed_vertex.position(indexed_vertex.world_to_clip() * indexed_vertex.object_to_world() * local);
+    indexed_vertex.output(2, false);
+    indexed_vertex.output(17, selected);
+    indexed_vertex.output(31, indexed_vertex.object_to_world());
+
+    shader::fragment_shader_ast_builder_t indexed_fragment;
+    const auto selected_input = indexed_fragment.input<float>(17);
+    indexed_fragment.color(indexed_fragment.construct<vector4f_t>(selected_input, 0.0F, 0.0F, 1.0F));
+
+    const auto program = std::make_shared<const software_shader::program_t>(
+        std::move(indexed_vertex).finalize(),
+        std::move(indexed_fragment).finalize()
+    );
+    std::vector<position_t> positions(128, position_t {2.0F, 2.0F});
+    positions[5] = {0.0F, 0.0F};
+    soa::structure_of_arrays_t<position_t> streams;
+    for (const auto& vertex_position : positions) {
+        streams.push_back(vertex_position);
+    }
+    auto mesh = std::make_shared<api::mesh_t>(
+        std::move(streams),
+        std::vector<api::vertex_attribute_t> {
+            api::vertex_attribute_t(api::vertex_attribute_type_t::R32, 2)
+        }
+    );
+    auto index_buffer = make_indices({0, 5, 5, 0});
+    auto geometry = std::make_shared<api::geometry_t>(
+        std::move(index_buffer),
+        api::index_range_t {.offset = 1, .count = 2}
+    );
+    geometry->mesh() = std::move(mesh);
+    geometry->primitive_topology() = api::vertex_primitive_topology_t::point;
+    geometry->finalize();
+
+    std::vector<api::rgba8_t> pixels(16 * 16, clear_color);
+    api::software_renderer_t renderer({.pixels = pixels, .width = 16, .height = 16});
+    const auto item = make_render_item(
+        std::move(geometry),
+        std::make_shared<api::material_t>(program)
+    );
+    renderer.draw(make_camera(16, 16), item);
+    expect_color(pixels[pixel_index(8, 8, 16)], red);
+
+    shader::vertex_shader_ast_builder_t failing_vertex;
+    const auto failing_position = failing_vertex.input<vector2f_t>(0);
+    failing_vertex.position(failing_vertex.construct<vector4f_t>(failing_position, 0.0F, 1.0F));
+    failing_vertex.branch(failing_vertex.vertex_index() == std::int32_t(0), [&] {
+        failing_vertex.position(vector4f_t({0.0F, 0.0F, 0.0F, 1.0F}));
+    });
+    failing_vertex.branch(failing_vertex.vertex_index() != std::int32_t(0), [&] {
+        failing_vertex.position(vector4f_t({std::numeric_limits<float>::infinity(), 0.0F, 0.0F, 1.0F}));
+    });
+    shader::fragment_shader_ast_builder_t failing_fragment;
+    failing_fragment.color(vector4f_t({0.0F, 1.0F, 0.0F, 1.0F}));
+    const auto failing_program = std::make_shared<const software_shader::program_t>(
+        std::move(failing_vertex).finalize(),
+        std::move(failing_fragment).finalize()
+    );
+    const auto failing_item = make_render_item(
+        make_geometry(
+            {{0.0F, 0.0F}, {0.5F, 0.0F}},
+            {0, 1},
+            api::vertex_primitive_topology_t::point
+        ),
+        std::make_shared<api::material_t>(failing_program)
+    );
+    renderer.clear(clear_color);
+    test::expect_throws<std::runtime_error>([&] {
+        renderer.draw(make_camera(16, 16), failing_item);
+    });
+    test::expect(std::identity(), std::ranges::all_of(pixels, [](const auto& pixel) {
+        return same_color(pixel, clear_color);
+    }));
+
+    renderer.draw(make_camera(16, 16), item);
+    expect_color(pixels[pixel_index(8, 8, 16)], red);
+}
+
+void test_fragment_bindings_are_validated_before_clipped_geometry() {
+    shader::vertex_shader_ast_builder_t vertex;
+    vertex.position(vector4f_t({2.0F, 0.0F, 0.0F, 1.0F}));
+
+    shader::fragment_shader_ast_builder_t fragment;
+    fragment.color(fragment.uniform<vector4f_t>(9));
+    const auto program = std::make_shared<const software_shader::program_t>(
+        std::move(vertex).finalize(),
+        std::move(fragment).finalize()
+    );
+    const auto material = std::make_shared<api::material_t>(program);
+    const auto item = make_render_item(
+        make_geometry({{0.0F, 0.0F}}, {0}, api::vertex_primitive_topology_t::point),
+        material
+    );
+    std::vector<api::rgba8_t> pixels(16 * 16, clear_color);
+    api::software_renderer_t renderer({.pixels = pixels, .width = 16, .height = 16});
+    test::expect_throws<std::invalid_argument>([&] {
+        renderer.draw(make_camera(16, 16), item);
+    });
+    material->uniform(9, vector4f_t({1.0F, 0.0F, 0.0F, 1.0F}));
+    test::expect_no_throw([&] { renderer.draw(make_camera(16, 16), item); });
+    test::expect(std::identity(), std::ranges::all_of(pixels, [](const auto& pixel) {
+        return same_color(pixel, clear_color);
+    }));
 }
 
 void test_explicit_color_and_rgba8_conversion() {
@@ -489,6 +758,8 @@ void test_vertex_layout_rejection() {
 }
 
 void test_material_resource_mapping() {
+    static_assert(!std::is_copy_assignable_v<api::material_t>);
+
     std::vector<api::rgba8_t> pixels(8 * 8, clear_color);
     api::software_renderer_t renderer({.pixels = pixels, .width = 8, .height = 8});
     const auto camera = make_camera(8, 8);
@@ -498,25 +769,49 @@ void test_material_resource_mapping() {
         api::vertex_primitive_topology_t::point
     );
 
-    auto mapped_material = make_material(make_unorm_texture(texture_color));
-    mapped_material->texture_bindings().push_back({
-        .texture = make_unorm_texture(red),
-        .sampler = make_sampler()
-    });
+    const auto program = make_textured_program();
+    auto mapped_material = make_material(make_unorm_texture(red), make_sampler(), program);
+    mapped_material->texture(0, make_unorm_texture(texture_color));
+    mapped_material->texture(7, make_unorm_texture(blue));
+    mapped_material->sampler(7, make_sampler());
+    mapped_material->uniform(0, 17.0F);
     const auto mapped = make_render_item(geometry, std::move(mapped_material));
     renderer.draw(camera, mapped);
     expect_color(pixels[pixel_index(4, 4, 8)], texture_color);
 
-    const auto missing = make_render_item(geometry, std::make_shared<api::material_t>());
-    test::expect_throws<std::invalid_argument>([&] { renderer.draw(camera, missing); });
+    auto distinct_material = make_material(make_unorm_texture(green), make_sampler(), program);
+    test::expect(std::identity(), distinct_material->program() == program);
+    const auto distinct = make_render_item(geometry, distinct_material);
+    renderer.clear(clear_color);
+    renderer.draw(camera, distinct);
+    expect_color(pixels[pixel_index(4, 4, 8)], green);
 
-    auto null_texture_material = make_material(nullptr);
-    const auto null_texture = make_render_item(geometry, std::move(null_texture_material));
-    test::expect_throws<std::invalid_argument>([&] { renderer.draw(camera, null_texture); });
+    distinct_material->texture(0, nullptr);
+    test::expect_throws<std::invalid_argument>([&] { renderer.draw(camera, distinct); });
+    test::expect_throws<std::invalid_argument>([&] { (void)distinct_material->bindings().texture(0); });
 
-    auto null_sampler_material = make_material(make_unorm_texture(red), nullptr);
-    const auto null_sampler = make_render_item(geometry, std::move(null_sampler_material));
-    test::expect_throws<std::invalid_argument>([&] { renderer.draw(camera, null_sampler); });
+    distinct_material->texture(0, make_unorm_texture(red));
+    distinct_material->sampler(0, nullptr);
+    test::expect_throws<std::invalid_argument>([&] { renderer.draw(camera, distinct); });
+    test::expect_throws<std::invalid_argument>([&] { (void)distinct_material->bindings().sampler(0); });
+
+    auto owned_texture = make_unorm_texture(red);
+    auto owned_sampler = make_sampler();
+    const std::weak_ptr<texture::texture_t> weak_texture = owned_texture;
+    const std::weak_ptr<texture::sampler_t> weak_sampler = owned_sampler;
+    auto owning_material = make_material(owned_texture, owned_sampler, program);
+    owned_texture.reset();
+    owned_sampler.reset();
+    test::expect(std::logical_not<>(), weak_texture.expired());
+    test::expect(std::logical_not<>(), weak_sampler.expired());
+    owning_material->texture(0, nullptr);
+    owning_material->sampler(0, nullptr);
+    test::expect(std::identity(), weak_texture.expired());
+    test::expect(std::identity(), weak_sampler.expired());
+
+    test::expect_throws<std::invalid_argument>([] {
+        [[maybe_unused]] const api::material_t invalid(nullptr);
+    });
 }
 
 void test_nonfinite_clip_position_rejection() {
@@ -557,6 +852,10 @@ int main() {
         test_topologies_and_clipping();
         test_shared_edge_coverage();
         test_texture_coordinate_interpolation();
+        test_shared_material_transform_semantics();
+        test_matrix_zw_and_sparse_consumed_outputs();
+        test_selected_range_indices_and_pre_raster_validation();
+        test_fragment_bindings_are_validated_before_clipped_geometry();
         test_explicit_color_and_rgba8_conversion();
         test_vertex_layout_rejection();
         test_material_resource_mapping();

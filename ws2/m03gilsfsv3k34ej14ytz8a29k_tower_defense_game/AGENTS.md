@@ -19,9 +19,3 @@ Use the software-renderer module's `render_item_t` and related resource types di
 ## Validation
 
 Rendering integration requires the software-renderer validation suite and a visible tower-defense smoke test with an OpenGL-capable display.
-
-## Open decisions
-
-Obtain explicit direction before settling:
-
-- whether transform remains translation/rotation/scale or becomes a matrix abstraction;

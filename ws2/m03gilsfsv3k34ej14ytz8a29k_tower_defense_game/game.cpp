@@ -1,6 +1,8 @@
 #include "game.h"
 
+#include <m03gsy25j4v7nccgmsdov9ioft_shader/api.h>
 #include <m03gt0l0q3l4b1k27eab5k7py1_texture/api.h>
+#include <m03gt1djvvy5atia5evkbg6rqy_software_shader/api.h>
 
 #include <algorithm>
 #include <array>
@@ -10,7 +12,6 @@
 #include <cstdlib>
 #include <format>
 #include <iostream>
-#include <limits>
 #include <memory>
 #include <numbers>
 #include <span>
@@ -28,6 +29,8 @@ namespace {
 namespace {
 
 namespace glfw = m03gkcdy62bnz808pmk4uzkjra_glfw;
+namespace shader = m03gsy25j4v7nccgmsdov9ioft_shader;
+namespace software_shader = m03gt1djvvy5atia5evkbg6rqy_software_shader;
 namespace software_renderer = m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer;
 
 std::shared_ptr<glfw::window_t> make_window() {
@@ -44,20 +47,30 @@ std::shared_ptr<glfw::window_t> make_window() {
     return window;
 }
 
-std::size_t framebuffer_pixel_count(int width, int height) {
-    if (width < 0 || height < 0) {
-        throw std::invalid_argument("game_t framebuffer dimensions must be non-negative");
-    }
-    const std::size_t width_size = static_cast<std::size_t>(width);
-    const std::size_t height_size = static_cast<std::size_t>(height);
-    if (width_size != 0 && height_size > std::numeric_limits<std::size_t>::max() / width_size) {
-        throw std::length_error("game_t framebuffer size overflows size_t");
-    }
-    return width_size * height_size;
-}
-
 constexpr software_renderer::rgba8_t ray_white() {
     return {245, 245, 245, 255};
+}
+
+std::shared_ptr<const software_shader::program_t> make_program() {
+    using vector2f_t = shader::vector_t<float, 2>;
+    using vector4f_t = shader::vector_t<float, 4>;
+
+    shader::vertex_shader_ast_builder_t vertex;
+    const auto position = vertex.input<vector2f_t>(0);
+    const auto local = vertex.construct<vector4f_t>(position, 0.0F, 1.0F);
+    vertex.position(vertex.world_to_clip() * vertex.object_to_world() * local);
+    vertex.output(0, position * 0.5F + vector2f_t({0.5F, 0.5F}));
+
+    shader::fragment_shader_ast_builder_t fragment;
+    const auto coordinates = fragment.input<vector2f_t>(0);
+    const auto image = fragment.resource<shader::shader_texture_2d_t>(0);
+    const auto sampler = fragment.resource<shader::shader_sampler_t>(0);
+    fragment.color(shader::sample(image, sampler, coordinates));
+
+    return std::make_shared<const software_shader::program_t>(
+        std::move(vertex).finalize(),
+        std::move(fragment).finalize()
+    );
 }
 
 } // namespace
@@ -72,7 +85,6 @@ using software_renderer::index_buffer_t;
 using software_renderer::material_t;
 using software_renderer::mesh_t;
 using software_renderer::render_item_t;
-using software_renderer::texture_binding_t;
 using software_renderer::vertex_attribute_t;
 using software_renderer::vertex_attribute_type_t;
 using software_renderer::vertex_primitive_topology_t;
@@ -112,10 +124,11 @@ game_t::game_t():
         texture_api::address_mode_t::clamp_to_edge
     );
     std::vector<std::shared_ptr<material_t>> materials;
+    const auto program = make_program();
     for (const auto& tile_texture : tile_textures) {
-        std::shared_ptr<material_t> material = std::make_shared<material_t>();
-        texture_binding_t texture_binding = {tile_texture, tile_sampler};
-        material->texture_bindings().push_back(std::move(texture_binding));
+        std::shared_ptr<material_t> material = std::make_shared<material_t>(program);
+        material->texture(0, tile_texture);
+        material->sampler(0, tile_sampler);
         materials.push_back(material);
     }
 
@@ -151,7 +164,7 @@ game_t::game_t():
 
     const auto number_of_entities = 1000;
     for (size_t i = 0; i < number_of_entities; ++i) {
-        render_item_t<float, 2> render_item;
+        render_item_t render_item;
 
         const auto mesh_index = rand() % meshes.size();
         std::shared_ptr<mesh_t> mesh = meshes[mesh_index];
@@ -183,7 +196,7 @@ game_t::game_t():
         };
         render_item.translation(translation);
 
-        render_item.rotation({0, 0});
+        render_item.rotation(0.0F);
 
         const auto max_horizontal_scale = 30;
         const auto max_vertical_scale = 20;
@@ -289,7 +302,7 @@ void game_t::render() {
     const auto size = m_window->framebuffer_size();
     auto framebuffer = m_software_renderer.framebuffer();
     if (framebuffer.width != size[0] || framebuffer.height != size[1]) {
-        m_pixels.resize(framebuffer_pixel_count(size[0], size[1]));
+        m_pixels.resize(software_renderer::framebuffer_pixel_count(size[0], size[1]));
         m_software_renderer.framebuffer({
             .pixels = m_pixels,
             .width = size[0],

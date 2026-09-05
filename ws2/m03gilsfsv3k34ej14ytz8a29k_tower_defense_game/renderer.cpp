@@ -77,7 +77,7 @@ const m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>& renderer_t::window_bo
 
 void renderer_t::draw(
     const software_renderer_api::camera_t<float, int, 2>& camera,
-    const software_renderer_api::render_item_t<float, 2>& render_item
+    const software_renderer_api::render_item_t& render_item
 ) {
     const auto geometry = render_item.geometry();
     if (!geometry || !geometry->mesh()) {
@@ -94,16 +94,6 @@ void renderer_t::draw(
     const auto& translation = render_item.translation();
     const auto& rotation = render_item.rotation();
     const auto& scale = render_item.scale();
-
-    const auto& texture_bindings = material->texture_bindings();
-    if (texture_bindings.empty()) {
-        throw std::runtime_error(std::format("renderer_t::draw: does not support entity_material with no texture_bindings"));
-    }
-
-    const auto& texture_binding = texture_bindings[0];
-    if (!texture_binding.texture) {
-        throw std::runtime_error("renderer_t::draw: does not support entity_material with no texture in first texture_binding");
-    }
 
     const auto& vertex_streams = mesh->vertex_streams();
     if (vertex_streams.size() == 0) {
@@ -127,13 +117,13 @@ void renderer_t::draw(
         throw std::runtime_error(std::format("renderer_t::draw: does not support entity_mesh with vertex_attributes that are not of type {}", static_cast<int>(expected_vertex_attribute_type)));
     }
 
-    const auto& texture = texture_binding.texture;
+    const auto& texture = material->bindings().texture(0);
     Image image;
-    image.data = const_cast<std::byte*>(texture->bytes().data());
-    image.width = texture->width();
-    image.height = texture->height();
+    image.data = const_cast<std::byte*>(texture.bytes().data());
+    image.width = texture.width();
+    image.height = texture.height();
     image.mipmaps = 1;
-    image.format = texture_format_to_raylib_pixel_format(texture->format());
+    image.format = texture_format_to_raylib_pixel_format(texture.format());
 
     const m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>* positions = reinterpret_cast<const m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>*>(vertex_stream.data().data());
     switch (primitive_topology) {

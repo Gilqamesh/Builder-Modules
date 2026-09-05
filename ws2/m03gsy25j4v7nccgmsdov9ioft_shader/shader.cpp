@@ -224,22 +224,30 @@ public:
     void visit(const shader_builtin_node_t& node) override {
         switch (node.builtin()) {
             case shader_builtin_t::vertex_index:
-            case shader_builtin_t::instance_index:
+            case shader_builtin_t::instance_index: {
                 if (m_stage != shader_stage_t::vertex || node.type() != shader_data_type<std::int32_t>()) {
                     invalid("invalid vertex builtin");
                 }
-                break;
-            case shader_builtin_t::fragment_coordinate:
+            } break;
+            case shader_builtin_t::object_to_world:
+            case shader_builtin_t::world_to_clip: {
+                if (m_stage != shader_stage_t::vertex || node.type() != shader_data_type<matrix_t<float, 4, 4>>()) {
+                    invalid("invalid vertex matrix builtin");
+                }
+            } break;
+            case shader_builtin_t::fragment_coordinate: {
                 if (m_stage != shader_stage_t::fragment || node.type() != shader_data_type<vector_t<float, 4>>()) {
                     invalid("invalid fragment-coordinate builtin");
                 }
-                break;
-            case shader_builtin_t::front_facing:
+            } break;
+            case shader_builtin_t::front_facing: {
                 if (m_stage != shader_stage_t::fragment || node.type() != shader_data_type<bool>()) {
                     invalid("invalid front-facing builtin");
                 }
-                break;
-            default: invalid("unknown builtin");
+            } break;
+            default: {
+                invalid("unknown builtin");
+            }
         }
     }
 
@@ -991,6 +999,8 @@ vertex_shader_ast_builder_t::vertex_shader_ast_builder_t():
 }
 shader_expression_t<std::int32_t> vertex_shader_ast_builder_t::vertex_index() { return builtin<std::int32_t>(shader_builtin_t::vertex_index); }
 shader_expression_t<std::int32_t> vertex_shader_ast_builder_t::instance_index() { return builtin<std::int32_t>(shader_builtin_t::instance_index); }
+shader_expression_t<matrix_t<float, 4, 4>> vertex_shader_ast_builder_t::object_to_world() { return builtin<matrix_t<float, 4, 4>>(shader_builtin_t::object_to_world); }
+shader_expression_t<matrix_t<float, 4, 4>> vertex_shader_ast_builder_t::world_to_clip() { return builtin<matrix_t<float, 4, 4>>(shader_builtin_t::world_to_clip); }
 void vertex_shader_ast_builder_t::position(shader_expression_t<vector_t<float, 4>> expression) { statement(std::make_unique<shader_output_statement_t>(shader_output_t::position, 0, require(expression))); }
 void vertex_shader_ast_builder_t::position(vector_t<float, 4> value) { position(constant(std::move(value))); }
 

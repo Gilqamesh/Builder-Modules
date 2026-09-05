@@ -6,13 +6,17 @@
 
 # include <m03ginwy24ng8o487c4beoms6l_vector/api.h>
 
-# include <cstddef>
 # include <format>
 # include <memory>
 
 namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
 
-template <typename T, std::size_t N>
+/**
+ * @brief Selects geometry and material with a 2D float transform for one draw.
+ *
+ * Rotation is counter-clockwise in radians about the local origin. The transform
+ * uses column vectors and applies scale, then rotation, then translation.
+ */
 class render_item_t {
 public:
     render_item_t();
@@ -23,98 +27,36 @@ public:
     void material(std::shared_ptr<material_t> material);
     std::shared_ptr<material_t> material() const;
 
-    void translation(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& translation);
-    const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& translation() const;
+    void translation(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>& translation);
+    const m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>& translation() const;
 
-    void rotation(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& rotation);
-    const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& rotation() const;
+    void rotation(float rotation);
+    float rotation() const;
 
-    void scale(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& scale);
-    const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& scale() const;
+    void scale(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>& scale);
+    const m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>& scale() const;
 
 private:
     std::shared_ptr<geometry_t> m_geometry;
     std::shared_ptr<material_t> m_material;
-    m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> m_translation;
-    m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> m_rotation;
-    m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N> m_scale;
+    m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2> m_translation;
+    float m_rotation;
+    m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2> m_scale;
 };
 
 } // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
 
 namespace std {
 
-template <typename T, std::size_t N>
-struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t<T, N>>;
+template <>
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t>;
 
 } // namespace std
 
-namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer {
-
-template <typename T, std::size_t N>
-render_item_t<T, N>::render_item_t():
-    m_translation(static_cast<T>(0)),
-    m_rotation(static_cast<T>(0)),
-    m_scale(static_cast<T>(1))
-{
-}
-
-template <typename T, std::size_t N>
-void render_item_t<T, N>::geometry(std::shared_ptr<geometry_t> geometry) {
-    m_geometry = geometry;
-}
-
-template <typename T, std::size_t N>
-std::shared_ptr<geometry_t> render_item_t<T, N>::geometry() const {
-    return m_geometry;
-}
-
-template <typename T, std::size_t N>
-void render_item_t<T, N>::material(std::shared_ptr<material_t> material) {
-    m_material = material;
-}
-
-template <typename T, std::size_t N>
-std::shared_ptr<material_t> render_item_t<T, N>::material() const {
-    return m_material;
-}
-
-template <typename T, std::size_t N>
-void render_item_t<T, N>::translation(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& translation) {
-    m_translation = translation;
-}
-
-template <typename T, std::size_t N>
-const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& render_item_t<T, N>::translation() const {
-    return m_translation;
-}
-
-template <typename T, std::size_t N>
-void render_item_t<T, N>::rotation(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& rotation) {
-    m_rotation = rotation;
-}
-
-template <typename T, std::size_t N>
-const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& render_item_t<T, N>::rotation() const {
-    return m_rotation;
-}
-
-template <typename T, std::size_t N>
-void render_item_t<T, N>::scale(const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& scale) {
-    m_scale = scale;
-}
-
-template <typename T, std::size_t N>
-const m03ginwy24ng8o487c4beoms6l_vector::vector_t<T, N>& render_item_t<T, N>::scale() const {
-    return m_scale;
-}
-
-} // namespace m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer
-
 namespace std {
 
-template <typename T, std::size_t N>
-struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t<T, N>> {
+template <>
+struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t> {
     constexpr auto parse(std::format_parse_context& ctx) {
         auto it = ctx.begin();
         if (it != ctx.end() && *it != '}') {
@@ -123,7 +65,7 @@ struct formatter<m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t<T, 
         return it;
     }
 
-    auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t<T, N>& render_item, auto& ctx) const {
+    auto format(const m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer::render_item_t& render_item, auto& ctx) const {
         auto out = ctx.out();
 
         out = std::format_to(out, "{{ ");

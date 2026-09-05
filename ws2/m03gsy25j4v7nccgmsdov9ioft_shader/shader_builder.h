@@ -16,7 +16,7 @@
 namespace m03gsy25j4v7nccgmsdov9ioft_shader {
 
 enum class shader_stage_t { vertex, fragment };
-enum class shader_builtin_t { vertex_index, instance_index, fragment_coordinate, front_facing };
+enum class shader_builtin_t { vertex_index, instance_index, object_to_world, world_to_clip, fragment_coordinate, front_facing };
 enum class shader_output_t { location, position, color };
 
 struct shader_interface_element_t {
@@ -224,6 +224,16 @@ public:
     vertex_shader_ast_builder_t();
     shader_expression_t<std::int32_t> vertex_index();
     shader_expression_t<std::int32_t> instance_index();
+
+    /**
+     * @brief Reads the backend-supplied homogeneous float object-to-world matrix.
+     */
+    shader_expression_t<matrix_t<float, 4, 4>> object_to_world();
+
+    /**
+     * @brief Reads the backend-supplied homogeneous float world-to-clip matrix.
+     */
+    shader_expression_t<matrix_t<float, 4, 4>> world_to_clip();
     void position(shader_expression_t<vector_t<float, 4>> expression);
     void position(vector_t<float, 4> value);
 };

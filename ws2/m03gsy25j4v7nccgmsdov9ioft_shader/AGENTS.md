@@ -12,3 +12,4 @@ Shader execution belongs to backend modules. Primitive processing, framebuffer b
 - Vertex position and fragment color have type `vector<float, 4>`.
 - Generic numbered outputs remain available independently of special outputs.
 - Reflection records the typed inputs, numbered outputs, and bindings required by an AST.
+- Vertex shaders can read backend-supplied `object_to_world` and `world_to_clip` semantics as homogeneous `matrix<float, 4, 4>` values.

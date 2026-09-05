@@ -1,11 +1,17 @@
 #ifndef M03GJFVD6I5JZBMNGB2LDOOOZA_TYPE_ERASED_ARRAY_API_H
 # define M03GJFVD6I5JZBMNGB2LDOOOZA_TYPE_ERASED_ARRAY_API_H
 
+# include <array>
+# include <bit>
+# include <concepts>
 # include <cstddef>
+# include <cstring>
 # include <format>
 # include <memory>
 # include <span>
 # include <stdexcept>
+# include <string_view>
+# include <type_traits>
 # include <vector>
 
 # include <m03gagbht2l61mj6qitacwbmea_byte_stream/byte_stream.h>
@@ -32,6 +38,13 @@ public:
 
     void clear();
 
+    /**
+     * @brief Copies one element out after checking its stored size and index.
+     */
+    template <typename T>
+    requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
+    T read(size_t index) const;
+
     template <typename T>
     requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
     T& operator[](size_t index) &;
@@ -45,6 +58,8 @@ public:
     void push_back(const T& value);
 
 private:
+    size_t checked_byte_offset(size_t expected_element_size, size_t index, std::string_view operation) const;
+
     m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t m_data;
     size_t m_element_size;
 };
@@ -70,26 +85,25 @@ type_erased_array_t::type_erased_array_t(std::vector<T> values):
 
 template <typename T>
 requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
+T type_erased_array_t::read(size_t index) const {
+    const size_t offset = checked_byte_offset(sizeof(T), index, "type_erased_array_t::read");
+    std::array<std::byte, sizeof(T)> bytes;
+    std::memcpy(bytes.data(), m_data.bytes().data() + offset, bytes.size());
+    return std::bit_cast<T>(bytes);
+}
+
+template <typename T>
+requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
 T& type_erased_array_t::operator[](size_t index) & {
-    if (m_element_size != sizeof(T)) {
-        throw std::invalid_argument(std::format("type_erased_array_t::operator[]: type mismatch, expected element size {}, got {}", m_element_size, sizeof(T)));
-    }
-    if (element_count() <= index) {
-        throw std::out_of_range(std::format("type_erased_array_t::operator[]: index {} exceeds element count {}", index, element_count()));
-    }
-    return *reinterpret_cast<T*>(m_data.bytes().data() + index * m_element_size);
+    const size_t offset = checked_byte_offset(sizeof(T), index, "type_erased_array_t::operator[]");
+    return *reinterpret_cast<T*>(m_data.bytes().data() + offset);
 }
 
 template <typename T>
 requires (std::is_trivially_copyable_v<T> && !std::same_as<T, bool> && alignof(T) <= alignof(std::max_align_t))
 const T& type_erased_array_t::operator[](size_t index) const& {
-    if (m_element_size != sizeof(T)) {
-        throw std::invalid_argument(std::format("type_erased_array_t::operator[]: type mismatch, expected element size {}, got {}", m_element_size, sizeof(T)));
-    }
-    if (element_count() <= index) {
-        throw std::out_of_range(std::format("type_erased_array_t::operator[]: index {} exceeds element count {}", index, element_count()));
-    }
-    return *reinterpret_cast<const T*>(m_data.bytes().data() + index * m_element_size);
+    const size_t offset = checked_byte_offset(sizeof(T), index, "type_erased_array_t::operator[]");
+    return *reinterpret_cast<const T*>(m_data.bytes().data() + offset);
 }
 
 template <typename T>
