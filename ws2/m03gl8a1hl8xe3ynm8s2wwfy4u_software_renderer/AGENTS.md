@@ -46,6 +46,8 @@ existing ownership boundaries.
 
 These are target capabilities, not claims of current implementation.
 
+See the proposed [feature milestones](docs/milestones.md) for scope and completion evidence.
+
 ## Rasterization correctness
 
 Adjacent triangles with identical shared-edge endpoints must assign
