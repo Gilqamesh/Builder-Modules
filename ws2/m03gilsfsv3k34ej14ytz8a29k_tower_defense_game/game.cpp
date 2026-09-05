@@ -216,12 +216,16 @@ game_t::~game_t() {
 void game_t::run() {
     m_window->swap_interval(1);
 
+    auto& input_states = m_window->input_states();
+    input_states.commit();
+
     auto previous_frame_time = std::chrono::steady_clock::now();
     while (!m_window->should_close()) {
         const auto frame_time = std::chrono::steady_clock::now();
         const auto dt = std::chrono::duration<float>(frame_time - previous_frame_time).count();
 
         m03gkcdy62bnz808pmk4uzkjra_glfw::poll_events();
+        input_states.commit();
 
         update(dt);
         render();
@@ -234,6 +238,9 @@ void game_t::run() {
 }
 
 void game_t::update(float dt) {
+    const auto& input_states = m_window->input_states();
+    const auto& current_input_state = input_states.history(0);
+
     auto camera_view_dp = m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>{0, 0};
     auto camera_world_dp = m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>{0, 0};
     auto camera_view_lengths_dp = m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>{0, 0};
@@ -253,44 +260,44 @@ void game_t::update(float dt) {
     const auto camera_view_horizontal_speed = std::max(1, static_cast<int>(camera_view_rect_horizontal_length * dt));
     const auto camera_view_vertical_speed = std::max(1, static_cast<int>(camera_view_rect_vertical_length * dt));
 
-    // if (IsKeyDown(KEY_W)) {
-    //     camera_world_dp[1] -= camera_world_vertical_speed;
-    // }
-    // if (IsKeyDown(KEY_S)) {
-    //     camera_world_dp[1] += camera_world_vertical_speed;
-    // }
-    // if (IsKeyDown(KEY_A)) {
-    //     camera_world_dp[0] -= camera_world_horizontal_speed;
-    // }
-    // if (IsKeyDown(KEY_D)) {
-    //     camera_world_dp[0] += camera_world_horizontal_speed;
-    // }
+    if (current_input_state.button_state(glfw::button_t::button_w).is_down()) {
+        camera_world_dp[1] -= camera_world_vertical_speed;
+    }
+    if (current_input_state.button_state(glfw::button_t::button_s).is_down()) {
+        camera_world_dp[1] += camera_world_vertical_speed;
+    }
+    if (current_input_state.button_state(glfw::button_t::button_a).is_down()) {
+        camera_world_dp[0] -= camera_world_horizontal_speed;
+    }
+    if (current_input_state.button_state(glfw::button_t::button_d).is_down()) {
+        camera_world_dp[0] += camera_world_horizontal_speed;
+    }
 
-    // if (IsKeyDown(KEY_UP)) {
-    //     camera_view_dp[1] -= camera_view_vertical_speed;
-    // }
-    // if (IsKeyDown(KEY_DOWN)) {
-    //     camera_view_dp[1] += camera_view_vertical_speed;
-    // }
-    // if (IsKeyDown(KEY_LEFT)) {
-    //     camera_view_dp[0] -= camera_view_horizontal_speed;
-    // }
-    // if (IsKeyDown(KEY_RIGHT)) {
-    //     camera_view_dp[0] += camera_view_horizontal_speed;
-    // }
+    if (current_input_state.button_state(glfw::button_t::button_up).is_down()) {
+        camera_view_dp[1] -= camera_view_vertical_speed;
+    }
+    if (current_input_state.button_state(glfw::button_t::button_down).is_down()) {
+        camera_view_dp[1] += camera_view_vertical_speed;
+    }
+    if (current_input_state.button_state(glfw::button_t::button_left).is_down()) {
+        camera_view_dp[0] -= camera_view_horizontal_speed;
+    }
+    if (current_input_state.button_state(glfw::button_t::button_right).is_down()) {
+        camera_view_dp[0] += camera_view_horizontal_speed;
+    }
 
-    // if (IsKeyDown(KEY_Q)) {
-    //     camera_world_lengths_dp += m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>{std::max(1.0f, camera_world_rect_horizontal_length * dt), std::max(1.0f, camera_world_rect_vertical_length * dt)};
-    // }
-    // if (IsKeyDown(KEY_E)) {
-    //     camera_world_lengths_dp -= m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>{std::max(1.0f, camera_world_rect_horizontal_length * dt), std::max(1.0f, camera_world_rect_vertical_length * dt)};
-    // }
-    // if (IsKeyDown(KEY_F)) {
-    //     camera_view_lengths_dp += m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>{std::max(1, static_cast<int>(camera_view_rect_horizontal_length * dt)), std::max(1, static_cast<int>(camera_view_rect_vertical_length * dt))};
-    // }
-    // if (IsKeyDown(KEY_R)) {
-    //     camera_view_lengths_dp -= m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>{std::max(1, static_cast<int>(camera_view_rect_horizontal_length * dt)), std::max(1, static_cast<int>(camera_view_rect_vertical_length * dt))};
-    // }
+    if (current_input_state.button_state(glfw::button_t::button_q).is_down()) {
+        camera_world_lengths_dp += m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>{std::max(1.0f, camera_world_rect_horizontal_length * dt), std::max(1.0f, camera_world_rect_vertical_length * dt)};
+    }
+    if (current_input_state.button_state(glfw::button_t::button_e).is_down()) {
+        camera_world_lengths_dp -= m03ginwy24ng8o487c4beoms6l_vector::vector_t<float, 2>{std::max(1.0f, camera_world_rect_horizontal_length * dt), std::max(1.0f, camera_world_rect_vertical_length * dt)};
+    }
+    if (current_input_state.button_state(glfw::button_t::button_f).is_down()) {
+        camera_view_lengths_dp += m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>{std::max(1, static_cast<int>(camera_view_rect_horizontal_length * dt)), std::max(1, static_cast<int>(camera_view_rect_vertical_length * dt))};
+    }
+    if (current_input_state.button_state(glfw::button_t::button_r).is_down()) {
+        camera_view_lengths_dp -= m03ginwy24ng8o487c4beoms6l_vector::vector_t<int, 2>{std::max(1, static_cast<int>(camera_view_rect_horizontal_length * dt)), std::max(1, static_cast<int>(camera_view_rect_vertical_length * dt))};
+    }
 
     m_camera.world_rect() += camera_world_dp;
     m_camera.world_rect() = m_camera.world_rect().inflate(camera_world_lengths_dp);
