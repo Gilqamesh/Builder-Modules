@@ -32,3 +32,33 @@ Backend-independent shader construction and reflection belong to `m03gsy25j4v7nc
 ## Validation
 
 Deterministic CPU pipeline behavior is validated headlessly within this module. Presentation and the tower-defense scene are integration checks owned by their respective consumers.
+
+## Intended direction
+
+Evolve into a general-purpose, headless 3D CPU rasterizer while retaining
+2D rendering. Target perspective and orthographic cameras, 3D transforms,
+depth/stencil testing, face culling, blending, viewport/scissor control,
+offscreen rendering, and mipmapped texture sampling.
+
+Shader construction, shader execution, texture storage/sampling, and
+application-owned scene organization and presentation retain their
+existing ownership boundaries.
+
+These are target capabilities, not claims of current implementation.
+
+## Rasterization correctness
+
+Adjacent triangles with identical shared-edge endpoints must assign
+boundary samples consistently, without cracks or duplicate coverage.
+Half-open edge ownership requires numerically consistent edge evaluation,
+including after clipping.
+
+## Open decisions
+
+- Coordinate conventions, clip-depth range, and compatibility with the
+  existing 2D camera and transforms.
+- Ownership of draw state and color/depth/stencil attachments.
+- Color-space and alpha conventions; fragment discard and attachment-write
+  ordering.
+- Completion scope: interpolation modes, instancing, multiple color
+  targets, multisampling, and advanced texture sampling.
