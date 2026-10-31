@@ -13,7 +13,7 @@ extern "C" void phase__source(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::sou
     const auto json_hpp = m03gagbht7wqhtdg9hwdpmfn5o_download::fetch(
         m03gagbht7wqhtdg9hwdpmfn5o_download::source_lock_t {
             .url = JSON_SOURCE_URL,
-            .sha256 = JSON_SOURCE_SHA256
+            .checksum = {m03gagbht7wqhtdg9hwdpmfn5o_download::checksum_algorithm_t::sha256, JSON_SOURCE_SHA256}
         },
         phase->build_dir() / m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("json.hpp")
     );

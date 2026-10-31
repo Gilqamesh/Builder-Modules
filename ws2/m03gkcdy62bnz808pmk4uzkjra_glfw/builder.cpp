@@ -62,7 +62,7 @@ extern "C" void phase__source(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::sou
     const auto glfw_tar_gz = m03gagbht7wqhtdg9hwdpmfn5o_download::fetch(
         m03gagbht7wqhtdg9hwdpmfn5o_download::source_lock_t {
             .url = "https://github.com/glfw/glfw/archive/refs/tags/3.4.tar.gz",
-            .sha256 = "c038d34200234d071fae9345bc455e4a8f2f544ab60150765d7704e08f3dac01"
+            .checksum = {m03gagbht7wqhtdg9hwdpmfn5o_download::checksum_algorithm_t::sha256, "c038d34200234d071fae9345bc455e4a8f2f544ab60150765d7704e08f3dac01"}
         },
         phase->build_dir() / m03gagbhsnusi43zogoacgj2ez_filesystem::relative_path_t("glfw-3.4.tar.gz")
     );
