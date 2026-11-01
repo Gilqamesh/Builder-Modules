@@ -6,4 +6,4 @@ Own the typed record database abstraction. Keep the storage backend, physical re
 
 ## Validation
 
-Exercise observable behavior through the database API, including literal filenames and arbitrary table names. Reserve private integration tests for backend structure, mechanisms, and failure injection. Compile client codecs and negative reflection cases against the published header without backend include paths.
+Exercise observable behavior through the database API, including literal storage directory paths and arbitrary logical table names. Reserve private integration tests for backend structure, mechanisms, and failure injection. Compile client codecs against the published header without backend include paths.

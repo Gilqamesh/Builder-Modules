@@ -1,7 +1,8 @@
 # Typed record database
 
 Store ordinary aggregate records in typed tables. The default constructor creates
-an independent in-memory database; use `database_t("people.db")` for persistence.
+an independent in-memory database; use `database_t("people")` for persistence in
+the module-owned directory `people`.
 
 ```cpp
 #include <m03h5hm86mnvc18opf1rdttsgh_database/database.h>
@@ -42,14 +43,29 @@ back; a caught operation error allows continuation only after successful recover
 Use `table.drop()` to remove a compatible table. Missing tables are a no-op;
 a stale handle rejects an incompatible replacement without deleting it.
 
-Persistent storage is opaque and may include backend-managed auxiliary files.
-Close all connections before copying or moving the complete storage. Live
-filesystem copying and externally authored storage layouts are outside the contract.
+Persistent storage occupies one opaque directory per database. Its parent must
+exist. Missing directories and existing empty directories are initialized;
+nonempty directories must contain recognized module storage, without extra entries
+or linked private files. Paths are literal, including names such as `:memory:`.
+Close all connections before copying or moving the entire storage directory. Live
+filesystem copying, external changes, and externally authored storage layouts are
+outside the contract.
+
+This storage format is versioned. Legacy single-file databases, unsupported
+versions, and incomplete initialization are rejected without conversion or repair.
+A failed first initialization may leave incomplete storage; remove it before
+retrying. No legacy conversion tool is provided.
+
+Table names are logical names with ASCII case-insensitive lookup. Nonempty names
+without NUL are supported independently of private backend naming rules.
 
 ## Validation
 
-From the Builder-Layout root, with the foundation libraries built:
+From the Builder-Layout root:
 
 ```sh
-python3 ws2/m03h5hm86mnvc18opf1rdttsgh_database/test/check.py
+./cli m03h5hm86mnvc18opf1rdttsgh_database:validate
 ```
+
+The library phase runs six runtime validations before publishing its artifact.
+Completed artifacts are reused normally.

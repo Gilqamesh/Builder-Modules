@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <exception>
+#include <fstream>
 #include <new>
 
 namespace m03h5hm86mnvc18opf1rdttsgh_database {
@@ -20,6 +21,7 @@ private:
     template <typename F>
     static decltype(auto) call(std::string_view operation, std::string_view table, F&& action);
     static std::string quote(std::string_view identifier);
+    static std::string physical_name(std::string_view table);
     static void validate_name(std::string_view name);
     void read_schema();
     bool table_exists(std::string_view table);
@@ -28,8 +30,8 @@ private:
     void rollback() noexcept;
 
 public:
-    state_t(std::string_view filename, bool persistent);
-    static std::string filename(const std::filesystem::path& filename);
+    state_t(std::string_view filename, bool persistent, std::string_view storage);
+    static std::unique_ptr<state_t> open(const std::filesystem::path& directory);
     void transaction(database_t& database, std::function_ref<void(database_t&)> action);
     void ensure_table(std::string_view table, std::span<const column_t> columns);
     void insert(std::string_view table, std::span<const column_t> columns, std::span<const cell_t> stored);
@@ -68,6 +70,10 @@ std::string database_t::state_t::quote(std::string_view identifier) {
     return quoted;
 }
 
+std::string database_t::state_t::physical_name(std::string_view table) {
+    return std::format("table_{}", table);
+}
+
 void database_t::state_t::validate_name(std::string_view name) {
     if (name.empty() || name.find('\0') != std::string_view::npos) {
         throw std::invalid_argument("database table name must be nonempty and contain no NUL");
@@ -85,17 +91,18 @@ void database_t::state_t::read_schema() {
 
 bool database_t::state_t::table_exists(std::string_view table) {
     auto statement = m_database.prepare("SELECT 1 FROM main.sqlite_schema WHERE name = ?1 COLLATE NOCASE");
-    statement->bind(1, table);
+    statement->bind(1, physical_name(table));
     return statement->step();
 }
 
 void database_t::state_t::validate_schema(std::string_view table, std::span<const column_t> columns) {
+    const auto physical = physical_name(table);
     const auto reject = [&](std::string_view reason) {
         throw failure_t(std::format("database table '{}': {}", table, reason));
     };
     // Direct PRAGMAs cannot be shadowed by application tables named pragma_*.
     {
-        auto tables = m_database.prepare(std::format("PRAGMA main.table_list({})", quote(table)));
+        auto tables = m_database.prepare(std::format("PRAGMA main.table_list({})", quote(physical)));
         if (!tables->step()) reject("table does not exist");
         if (tables->column_text(2) != "table" || tables->column_integer(5) != 1 || tables->column_integer(4) != 0) {
             reject("table representation is incompatible");
@@ -103,7 +110,7 @@ void database_t::state_t::validate_schema(std::string_view table, std::span<cons
     }
     constexpr std::array<std::string_view, 5> types = { "NULL", "INTEGER", "REAL", "TEXT", "BLOB" };
     constexpr std::array<std::string_view, 5> kinds = { "absent", "signed 64-bit integer", "double", "string", "byte stream" };
-    auto fields = m_database.prepare(std::format("PRAGMA main.table_xinfo({})", quote(table)));
+    auto fields = m_database.prepare(std::format("PRAGMA main.table_xinfo({})", quote(physical)));
     std::vector<std::string> names;
     while (fields->step()) {
         const auto name = fields->column_text(1);
@@ -133,17 +140,17 @@ void database_t::state_t::validate_schema(std::string_view table, std::span<cons
     // Reject readily inspectable behavior changes without promising an arbitrary DDL parser.
     constexpr auto unsupported_constraints = "table behavior is incompatible";
     {
-        auto indexes = m_database.prepare(std::format("PRAGMA main.index_list({})", quote(table)));
+        auto indexes = m_database.prepare(std::format("PRAGMA main.index_list({})", quote(physical)));
         while (indexes->step()) {
             if (indexes->column_integer(2) != 0) reject(unsupported_constraints);
         }
     }
     {
-        auto foreign_keys = m_database.prepare(std::format("PRAGMA main.foreign_key_list({})", quote(table)));
+        auto foreign_keys = m_database.prepare(std::format("PRAGMA main.foreign_key_list({})", quote(physical)));
         if (foreign_keys->step()) reject(unsupported_constraints);
     }
     auto triggers = m_database.prepare("SELECT 1 FROM main.sqlite_schema WHERE type = 'trigger' AND tbl_name = ?1 COLLATE NOCASE");
-    triggers->bind(1, table);
+    triggers->bind(1, physical);
     if (triggers->step()) reject(unsupported_constraints);
 }
 
@@ -192,33 +199,89 @@ void database_t::state_t::rollback() noexcept {
     }
 }
 
-database_t::state_t::state_t(std::string_view filename, bool persistent):
-    m_database(call("open", persistent ? filename : "in-memory database", [&] { return m03h5f8oo5d48avkx9mdk2bi5u_sqlite::database_t(filename); }))
+database_t::state_t::state_t(std::string_view filename, bool persistent, std::string_view storage):
+    m_database(call("open", storage, [&] { return m03h5f8oo5d48avkx9mdk2bi5u_sqlite::database_t(filename); }))
 {
-    call("read schema", persistent ? filename : "in-memory database", [&] { read_schema(); });
+    call("read schema", storage, [&] { read_schema(); });
     if (persistent) {
-        call("open", filename, [&] {
+        call("open", storage, [&] {
             // WAL is private: readers retain snapshots while another connection commits.
             auto statement = m_database.prepare("PRAGMA journal_mode=WAL");
             if (!statement->step() || statement->column_text(0) != "wal") {
-                throw failure_t(std::format("database open '{}': concurrent snapshots are unavailable", filename));
+                throw failure_t(std::format("database open '{}': concurrent snapshots are unavailable", storage));
             }
         });
     }
 }
 
-std::string database_t::state_t::filename(const std::filesystem::path& filename) {
-    const auto spelling = filename.string();
+std::unique_ptr<database_t::state_t> database_t::state_t::open(const std::filesystem::path& directory) {
+    const auto spelling = directory.string();
     if (spelling.empty() || spelling.find('\0') != std::string::npos) {
-        throw std::invalid_argument("database open: filename must be nonempty and contain no NUL");
+        throw std::invalid_argument("database open: directory must be nonempty and contain no NUL");
     }
     return call("open", spelling, [&] {
         namespace filesystem = m03gagbhsnusi43zogoacgj2ez_filesystem;
-        const filesystem::path_t path(filename);
+        const filesystem::path_t path(directory);
+        const auto reject = [&](std::string_view reason) {
+            throw failure_t(std::format("database open '{}': {}", spelling, reason));
+        };
         if (!filesystem::is_directory(path.parent())) {
             throw failure_t(std::format("database open '{}': parent directory '{}' does not exist", spelling, path.parent()));
         }
-        return path.string();
+        if (!filesystem::exists(path)) {
+            filesystem::create_directories(path);
+        } else if (!filesystem::is_directory(path)) {
+            reject("expected a storage directory; legacy database files are unsupported");
+        }
+
+        // Version 1 owns the entire directory and the table_ naming convention.
+        // Check members before opening the backend, which may recover or delete auxiliaries.
+        constexpr std::array<std::string_view, 5> filenames = {
+            "storage.meta", "storage.db", "storage.db-wal", "storage.db-shm", "storage.db-journal"
+        };
+        constexpr std::string_view identity = "m03h5hm86mnvc18opf1rdttsgh_database";
+        constexpr std::string_view version = "1";
+        constexpr std::string_view backend = "sqlite";
+        const auto entries = filesystem::find(path, filesystem::find_include_predicate_t::include_all, filesystem::find_descend_predicate_t::descend_none);
+        for (const auto& entry : entries) {
+            const auto member = entry.path();
+            if (std::ranges::find(filenames, member.filename()) == filenames.end()) {
+                reject(std::format("unrecognized storage entry '{}'", member.filename()));
+            }
+            if (!std::filesystem::is_regular_file(std::filesystem::symlink_status(member.to_native_path())) || std::filesystem::hard_link_count(member.to_native_path()) != 1) {
+                reject(std::format("storage entry '{}' must be an ordinary, unlinked file", member.filename()));
+            }
+        }
+        const auto metadata = path / filesystem::relative_path_t("storage.meta");
+        const auto data = path / filesystem::relative_path_t("storage.db");
+        const bool initialize = entries.empty();
+        if (!initialize) {
+            if (!filesystem::exists(metadata) || !filesystem::exists(data)) {
+                reject("unrecognized or incomplete storage directory");
+            }
+            std::ifstream input(metadata.to_native_path(), std::ios::binary);
+            std::string actual_identity;
+            std::string actual_version;
+            std::string actual_backend;
+            if (!std::getline(input, actual_identity) || !std::getline(input, actual_version) || !std::getline(input, actual_backend) || input.peek() != std::char_traits<char>::eof()) {
+                reject("invalid storage metadata");
+            }
+            if (actual_identity != identity) reject("unrecognized storage identity");
+            if (actual_version != version) reject(std::format("unsupported storage version '{}'; expected '{}'", actual_version, version));
+            if (actual_backend != backend) reject("unsupported storage representation");
+        }
+        auto state = std::make_unique<state_t>(data.string(), true, spelling);
+        if (initialize) {
+            // Publish recognition last. Interrupted setup remains unrecognized on retry.
+            const auto pending = path / filesystem::relative_path_t("storage.meta.pending");
+            std::ofstream output;
+            output.exceptions(std::ios::failbit | std::ios::badbit);
+            output.open(pending.to_native_path(), std::ios::binary);
+            output << identity << '\n' << version << '\n' << backend << '\n';
+            output.close();
+            filesystem::rename_strict(pending, metadata);
+        }
+        return state;
     });
 }
 
@@ -248,7 +311,7 @@ void database_t::state_t::ensure_table(std::string_view table, std::span<const c
     operation("table", table, true, [&] {
         call("table", table, [&] {
             constexpr std::array<std::string_view, 5> types = { "NULL", "INTEGER", "REAL", "TEXT", "BLOB" };
-            auto sql = std::format("CREATE TABLE IF NOT EXISTS main.{} (", quote(table));
+            auto sql = std::format("CREATE TABLE IF NOT EXISTS main.{} (", quote(physical_name(table)));
             for (std::size_t index = 0; index < columns.size(); ++index) {
                 const auto& [name, kind, nullable] = columns[index];
                 if (index != 0) sql += ", ";
@@ -265,7 +328,7 @@ void database_t::state_t::insert(std::string_view table, std::span<const column_
     operation("insert", table, true, [&] {
         call("insert", table, [&] {
             validate_schema(table, columns);
-            auto sql = std::format("INSERT INTO main.{} (", quote(table));
+            auto sql = std::format("INSERT INTO main.{} (", quote(physical_name(table)));
             std::string parameters;
             for (std::size_t index = 0; index < columns.size(); ++index) {
                 if (index != 0) {
@@ -319,7 +382,7 @@ void database_t::state_t::rows(std::string_view table, std::span<const column_t>
                 sql += name;
                 kinds += std::format("typeof({})", name);
             }
-            sql += std::format(", {} FROM main.{}", kinds, quote(table));
+            sql += std::format(", {} FROM main.{}", kinds, quote(physical_name(table)));
             return m_database.prepare(sql);
         });
         std::vector<cell_t> stored;
@@ -372,18 +435,18 @@ void database_t::state_t::drop(std::string_view table, std::span<const column_t>
         call("drop", table, [&] {
             if (!table_exists(table)) return;
             validate_schema(table, columns);
-            m_database.execute(std::format("DROP TABLE main.{}", quote(table)));
+            m_database.execute(std::format("DROP TABLE main.{}", quote(physical_name(table))));
         });
     });
 }
 
 database_t::database_t():
-    m_state(std::make_unique<state_t>(":memory:", false))
+    m_state(std::make_unique<state_t>(":memory:", false, "in-memory database"))
 {
 }
 
-database_t::database_t(const std::filesystem::path& filename):
-    m_state(std::make_unique<state_t>(state_t::filename(filename), true))
+database_t::database_t(const std::filesystem::path& directory):
+    m_state(state_t::open(directory))
 {
 }
 

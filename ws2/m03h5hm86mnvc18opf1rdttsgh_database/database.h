@@ -92,13 +92,14 @@ struct column_codec<T> {
  * backend failures throw contextual runtime_error. Allocation exceptions propagate
  * unchanged. See column_codec for codec and numeric failures.
  * Failures attempt transaction cleanup, preserving the original exception.
- * Destruction never throws. Storage is opaque and can include auxiliary files;
- * close all connections before copying or moving the complete storage. Live
- * filesystem copying and externally authored storage layouts are unsupported.
+ * Destruction never throws. Persistent storage is an opaque, module-owned
+ * directory. Close all connections before copying or moving the entire directory.
+ * Live filesystem copying, external changes, and externally authored storage
+ * layouts are unsupported.
  *
  * @code
  * struct person_t { std::int64_t id; std::string name; std::optional<int> age; };
- * database_t database("people.db");
+ * database_t database("people");
  * auto people_table = database.table<person_t>("people");
  * people_table.insert(person_t{1, "Ada", 36});
  * auto people = people_table.rows();
@@ -109,14 +110,19 @@ public:
     /** @brief Creates an independent in-memory database. */
     database_t();
     /**
-     * @brief Opens or creates a database at a literal filesystem path and reads its schema.
+     * @brief Opens or creates a database storage directory and reads its schema.
      *
      * Rejects empty paths and embedded NULs. Relative paths become normalized
-     * absolute paths; the parent directory must exist. All filenames are literal.
-     * Does not perform an integrity scan; damaged data may be detected by later
-     * operations.
+     * absolute paths; the parent directory must exist. All paths are literal.
+     * Creates missing directories or initializes empty ones. Nonempty directories
+     * must contain recognized, supported-version module storage with no extra
+     * entries or linked private files. Legacy database files, unsupported versions,
+     * and incomplete initialization are rejected without conversion or repair.
+     * Failed initialization may leave incomplete storage that must be removed
+     * before retrying. Does not perform an integrity scan; damaged data may be
+     * detected by later operations.
      */
-    explicit database_t(const std::filesystem::path& filename);
+    explicit database_t(const std::filesystem::path& directory);
     ~database_t() noexcept;
 
     database_t(const database_t&) = delete;
@@ -150,8 +156,9 @@ public:
     /**
      * @brief Atomically creates a missing table or validates and reuses a compatible one.
      *
-     * Names must be nonempty and contain no NUL. Incompatible schemas are rejected
-     * without changing existing data.
+     * Logical names must be nonempty and contain no NUL. Lookup is ASCII
+     * case-insensitive. Names are independent of the private storage representation.
+     * Incompatible schemas are rejected without changing existing data.
      *
      * T must be a nonempty nonunion aggregate with named accessible fields, no
      * bases or bitfields, and no reference or raw-pointer fields. Each field needs

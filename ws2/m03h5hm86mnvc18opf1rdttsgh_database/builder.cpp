@@ -19,4 +19,10 @@ extern "C" void phase__library(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::li
     phase->validate_library("client_codecs", { phase->source("test/client_codecs.cpp") });
 }
 
+extern "C" void phase__binary(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::binary_phase_t* phase) {
+    if (phase->should_install_target("validate")) {
+        phase->install_binary("validate", { phase->source("test/standalone_header.cpp") });
+    }
+}
+
 } // namespace m03h5hm86mnvc18opf1rdttsgh_database

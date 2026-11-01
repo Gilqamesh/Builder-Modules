@@ -14,7 +14,9 @@
 #include <exception>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <limits>
+#include <memory>
 #include <new>
 #include <optional>
 #include <stdexcept>
@@ -346,13 +348,31 @@ void metadata_table_names() {
     const auto directory = std::filesystem::temp_directory_path() / std::format("database-names-{}", std::chrono::steady_clock::now().time_since_epoch().count());
     filesystem::create_directories(directory);
     const auto filename = directory / "names.db";
-    constexpr std::array<std::string_view, 5> names = {
+    constexpr std::array<std::string_view, 10> names = {
         "pragma_table_list",
         "pragma_table_xinfo",
         "pragma_index_list",
         "pragma_foreign_key_list",
-        "quotes \"double\" and 'single'; --"
+        "quotes \"double\" and 'single'; --",
+        "sqlite_people",
+        "SQLITE_schema",
+        "people",
+        "table_people",
+        "table_sqlite_people"
     };
+    {
+        database_t database;
+        for (const auto name : names) {
+            const auto numbers = database.table<integer_row_t>(name);
+            numbers.insert(integer_row_t{7});
+        }
+        for (const auto name : names) {
+            const auto numbers = database.table<integer_row_t>(name);
+            assert(numbers.rows().size() == 1 && numbers.rows().front().number == 7);
+            numbers.drop();
+            numbers.drop();
+        }
+    }
     {
         database_t database(filename);
         const auto ordinary = database.table<integer_row_t>("ordinary");
@@ -413,7 +433,7 @@ void file_records() {
         const auto people = database.table<person_t>("people");
         people.insert(person_t{9, "persisted", {}});
     }
-    assert(filesystem::exists(filename));
+    assert(filesystem::is_directory(filename));
     {
         const auto relative = filename.lexically_relative(filesystem::current_path().to_native_path());
         database_t database(relative);
@@ -421,16 +441,99 @@ void file_records() {
     }
     // Copy complete opaque storage only after every connection is closed.
     const auto copied_directory = std::filesystem::path(directory.string() + "-copy");
-    std::filesystem::copy(directory, copied_directory, std::filesystem::copy_options::recursive);
+    std::filesystem::copy(filename, copied_directory, std::filesystem::copy_options::recursive);
     {
-        database_t copied_database(copied_directory / filename.filename());
+        database_t copied_database(copied_directory);
         assert(copied_database.table<person_t>("people").rows().front().name == "persisted");
     }
-    filesystem::remove_all(copied_directory);
+    const auto moved_directory = std::filesystem::path(directory.string() + "-moved");
+    filesystem::rename_strict(copied_directory, moved_directory);
+    {
+        database_t moved_database(moved_directory);
+        assert(moved_database.table<person_t>("people").rows().front().name == "persisted");
+    }
+    filesystem::remove_all(moved_directory);
+    const auto empty_directory = directory / "empty";
+    filesystem::create_directories(empty_directory);
+    { database_t database(empty_directory); database.table<integer_row_t>("created").insert(integer_row_t{1}); }
+    { database_t database(empty_directory); assert(database.table<integer_row_t>("created").rows().size() == 1); }
     expect_exception<std::invalid_argument>([] { database_t database(std::filesystem::path{}); });
     expect_exception<std::invalid_argument>([] { database_t database(std::filesystem::path(std::string("bad\0file", 8))); });
     expect_exception<std::runtime_error>([&] { database_t database(directory / "missing" / "file.db"); }, "open");
     filesystem::remove_all(directory);
+}
+
+void isolated_storage() {
+    const auto directory = std::filesystem::temp_directory_path() / std::format("database-isolation-{}", std::chrono::steady_clock::now().time_since_epoch().count());
+    std::filesystem::create_directory(directory);
+    constexpr std::array<std::string_view, 5> names = {
+        "people", "people-wal", "people-shm", "people-journal", "file:literal?mode=memory"
+    };
+    const auto sentinel = directory / "unrelated.txt";
+    { std::ofstream output(sentinel); output << "neighbor remains unchanged"; }
+    {
+        std::vector<std::unique_ptr<database_t>> databases;
+        for (std::size_t index = 0; index < names.size(); ++index) {
+            databases.push_back(std::make_unique<database_t>(directory / names[index]));
+            databases.back()->table<integer_row_t>("sqlite_people").insert(integer_row_t{static_cast<std::int64_t>(index)});
+        }
+        for (std::size_t index = 0; index < names.size(); ++index) {
+            const auto rows = databases[index]->table<integer_row_t>("SQLITE_PEOPLE").rows();
+            assert(rows.size() == 1 && rows.front().number == static_cast<std::int64_t>(index));
+        }
+        // Backend activity must add nothing beside the dedicated storage directories.
+        std::size_t count = 0;
+        for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+            ++count;
+            assert(entry.path() == sentinel || std::ranges::find(names, entry.path().filename().string()) != names.end());
+        }
+        assert(count == names.size() + 1);
+    }
+    for (std::size_t index = 0; index < names.size(); ++index) {
+        database_t database(directory / names[index]);
+        const auto rows = database.table<integer_row_t>("sqlite_people").rows();
+        assert(rows.size() == 1 && rows.front().number == static_cast<std::int64_t>(index));
+    }
+    std::ifstream input(sentinel);
+    std::string text;
+    std::getline(input, text);
+    assert(text == "neighbor remains unchanged");
+    input.close();
+    std::filesystem::remove_all(directory);
+}
+
+void unrelated_storage() {
+    const auto directory = std::filesystem::temp_directory_path() / std::format("database-unrelated-{}", std::chrono::steady_clock::now().time_since_epoch().count());
+    std::filesystem::create_directory(directory);
+    const auto filename = directory / "existing-file";
+    { std::ofstream output(filename); output << "existing content"; }
+    expect_exception<std::runtime_error>([&] { database_t database(filename); }, "storage directory");
+    expect_exception<std::runtime_error>([&] { database_t database(directory); }, "open");
+    const auto storage = directory / "recognized";
+    for (const auto suffix : { "-wal", "-shm", "-journal" }) {
+        std::ofstream(storage.string() + suffix) << "unrelated suffix neighbor";
+    }
+    { database_t database(storage); database.table<integer_row_t>("records").insert(integer_row_t{7}); }
+    const auto extra = storage / "notes.txt";
+    { std::ofstream output(extra); output << "unrelated content"; }
+    expect_exception<std::runtime_error>([&] { database_t database(storage); }, "unrecognized storage entry");
+    std::ifstream input(extra);
+    std::string text;
+    std::getline(input, text);
+    assert(text == "unrelated content");
+    input.close();
+    std::filesystem::remove(extra);
+    { database_t database(storage); assert(database.table<integer_row_t>("records").rows().front().number == 7); }
+    for (const auto suffix : { "-wal", "-shm", "-journal" }) {
+        std::ifstream neighbor(storage.string() + suffix);
+        std::getline(neighbor, text);
+        assert(text == "unrelated suffix neighbor");
+    }
+    std::ifstream original(filename);
+    std::getline(original, text);
+    assert(text == "existing content");
+    original.close();
+    std::filesystem::remove_all(directory);
 }
 
 } // namespace m03h5hm86mnvc18opf1rdttsgh_database
@@ -449,4 +552,6 @@ int main() {
     exceptional_records();
     metadata_table_names();
     file_records();
+    isolated_storage();
+    unrelated_storage();
 }
