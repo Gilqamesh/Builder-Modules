@@ -149,20 +149,22 @@ void crud_failures(const std::filesystem::path& directory) {
             return replace ? numbers.replace<&integer_row_t::number>(1, integer_row_t{4}) : numbers.erase<&integer_row_t::number>(1);
         };
         const auto operation = replace ? "replace" : "erase";
-        for (const auto fault : { "mutation", "commit" }) {
+        for (const auto fault : { "mutation", "count", "count_missing", "count_range", "commit" }) {
             inject(fault);
             expect_runtime(mutate, operation);
             consumed();
             assert(numbers.rows().size() == 3 && numbers.rows<&integer_row_t::number>(1).size() == 2);
         }
-        database.transaction([&](database_t&) {
-            numbers.insert(integer_row_t{3});
-            inject("mutation");
-            expect_runtime(mutate, operation);
-            consumed();
-            assert(numbers.rows().size() == 4 && numbers.rows<&integer_row_t::number>(1).size() == 2);
-            assert(numbers.erase<&integer_row_t::number>(3) == 1);
-        });
+        for (const auto fault : { "mutation", "count", "count_missing", "count_range" }) {
+            database.transaction([&](database_t&) {
+                numbers.insert(integer_row_t{3});
+                inject(fault);
+                expect_runtime(mutate, operation);
+                consumed();
+                assert(numbers.rows().size() == 4 && numbers.rows<&integer_row_t::number>(1).size() == 2);
+                assert(numbers.erase<&integer_row_t::number>(3) == 1);
+            });
+        }
         for (const auto fault : { "mutation_recovery", "automatic" }) {
             database_t recovering_database(storage);
             const auto recovering_numbers = recovering_database.create_table<integer_row_t>("numbers");

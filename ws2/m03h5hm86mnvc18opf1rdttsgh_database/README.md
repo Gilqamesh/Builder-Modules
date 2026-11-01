@@ -115,7 +115,9 @@ Codecs must not re-enter the same database; decoding runs inside the read snapsh
 `T` must be a nonempty, nonunion aggregate with named, accessible fields, no bases
 or bitfields, and no reference or raw-pointer fields. Each field needs a valid
 codec; duplicate and ASCII case-colliding member names are rejected. Unsupported
-fields fail compilation with their names. `T` must support vector construction
+fields fail compilation with their names. Fields may be const, including optional
+elements; volatile fields and `std::optional<volatile U>` are unsupported.
+`T` must support vector construction
 from decoded records; default construction and assignment are unnecessary, and
 move-only owning fields are supported.
 

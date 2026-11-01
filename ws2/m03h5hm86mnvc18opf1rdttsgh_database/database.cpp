@@ -7,8 +7,8 @@
 #include <array>
 #include <exception>
 #include <fstream>
-#include <limits>
 #include <new>
+#include <utility>
 
 namespace m03h5hm86mnvc18opf1rdttsgh_database {
 
@@ -465,16 +465,18 @@ std::size_t database_t::state_t::mutate(std::string_view table, std::span<const 
                 if (index != 0) sql += ", ";
                 sql += std::format("{} = ?{}", quote(std::get<0>(columns[index])), index + 2);
             }
-            sql += std::format(" WHERE {} COLLATE BINARY IS ?1 RETURNING 1", quote(field));
+            sql += std::format(" WHERE {} COLLATE BINARY IS ?1", quote(field));
             auto statement = m_database.prepare(sql);
             bind(*statement, 1, match);
             for (std::size_t index = 0; index < replacement.size(); ++index) {
                 bind(*statement, static_cast<int>(index + 2), replacement[index]);
             }
-            while (statement->step()) {
-                if (count == std::numeric_limits<std::size_t>::max()) throw failure_t(std::format("database {} '{}': record count exceeds size range", operation_name, table));
-                ++count;
-            }
+            if (statement->step()) throw failure_t(std::format("database {} '{}': unexpected result", operation_name, table));
+            auto changes = m_database.prepare("SELECT changes()");
+            if (!changes->step()) throw failure_t(std::format("database {} '{}': missing record count", operation_name, table));
+            const auto changed = changes->column_integer(0);
+            if (!std::in_range<std::size_t>(changed)) throw failure_t(std::format("database {} '{}': record count {} exceeds size range", operation_name, table, changed));
+            count = static_cast<std::size_t>(changed);
         });
     });
     return count;

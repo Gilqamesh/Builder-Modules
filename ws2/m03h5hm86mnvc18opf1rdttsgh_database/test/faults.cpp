@@ -24,12 +24,17 @@ extern "C" int sqlite3_step(sqlite3_stmt* statement) {
     }
     const auto* selected = std::getenv("BUILDER_DATABASE_TEST_FAULT");
     const std::string_view fault = selected ? selected : "";
-    if (result == SQLITE_ROW && (fault == "mutation" || fault == "mutation_recovery") &&
+    if (result == SQLITE_DONE && (fault == "mutation" || fault == "mutation_recovery") &&
         (command.starts_with("UPDATE main.") || command.starts_with("DELETE FROM main."))) {
         const bool recovery = fault == "mutation_recovery";
         unsetenv("BUILDER_DATABASE_TEST_FAULT");
         if (recovery) setenv("BUILDER_DATABASE_TEST_FAULT", "recovery", 1);
         return SQLITE_IOERR;
+    }
+    if (result == SQLITE_ROW && command == "SELECT changes()" && (fault == "count" || fault == "count_missing")) {
+        const bool missing = fault == "count_missing";
+        unsetenv("BUILDER_DATABASE_TEST_FAULT");
+        return missing ? SQLITE_DONE : SQLITE_IOERR;
     }
     return result;
 }
@@ -62,6 +67,10 @@ extern "C" int sqlite3_prepare_v2(sqlite3* database, const char* sql, int bytes,
     static const auto prepare = reinterpret_cast<decltype(&sqlite3_prepare_v2)>(dlsym(RTLD_NEXT, "sqlite3_prepare_v2"));
     if (!prepare) std::abort();
     const auto* selected = std::getenv("BUILDER_DATABASE_TEST_FAULT");
+    if (selected && std::string_view(selected) == "count_range" && std::string_view(sql) == "SELECT changes()") {
+        unsetenv("BUILDER_DATABASE_TEST_FAULT");
+        return prepare(database, "SELECT -1", -1, statement, tail);
+    }
     if (selected && std::string_view(selected) == "wal" && std::string_view(sql) == "PRAGMA journal_mode=WAL") {
         unsetenv("BUILDER_DATABASE_TEST_FAULT");
         *statement = nullptr;

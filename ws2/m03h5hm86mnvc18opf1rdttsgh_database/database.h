@@ -81,7 +81,10 @@ public:
     template <typename T>
     class table_t;
 
-    /** @brief Creates a missing table or reuses a compatible one; rejects incompatibility. */
+    /**
+     * @brief Creates a missing table or reuses a compatible one; rejects incompatibility.
+     * Fields may be const; volatile fields and volatile optional elements are unsupported.
+     */
     template <typename T>
     table_t<T> create_table(std::string_view name);
 
@@ -298,11 +301,11 @@ consteval bool database_t::valid_codec() {
 template <typename T>
 consteval bool database_t::valid_field() {
     using field_t = std::remove_cv_t<T>;
-    if constexpr (std::is_reference_v<T> || std::is_pointer_v<field_t>) {
+    if constexpr (std::is_volatile_v<T> || std::is_reference_v<T> || std::is_pointer_v<field_t>) {
         return false;
     } else if constexpr (is_optional<field_t>()) {
-        using inner_t = std::remove_cv_t<typename field_t::value_type>;
-        return !requires { sizeof(column_codec<field_t>); } && !is_optional<inner_t>() && valid_field<inner_t>();
+        using inner_t = typename field_t::value_type;
+        return !requires { sizeof(column_codec<field_t>); } && !is_optional<std::remove_cv_t<inner_t>>() && valid_field<inner_t>();
     } else {
         return valid_codec<field_t>();
     }

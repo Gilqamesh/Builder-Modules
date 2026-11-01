@@ -97,6 +97,7 @@ struct nullable_text_row_t { std::optional<std::string> token; };
 struct token_row_t { token_t token; };
 template <typename T>
 struct scalar_row_t { T number; };
+struct qualified_row_t { const int number; const std::optional<const int> alias; };
 struct nan_t {};
 template <>
 struct column_codec<nan_t> {
@@ -153,6 +154,18 @@ concept has_matching = requires(const H& handle, const F& field, const person_t&
     { handle.template rows<Member>(field) } -> std::same_as<std::vector<person_t>>;
     { handle.template replace<Member>(field, person) } -> std::same_as<std::size_t>;
     { handle.template erase<Member>(field) } -> std::same_as<std::size_t>;
+};
+template <typename T>
+concept has_field_rows = requires(const table_t<T>& handle, const T& record) {
+    { handle.template rows<&T::number>(record.number) } -> std::same_as<std::vector<T>>;
+};
+template <typename T>
+concept has_field_replace = requires(const table_t<T>& handle, const T& record) {
+    { handle.template replace<&T::number>(record.number, record) } -> std::same_as<std::size_t>;
+};
+template <typename T>
+concept has_field_erase = requires(const table_t<T>& handle, const T& record) {
+    { handle.template erase<&T::number>(record.number) } -> std::same_as<std::size_t>;
 };
 template <typename D>
 concept has_old_table = requires(D& database) { database.template table<person_t>("people"); };
@@ -349,6 +362,34 @@ void matching_records() {
     assert(reals.erase<&real_row_t::number>(std::numeric_limits<double>::infinity()) == 1);
     assert(reals.replace<&real_row_t::number>(0.0, real_row_t{1.5}) == 2);
     assert(reals.rows<&real_row_t::number>(1.5).size() == 2);
+}
+
+void qualified_records() {
+    using volatile_row_t = scalar_row_t<volatile int>;
+    using volatile_optional_row_t = scalar_row_t<std::optional<volatile int>>;
+    using const_row_t = scalar_row_t<const int>;
+    using const_optional_row_t = scalar_row_t<std::optional<const int>>;
+    static_assert(!has_field_rows<volatile_row_t> && !has_field_rows<volatile_optional_row_t>);
+    static_assert(!has_field_replace<volatile_row_t> && !has_field_replace<volatile_optional_row_t>);
+    static_assert(!has_field_erase<volatile_row_t> && !has_field_erase<volatile_optional_row_t>);
+    static_assert(has_field_rows<const_row_t> && has_field_rows<const_optional_row_t>);
+    static_assert(has_field_replace<const_row_t> && has_field_replace<const_optional_row_t>);
+    static_assert(has_field_erase<const_row_t> && has_field_erase<const_optional_row_t>);
+    database_t database;
+    const auto qualified = database.create_table<qualified_row_t>("qualified");
+    qualified.insert(qualified_row_t{1, 2});
+    qualified.insert(qualified_row_t{2, std::nullopt});
+    const auto records = qualified.rows();
+    assert(records.size() == 2);
+    assert(qualified.rows<&qualified_row_t::number>(1).front().alias == 2);
+    assert(qualified.rows<&qualified_row_t::alias>(std::nullopt).size() == 1);
+    assert(qualified.replace<&qualified_row_t::number>(1, qualified_row_t{3, 4}) == 1);
+    assert(qualified.replace<&qualified_row_t::alias>(std::nullopt, qualified_row_t{4, 5}) == 1);
+    const auto changed = qualified.rows<&qualified_row_t::number>(3);
+    assert(changed.size() == 1 && changed.front().alias == 4);
+    assert(qualified.erase<&qualified_row_t::alias>(4) == 1);
+    assert(qualified.erase<&qualified_row_t::number>(4) == 1);
+    assert(qualified.rows().empty());
 }
 
 void numeric_records() {
@@ -683,6 +724,7 @@ int main() {
     basic_records();
     owning_records();
     matching_records();
+    qualified_records();
     numeric_records();
     exceptional_records();
     metadata_table_names();
