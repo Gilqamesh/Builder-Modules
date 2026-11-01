@@ -1,8 +1,8 @@
 # `m03gl22hn0dqmosreqjie9tg5m_opengl_renderer`
 
-## Purpose
+## Goal
 
-Provide OpenGL rendering for an OpenGL-capable GLFW window. The renderer owns the OpenGL mechanisms and resources that turn supplied data into a window image.
+Provide OpenGL rendering for an OpenGL-capable GLFW window. The renderer owns the OpenGL mechanisms and resources that turn supplied data into a window image. Applications use it to present images while it manages the required OpenGL resources.
 
 ## CPU framebuffer presentation
 

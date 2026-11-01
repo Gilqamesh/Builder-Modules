@@ -58,6 +58,13 @@ The default target is `cli`. For example:
 - `m03ge9zyrjajugagmp61034qhi_module_dependency_ir_svg_renderer` - renders a module dependency graph to SVG.
 - `m03ge9ij4lbns2mq6722cd8654_function_visualizer` - infinitely zoomable prototype to visualize m03ge9ij46lc986vpdamnc2fka_function_ir.
 
+## Module documentation
+
+Each module's README describes its Goal and relevant semantic contracts. Module
+authors follow Builder's [README convention](https://github.com/Gilqamesh/Builder/blob/main/docs/module-readme.md)
+and [shared workflow](https://github.com/Gilqamesh/Builder/blob/main/docs/agent-workflow.md);
+workflow and coding instructions remain centralized in Builder.
+
 ## Requirements
 
 - [Builder](https://github.com/Gilqamesh/Builder), combined into the same

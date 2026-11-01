@@ -18,7 +18,7 @@ strip winding, and retained exceptional coverage guarantees. This proposal uses
 source and test-source inspection; it adds no build or benchmark results.
 
 Public headers own current behavior. Existing ownership remains as described in
-[AGENTS.md](../AGENTS.md): applications and shaders implement lighting models,
+[README.md](../README.md): applications and shaders implement lighting models,
 shadow-pass organization, tone mapping, and scene management.
 
 ## Capability scope

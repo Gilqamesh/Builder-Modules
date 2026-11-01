@@ -1,10 +1,10 @@
 # `m03gt1djvvy5atia5evkbg6rqy_software_shader`
 
-## Purpose
+## Goal
 
 Link and execute individual CPU shader invocations from backend-independent ASTs
 and canonical CPU resources. Assembly, interpolation, rasterization, framebuffer
-behavior, and renderer-facing resource lifetimes belong to the renderer.
+behavior, and renderer-facing resource lifetimes belong to the renderer. This lets CPU consumers evaluate shaders without requiring a complete rendering pipeline.
 
 ## Execution
 

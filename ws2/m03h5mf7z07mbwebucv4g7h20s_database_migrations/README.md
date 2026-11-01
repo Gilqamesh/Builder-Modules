@@ -1,6 +1,10 @@
 # Forward-only application-data migrations
 
-Upgrade application records through the public `database_t` API. Applications own
+## Goal
+
+Upgrade application records through the public `database_t` API so applications can
+move persisted data to their required version through explicit, atomic, forward-only
+transformations. Applications own
 migration identities, transformations, and their target version; the database owns
 physical storage and its format version. [The public API](api.h) specifies callback
 obligations, borrowing, atomicity, and exceptions.

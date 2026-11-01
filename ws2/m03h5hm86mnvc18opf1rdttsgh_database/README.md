@@ -1,6 +1,14 @@
 # Typed record database
 
-Store owning aggregate records in typed tables with atomic transactions and optional persistence.
+## Goal
+
+Store owning aggregate records in typed tables with atomic transactions and optional
+persistence so applications can work with records through their C++ types. This
+module owns the typed record database abstraction and keeps the storage backend,
+physical representation, and recovery mechanisms private; applications own record
+meaning, codec compatibility, and application-data migrations.
+
+## Usage
 
 ```cpp
 #include <m03h5hm86mnvc18opf1rdttsgh_database/database.h>
@@ -184,3 +192,6 @@ From the Builder-Layout root:
 
 The runnable example is covered by
 [`test/readme_example.cpp`](test/readme_example.cpp), which verifies the workflow's results.
+
+Public API validation must cover literal storage directory paths, arbitrary
+logical table names, and client-defined column codecs through the database API.
