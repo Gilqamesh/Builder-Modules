@@ -7,6 +7,7 @@
 #include <array>
 #include <exception>
 #include <fstream>
+#include <limits>
 #include <new>
 
 namespace m03h5hm86mnvc18opf1rdttsgh_database {
@@ -23,6 +24,7 @@ private:
     static std::string quote(std::string_view identifier);
     static std::string physical_name(std::string_view table);
     static void validate_name(std::string_view name);
+    static void bind(m03h5f8oo5d48avkx9mdk2bi5u_sqlite::statement_t& statement, int parameter, const cell_t& cell);
     void read_schema();
     bool table_exists(std::string_view table);
     void validate_schema(std::string_view table, std::span<const column_t> columns);
@@ -34,8 +36,10 @@ public:
     static std::unique_ptr<state_t> open(const std::filesystem::path& directory);
     void transaction(database_t& database, std::function_ref<void(database_t&)> action);
     void ensure_table(std::string_view table, std::span<const column_t> columns);
+    std::vector<std::string> tables();
     void insert(std::string_view table, std::span<const column_t> columns, std::span<const cell_t> stored);
-    void rows(std::string_view table, std::span<const column_t> columns, std::function_ref<void(std::span<cell_t>)> consume);
+    void rows(std::string_view table, std::span<const column_t> columns, std::function_ref<void(std::span<cell_t>)> consume, std::string_view field, const cell_t& match);
+    std::size_t mutate(std::string_view table, std::span<const column_t> columns, std::string_view field, const cell_t& match, std::span<const cell_t> replacement);
     void drop(std::string_view table, std::span<const column_t> columns);
 
 private:
@@ -77,6 +81,26 @@ std::string database_t::state_t::physical_name(std::string_view table) {
 void database_t::state_t::validate_name(std::string_view name) {
     if (name.empty() || name.find('\0') != std::string_view::npos) {
         throw std::invalid_argument("database table name must be nonempty and contain no NUL");
+    }
+}
+
+void database_t::state_t::bind(m03h5f8oo5d48avkx9mdk2bi5u_sqlite::statement_t& statement, int parameter, const cell_t& cell) {
+    switch (cell.index()) {
+        case 0: {
+            statement.bind(parameter, nullptr);
+        } break;
+        case 1: {
+            statement.bind(parameter, std::get<1>(cell));
+        } break;
+        case 2: {
+            statement.bind(parameter, std::get<2>(cell));
+        } break;
+        case 3: {
+            statement.bind(parameter, std::string_view(std::get<3>(cell)));
+        } break;
+        case 4: {
+            statement.bind(parameter, std::get<4>(cell).bytes());
+        } break;
     }
 }
 
@@ -324,6 +348,22 @@ void database_t::state_t::ensure_table(std::string_view table, std::span<const c
     });
 }
 
+std::vector<std::string> database_t::state_t::tables() {
+    std::vector<std::string> names;
+    operation("tables", "", false, [&] {
+        call("tables", "", [&] {
+            auto statement = m_database.prepare("SELECT name FROM main.sqlite_schema WHERE type = 'table'");
+            while (statement->step()) {
+                const auto physical = statement->column_text(0);
+                constexpr std::string_view prefix = "table_";
+                if (physical.starts_with(prefix)) names.push_back(physical.substr(prefix.size()));
+            }
+            std::ranges::sort(names);
+        });
+    });
+    return names;
+}
+
 void database_t::state_t::insert(std::string_view table, std::span<const column_t> columns, std::span<const cell_t> stored) {
     operation("insert", table, true, [&] {
         call("insert", table, [&] {
@@ -341,32 +381,14 @@ void database_t::state_t::insert(std::string_view table, std::span<const column_
             sql += std::format(") VALUES ({})", parameters);
             auto statement = m_database.prepare(sql);
             for (std::size_t index = 0; index < stored.size(); ++index) {
-                const auto parameter = static_cast<int>(index + 1);
-                const auto& cell = stored[index];
-                switch (cell.index()) {
-                    case 0: {
-                        statement->bind(parameter, nullptr);
-                    } break;
-                    case 1: {
-                        statement->bind(parameter, std::get<1>(cell));
-                    } break;
-                    case 2: {
-                        statement->bind(parameter, std::get<2>(cell));
-                    } break;
-                    case 3: {
-                        statement->bind(parameter, std::string_view(std::get<3>(cell)));
-                    } break;
-                    case 4: {
-                        statement->bind(parameter, std::get<4>(cell).bytes());
-                    } break;
-                }
+                bind(*statement, static_cast<int>(index + 1), stored[index]);
             }
             if (statement->step()) throw failure_t(std::format("database insert '{}': unexpected result", table));
         });
     });
 }
 
-void database_t::state_t::rows(std::string_view table, std::span<const column_t> columns, std::function_ref<void(std::span<cell_t>)> consume) {
+void database_t::state_t::rows(std::string_view table, std::span<const column_t> columns, std::function_ref<void(std::span<cell_t>)> consume, std::string_view field, const cell_t& match) {
     validate_name(table);
     operation("rows", table, false, [&] {
         auto statement = call("rows", table, [&] {
@@ -383,7 +405,10 @@ void database_t::state_t::rows(std::string_view table, std::span<const column_t>
                 kinds += std::format("typeof({})", name);
             }
             sql += std::format(", {} FROM main.{}", kinds, quote(physical_name(table)));
-            return m_database.prepare(sql);
+            if (!field.empty()) sql += std::format(" WHERE {} COLLATE BINARY IS ?1", quote(field));
+            auto selected = m_database.prepare(sql);
+            if (!field.empty()) bind(*selected, 1, match);
+            return selected;
         });
         std::vector<cell_t> stored;
         stored.reserve(columns.size());
@@ -429,6 +454,32 @@ void database_t::state_t::rows(std::string_view table, std::span<const column_t>
     });
 }
 
+std::size_t database_t::state_t::mutate(std::string_view table, std::span<const column_t> columns, std::string_view field, const cell_t& match, std::span<const cell_t> replacement) {
+    const auto operation_name = replacement.empty() ? "erase" : "replace";
+    std::size_t count = 0;
+    operation(operation_name, table, true, [&] {
+        call(operation_name, table, [&] {
+            validate_schema(table, columns);
+            auto sql = replacement.empty() ? std::format("DELETE FROM main.{}", quote(physical_name(table))) : std::format("UPDATE main.{} SET ", quote(physical_name(table)));
+            for (std::size_t index = 0; index < replacement.size(); ++index) {
+                if (index != 0) sql += ", ";
+                sql += std::format("{} = ?{}", quote(std::get<0>(columns[index])), index + 2);
+            }
+            sql += std::format(" WHERE {} COLLATE BINARY IS ?1 RETURNING 1", quote(field));
+            auto statement = m_database.prepare(sql);
+            bind(*statement, 1, match);
+            for (std::size_t index = 0; index < replacement.size(); ++index) {
+                bind(*statement, static_cast<int>(index + 2), replacement[index]);
+            }
+            while (statement->step()) {
+                if (count == std::numeric_limits<std::size_t>::max()) throw failure_t(std::format("database {} '{}': record count exceeds size range", operation_name, table));
+                ++count;
+            }
+        });
+    });
+    return count;
+}
+
 void database_t::state_t::drop(std::string_view table, std::span<const column_t> columns) {
     validate_name(table);
     operation("drop", table, true, [&] {
@@ -456,6 +507,10 @@ void database_t::transaction(std::function_ref<void(database_t&)> action) {
     m_state->transaction(*this, action);
 }
 
+std::vector<std::string> database_t::tables() const {
+    return m_state->tables();
+}
+
 void database_t::ensure_table(std::string_view table, std::span<const column_t> columns) {
     m_state->ensure_table(table, columns);
 }
@@ -464,8 +519,12 @@ void database_t::insert_impl(std::string_view table, std::span<const column_t> c
     m_state->insert(table, columns, stored);
 }
 
-void database_t::rows_impl(std::string_view table, std::span<const column_t> columns, std::function_ref<void(std::span<cell_t>)> consume) const {
-    m_state->rows(table, columns, consume);
+void database_t::rows_impl(std::string_view table, std::span<const column_t> columns, std::function_ref<void(std::span<cell_t>)> consume, std::string_view field, const cell_t& match) const {
+    m_state->rows(table, columns, consume, field, match);
+}
+
+std::size_t database_t::mutate_impl(std::string_view table, std::span<const column_t> columns, std::string_view field, const cell_t& match, std::span<const cell_t> replacement) {
+    return m_state->mutate(table, columns, field, match, replacement);
 }
 
 void database_t::drop_impl(std::string_view table, std::span<const column_t> columns) {

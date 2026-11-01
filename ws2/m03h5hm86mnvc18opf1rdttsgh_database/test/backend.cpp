@@ -26,6 +26,7 @@ namespace m03h5hm86mnvc18opf1rdttsgh_database {
 
 namespace sqlite = m03h5f8oo5d48avkx9mdk2bi5u_sqlite;
 namespace filesystem = m03gagbhsnusi43zogoacgj2ez_filesystem;
+extern std::function<void()> enumeration_hook;
 
 struct integer_row_t { std::int64_t number; };
 struct pair_row_t { std::int64_t number; std::optional<std::string> label; };
@@ -113,7 +114,7 @@ void schemas(const std::filesystem::path& directory) {
         );
     }
     database_t database(storage);
-    const auto reordered = database.table<pair_row_t>("reordered");
+    const auto reordered = database.create_table<pair_row_t>("reordered");
     assert(reordered.rows().size() == 1 && reordered.rows().front().label == "legacy");
     reordered.insert(pair_row_t{42, "reordered"});
     const auto rows = reordered.rows();
@@ -124,13 +125,94 @@ void schemas(const std::filesystem::path& directory) {
         const auto physical = std::format("table_{}", table);
         if (std::string_view(table) != "view_table") backend.execute(std::format("INSERT INTO \"{}\"(number) VALUES (11)", physical));
         const auto before = contents(backend, physical);
-        expect_runtime([&] { (void)database.table<integer_row_t>(table); }, "table");
+        expect_runtime([&] { (void)database.create_table<integer_row_t>(table); }, "table");
+        expect_runtime([&] { database.drop_table<integer_row_t>(table); }, "table");
         assert(contents(backend, physical) == before);
         reordered.insert(pair_row_t{1, {}});
     }
-    database.table<integer_row_t>("after errors");
-    database.table<integer_row_t>("after errors").insert(integer_row_t{7});
-    assert(database.table<integer_row_t>("after errors").rows().front().number == 7);
+    database.create_table<integer_row_t>("after errors");
+    database.create_table<integer_row_t>("after errors").insert(integer_row_t{7});
+    assert(database.create_table<integer_row_t>("after errors").rows().front().number == 7);
+}
+
+void crud_failures(const std::filesystem::path& directory) {
+    const auto storage = directory / "crud failures";
+    database_t database(storage);
+    const auto numbers = database.create_table<integer_row_t>("numbers");
+    numbers.insert(integer_row_t{1});
+    numbers.insert(integer_row_t{1});
+    numbers.insert(integer_row_t{2});
+    const auto inject = [](const char* fault) { assert(setenv("BUILDER_DATABASE_TEST_FAULT", fault, 1) == 0); };
+    const auto consumed = [] { assert(std::getenv("BUILDER_DATABASE_TEST_FAULT") == nullptr); };
+    for (const bool replace : { false, true }) {
+        const auto mutate = [&] {
+            return replace ? numbers.replace<&integer_row_t::number>(1, integer_row_t{4}) : numbers.erase<&integer_row_t::number>(1);
+        };
+        const auto operation = replace ? "replace" : "erase";
+        for (const auto fault : { "mutation", "commit" }) {
+            inject(fault);
+            expect_runtime(mutate, operation);
+            consumed();
+            assert(numbers.rows().size() == 3 && numbers.rows<&integer_row_t::number>(1).size() == 2);
+        }
+        database.transaction([&](database_t&) {
+            numbers.insert(integer_row_t{3});
+            inject("mutation");
+            expect_runtime(mutate, operation);
+            consumed();
+            assert(numbers.rows().size() == 4 && numbers.rows<&integer_row_t::number>(1).size() == 2);
+            assert(numbers.erase<&integer_row_t::number>(3) == 1);
+        });
+        for (const auto fault : { "mutation_recovery", "automatic" }) {
+            database_t recovering_database(storage);
+            const auto recovering_numbers = recovering_database.create_table<integer_row_t>("numbers");
+            expect_runtime([&] {
+                recovering_database.transaction([&](database_t&) {
+                    recovering_numbers.insert(integer_row_t{3});
+                    inject(fault);
+                    expect_runtime([&] {
+                        return replace ? recovering_numbers.replace<&integer_row_t::number>(1, integer_row_t{4}) : recovering_numbers.erase<&integer_row_t::number>(1);
+                    }, operation);
+                    consumed();
+                    expect_runtime([&] { (void)recovering_numbers.erase<&integer_row_t::number>(2); }, "invalid");
+                });
+            }, "cannot commit");
+            assert(numbers.rows().size() == 3 && numbers.rows<&integer_row_t::number>(1).size() == 2);
+        }
+        inject("commit");
+        expect_runtime([&] {
+            database.transaction([&](database_t&) { assert(mutate() == 2); });
+        }, "commit");
+        consumed();
+        assert(numbers.rows().size() == 3 && numbers.rows<&integer_row_t::number>(1).size() == 2);
+    }
+    inject("commit");
+    expect_runtime([&] { (void)numbers.rows<&integer_row_t::number>(1); }, "rows");
+    consumed();
+    inject("commit");
+    expect_runtime([&] { (void)database.tables(); }, "tables");
+    consumed();
+    assert(database.tables() == std::vector<std::string>{"numbers"});
+}
+
+void enumeration_snapshot(const std::filesystem::path& directory) {
+    const auto storage = directory / "enumeration snapshot";
+    database_t reader(storage);
+    database_t writer(storage);
+    reader.create_table<integer_row_t>("first");
+    reader.create_table<pair_row_t>("second");
+    bool changed = false;
+    enumeration_hook = [&] {
+        writer.transaction([&](database_t& same_database) {
+            same_database.drop_table<integer_row_t>("first");
+            same_database.drop_table<pair_row_t>("second");
+            same_database.create_table<integer_row_t>("new");
+        });
+        changed = true;
+    };
+    assert((reader.tables() == std::vector<std::string>{"first", "second"}));
+    assert(changed && !enumeration_hook);
+    assert(reader.tables() == std::vector<std::string>{"new"});
 }
 
 void stored_kinds(const std::filesystem::path& directory) {
@@ -153,11 +235,11 @@ void stored_kinds(const std::filesystem::path& directory) {
     }
     // Deliberately inconsistent fixture: STRICT metadata does not make old values valid.
     database_t database(storage);
-    expect_runtime([&] { (void)database.table<integer_row_t>("wrong_value").rows(); }, "expected signed 64-bit integer; found string");
-    expect_runtime([&] { (void)database.table<integer_row_t>("wrong_null").rows(); }, "found absent value");
-    database.table<integer_row_t>("valid");
-    database.table<integer_row_t>("valid").insert(integer_row_t{3});
-    assert(database.table<integer_row_t>("valid").rows().front().number == 3);
+    expect_runtime([&] { (void)database.create_table<integer_row_t>("wrong_value").rows(); }, "expected signed 64-bit integer; found string");
+    expect_runtime([&] { (void)database.create_table<integer_row_t>("wrong_null").rows(); }, "found absent value");
+    database.create_table<integer_row_t>("valid");
+    database.create_table<integer_row_t>("valid").insert(integer_row_t{3});
+    assert(database.create_table<integer_row_t>("valid").rows().front().number == 3);
 }
 
 void injected_failures(const std::filesystem::path& directory) {
@@ -167,8 +249,8 @@ void injected_failures(const std::filesystem::path& directory) {
     assert(std::getenv("BUILDER_DATABASE_TEST_FAULT") == nullptr);
     {
         database_t database(filename);
-        const auto numbers = database.table<integer_row_t>("numbers");
-        const auto failing = database.table<failing_row_t>("numbers");
+        const auto numbers = database.create_table<integer_row_t>("numbers");
+        const auto failing = database.create_table<failing_row_t>("numbers");
         numbers.insert(integer_row_t{1});
         const auto inject = [](const char* fault) { assert(setenv("BUILDER_DATABASE_TEST_FAULT", fault, 1) == 0); };
         const auto consumed = [] { assert(std::getenv("BUILDER_DATABASE_TEST_FAULT") == nullptr); };
@@ -177,7 +259,7 @@ void injected_failures(const std::filesystem::path& directory) {
         consumed();
         assert(numbers.rows().size() == 1);
         inject("commit");
-        expect_runtime([&] { (void)database.table<integer_row_t>("uncommitted"); }, "table");
+        expect_runtime([&] { (void)database.create_table<integer_row_t>("uncommitted"); }, "table");
         consumed();
         {
             sqlite::database_t backend((filename / "storage.db").string());
@@ -185,7 +267,7 @@ void injected_failures(const std::filesystem::path& directory) {
             assert(!statement->step());
         }
         inject("commit");
-        expect_runtime([&] { numbers.drop(); }, "drop");
+        expect_runtime([&] { database.drop_table<integer_row_t>("numbers"); }, "drop");
         consumed();
         assert(numbers.rows().size() == 1);
         inject("commit");
@@ -224,7 +306,7 @@ void injected_failures(const std::filesystem::path& directory) {
     }
     {
         database_t database(filename);
-        const auto numbers = database.table<integer_row_t>("numbers");
+        const auto numbers = database.create_table<integer_row_t>("numbers");
         assert(numbers.rows().size() == 1);
         expect_runtime([&] {
             database.transaction([&](database_t&) {
@@ -237,7 +319,7 @@ void injected_failures(const std::filesystem::path& directory) {
     }
     {
         database_t database(filename);
-        assert(database.table<integer_row_t>("numbers").rows().size() == 1);
+        assert(database.create_table<integer_row_t>("numbers").rows().size() == 1);
     }
 }
 
@@ -269,7 +351,7 @@ void rejected_storage(const std::filesystem::path& directory) {
     const auto baseline = directory / "baseline";
     {
         database_t database(baseline);
-        database.table<integer_row_t>("numbers").insert(integer_row_t{42});
+        database.create_table<integer_row_t>("numbers").insert(integer_row_t{42});
     }
     const auto metadata = storage_snapshot(baseline).at("storage.meta");
     const auto reject_unchanged = [&](const std::filesystem::path& storage, std::string_view fragment) {
@@ -332,9 +414,9 @@ void physical_tables(const std::filesystem::path& directory) {
     const auto storage = directory / "physical-tables";
     {
         database_t database(storage);
-        database.table<integer_row_t>("sqlite_people").insert(integer_row_t{1});
-        database.table<integer_row_t>("people").insert(integer_row_t{2});
-        database.table<integer_row_t>("table_people").insert(integer_row_t{3});
+        database.create_table<integer_row_t>("sqlite_people").insert(integer_row_t{1});
+        database.create_table<integer_row_t>("people").insert(integer_row_t{2});
+        database.create_table<integer_row_t>("table_people").insert(integer_row_t{3});
     }
     {
         sqlite::database_t backend((storage / "storage.db").string());
@@ -347,13 +429,14 @@ void physical_tables(const std::filesystem::path& directory) {
     }
     {
         database_t database(storage);
-        const auto people = database.table<integer_row_t>("PEOPLE");
+        const auto people = database.create_table<integer_row_t>("PEOPLE");
+        assert((database.tables() == std::vector<std::string>{"people", "sqlite_people", "table_people"}));
         assert(people.rows().size() == 1 && people.rows().front().number == 2);
         people.insert(integer_row_t{4});
-        people.drop();
-        assert(database.table<integer_row_t>("orphan").rows().empty());
-        database.table<integer_row_t>("orphan").drop();
-        assert(database.table<integer_row_t>("table_people").rows().front().number == 3);
+        database.drop_table<integer_row_t>("PEOPLE");
+        assert(database.create_table<integer_row_t>("orphan").rows().empty());
+        database.drop_table<integer_row_t>("orphan");
+        assert(database.create_table<integer_row_t>("table_people").rows().front().number == 3);
     }
     sqlite::database_t backend((storage / "storage.db").string());
     auto statement = backend.prepare("SELECT number FROM people UNION ALL SELECT number FROM orphan ORDER BY number");
@@ -391,8 +474,8 @@ void initialization_failures(const std::filesystem::path& directory) {
     assert(storage_snapshot(failed_publish) == unpublished);
     // All failed-construction connections must have closed before cleanup/retry.
     std::filesystem::remove_all(failed_wal);
-    { database_t database(failed_wal); database.table<integer_row_t>("numbers").insert(integer_row_t{7}); }
-    { database_t database(failed_wal); assert(database.table<integer_row_t>("numbers").rows().front().number == 7); }
+    { database_t database(failed_wal); database.create_table<integer_row_t>("numbers").insert(integer_row_t{7}); }
+    { database_t database(failed_wal); assert(database.create_table<integer_row_t>("numbers").rows().front().number == 7); }
 }
 
 } // namespace m03h5hm86mnvc18opf1rdttsgh_database
@@ -404,6 +487,8 @@ int main() {
     schemas(directory);
     stored_kinds(directory);
     injected_failures(directory);
+    crud_failures(directory);
+    enumeration_snapshot(directory);
     malformed_file(directory);
     rejected_storage(directory);
     physical_tables(directory);

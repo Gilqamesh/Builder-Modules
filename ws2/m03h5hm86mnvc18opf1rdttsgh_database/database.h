@@ -32,7 +32,7 @@ namespace m03h5hm86mnvc18opf1rdttsgh_database {
  * Specializations must be visible before record operations are instantiated.
  * storage_t is exactly int64_t, double, string, or byte_stream_t. encode(const T&)
  * returns storage_t or const storage_t&; borrowed storage must remain valid until
- * consumed by insertion. decode accepts an owned storage_t rvalue and returns T
+ * consumed by the operation. decode accepts an owned storage_t rvalue and returns T
  * by value, retaining its data independently of that argument and the database.
  * Codec exceptions propagate unchanged. Decoding runs inside the read snapshot;
  * codecs must not re-enter the same database. Encoding compatibility and migration
@@ -42,7 +42,7 @@ namespace m03h5hm86mnvc18opf1rdttsgh_database {
  *
  * optional<U> always uses U's codec and represents an absent or present value. Direct codecs
  * for optional and nested optionals are unsupported; use a domain wrapper instead.
- * Storage kinds are not converted. Canonical double must not be NaN on insertion
+ * Storage kinds are not converted. Canonical double must not be NaN when encoding
  * (invalid_argument). Built-in numeric range failures throw out_of_range.
  */
 template <typename T>
@@ -85,7 +85,7 @@ struct column_codec<T> {
 };
 
 /**
- * @brief Owns a database connection and acquires compatible typed table handles.
+ * @brief Manages typed tables and atomic transactions in one database connection.
  *
  * Serialize access to the database and all its handles, including destruction.
  * Invalid runtime arguments throw invalid_argument; schema, database-state and
@@ -99,10 +99,14 @@ struct column_codec<T> {
  *
  * @code
  * struct person_t { std::int64_t id; std::string name; std::optional<int> age; };
- * database_t database("people");
- * auto people_table = database.table<person_t>("people");
- * people_table.insert(person_t{1, "Ada", 36});
- * auto people = people_table.rows();
+ * database_t db;
+ * auto people = db.create_table<person_t>("people");
+ * people.insert(person_t{1, "Ada", 36});
+ * auto names = db.tables();
+ * auto matches = people.rows<&person_t::id>(1);
+ * people.replace<&person_t::id>(1, person_t{1, "Ada", 37});
+ * people.erase<&person_t::id>(1);
+ * db.drop_table<person_t>("people");
  * @endcode
  */
 class database_t {
@@ -173,7 +177,29 @@ public:
      * acquisition commits before returning; inside it, acquisition participates.
      */
     template <typename T>
-    table_t<T> table(std::string_view name);
+    table_t<T> create_table(std::string_view name);
+
+    /**
+     * @brief Atomically deletes a compatible table, doing nothing when it is missing.
+     *
+     * Uses create_table<T>()'s name and compatibility rules without creating tables.
+     * Lookup, validation and deletion join transaction() or commit before return.
+     * An incompatible table is rejected without deleting it. Existing handles keep
+     * their logical names; record operations fail until compatible recreation.
+     */
+    template <typename T>
+    void drop_table(std::string_view name);
+
+    /**
+     * @brief Returns all existing application table names in ordinary string order.
+     *
+     * Owning names preserve creation spelling, survive database destruction and
+     * exclude private storage and backend objects. Case-insensitive acquisition
+     * never renames a table. Empty databases return an empty vector.
+     * Reads one consistent snapshot, using transaction()'s snapshot and observing
+     * its own table creations and deletions when inside a transaction.
+     */
+    std::vector<std::string> tables() const;
 
 private:
     class state_t;
@@ -182,6 +208,10 @@ private:
     using column_t = std::tuple<std::string_view, std::size_t, bool>;
     template <typename T, std::size_t I>
     using member_t = [:std::meta::type_of(std::meta::nonstatic_data_members_of(^^T, std::meta::access_context::current())[I]):];
+    template <typename T, auto Member>
+    static consteval std::meta::info selected_field();
+    template <typename T, auto Member>
+    using selected_t = [:std::meta::type_of(selected_field<T, Member>()):];
 
     template <typename T>
     static consteval bool is_optional();
@@ -199,24 +229,29 @@ private:
     static std::vector<column_t> columns();
     template <typename F>
     static cell_t encode_field(const F& field);
+    template <typename T>
+    static std::vector<cell_t> encode_record(const T& record);
     template <typename F>
     static std::remove_cv_t<F> decode_field(cell_t&& stored);
     template <typename T, std::size_t... I>
     static T decode_record(std::span<cell_t> stored, std::index_sequence<I...>);
     void ensure_table(std::string_view table, std::span<const column_t> columns);
     void insert_impl(std::string_view table, std::span<const column_t> columns, std::span<const cell_t> stored);
-    void rows_impl(std::string_view table, std::span<const column_t> columns, std::function_ref<void(std::span<cell_t>)> consume) const;
+    void rows_impl(std::string_view table, std::span<const column_t> columns, std::function_ref<void(std::span<cell_t>)> consume, std::string_view field = {}, const cell_t& match = {}) const;
+    std::size_t mutate_impl(std::string_view table, std::span<const column_t> columns, std::string_view field, const cell_t& match, std::span<const cell_t> replacement);
     void drop_impl(std::string_view table, std::span<const column_t> columns);
 
     std::unique_ptr<state_t> m_state;
 };
 
 /**
- * @brief Borrows a database table for inserting T records and retrieving owning rows.
+ * @brief Manages records in a typed table borrowed from a database.
  *
  * The database must outlive this handle, all copies, and all operations. Handles
  * own their table name and can be copied or moved. A const handle still permits
- * insertion and removal through its database.
+ * record changes through its database. Returned records are detached C++ values;
+ * persist edited values explicitly with replace(). Use transaction() for atomic
+ * read–modify–write sequences.
  * Each operation revalidates the schema; later incompatible changes are rejected.
  * After moving a handle, use its destination; the source may only be reassigned
  * or destroyed.
@@ -224,8 +259,10 @@ private:
 template <typename T>
 class database_t::table_t {
 public:
-    /** @brief Acquires a compatible table in database using the same contract as table<T>(). */
-    table_t(database_t& database, std::string_view name);
+    table_t(const table_t&) = default;
+    table_t& operator=(const table_t&) = default;
+    table_t(table_t&&) = default;
+    table_t& operator=(table_t&&) = default;
 
     /** @brief Inserts current field values, joining transaction() or committing before return. */
     void insert(const T& record) const;
@@ -239,15 +276,42 @@ public:
     std::vector<T> rows() const;
 
     /**
-     * @brief Atomically removes a compatible table, doing nothing when it is missing.
+     * @brief Retrieves every record whose selected field has the encoded match value.
      *
-     * Revalidates compatibility before removal; an incompatible replacement is
-     * rejected without deleting it. Joins transaction() or commits before return.
-     * Handles keep their names: a compatible recreation permits their reuse.
+     * Member must select a supported accessible direct nonstatic data member of T;
+     * invalid selectors fail compilation. match has that field's type and uses its
+     * codec. Equality compares canonical representations: exact strings and bytes
+     * (including NULs), numeric equality, and absence for absent optionals. Custom
+     * encoded equality may differ from C++ equality. Preserves duplicates and uses
+     * the same owning, unordered snapshot contract as rows().
      */
-    void drop() const;
+    template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
+    std::vector<T> rows(const selected_t<T, Member>& match) const;
+
+    /**
+     * @brief Replaces every matching record completely and returns the matched count.
+     *
+     * Uses rows<Member>()'s selection semantics, evaluated against the original
+     * match. Replacement may change the selected field. Identical replacements
+     * count as matches; zero matches succeed. Joins transaction() or commits before
+     * return. Failures roll back the operation under transaction()'s recovery rules.
+     */
+    template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
+    std::size_t replace(const selected_t<T, Member>& match, const T& replacement) const;
+
+    /**
+     * @brief Deletes every matching record and returns the deleted count.
+     *
+     * Uses rows<Member>()'s selection semantics. Zero matches succeed; joins
+     * transaction() or commits before return with the same recovery as replace().
+     */
+    template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
+    std::size_t erase(const selected_t<T, Member>& match) const;
 
 private:
+    friend class database_t;
+    table_t(database_t& database, std::string_view name);
+
     database_t* m_database;
     std::string m_name;
     std::vector<column_t> m_columns;
@@ -330,8 +394,30 @@ T column_codec<T>::decode(storage_t stored) {
 }
 
 template <typename T>
-auto database_t::table(std::string_view name) -> table_t<T> {
+auto database_t::create_table(std::string_view name) -> table_t<T> {
     return table_t<T>(*this, name);
+}
+
+template <typename T>
+void database_t::drop_table(std::string_view name) {
+    drop_impl(name, columns<T>());
+}
+
+template <typename T, auto Member>
+consteval std::meta::info database_t::selected_field() {
+    if constexpr (std::is_member_object_pointer_v<decltype(Member)>) {
+        if constexpr (Member != nullptr) {
+            template for (constexpr auto field : std::define_static_array(std::meta::nonstatic_data_members_of(^^T, std::meta::access_context::current()))) {
+                using field_t = [:std::meta::type_of(field):];
+                if constexpr (!std::meta::is_bit_field(field) && valid_field<field_t>()) {
+                    if constexpr (std::same_as<decltype(Member), decltype(&[:field:])>) {
+                        if constexpr (Member == &[:field:]) return field;
+                    }
+                }
+            }
+        }
+    }
+    return {};
 }
 
 template <typename T>
@@ -445,10 +531,19 @@ auto database_t::encode_field(const F& field) -> cell_t {
         using storage_t = typename codec_t::storage_t;
         decltype(auto) encoded = codec_t::encode(field);
         if constexpr (std::same_as<storage_t, double>) {
-            if (std::isnan(encoded)) throw std::invalid_argument("database insert: canonical double must not be NaN");
+            if (std::isnan(encoded)) throw std::invalid_argument("database encode: canonical double must not be NaN");
         }
         return cell_t(std::in_place_type<storage_t>, std::forward<decltype(encoded)>(encoded));
     }
+}
+
+template <typename T>
+auto database_t::encode_record(const T& record) -> std::vector<cell_t> {
+    std::vector<cell_t> stored;
+    template for (constexpr auto field : std::define_static_array(std::meta::nonstatic_data_members_of(^^T, std::meta::access_context::current()))) {
+        stored.push_back(encode_field(record.[:field:]));
+    }
+    return stored;
 }
 
 template <typename F>
@@ -470,21 +565,8 @@ T database_t::decode_record(std::span<cell_t> stored, std::index_sequence<I...>)
 }
 
 template <typename T>
-database_t::table_t<T>::table_t(database_t& database, std::string_view name):
-    m_database(&database),
-    m_name(name),
-    m_columns(database_t::columns<T>())
-{
-    m_database->ensure_table(m_name, m_columns);
-}
-
-template <typename T>
 void database_t::table_t<T>::insert(const T& record) const {
-    std::vector<cell_t> stored;
-    stored.reserve(m_columns.size());
-    template for (constexpr auto field : std::define_static_array(std::meta::nonstatic_data_members_of(^^T, std::meta::access_context::current()))) {
-        stored.push_back(database_t::encode_field(record.[:field:]));
-    }
+    const auto stored = database_t::encode_record(record);
     m_database->insert_impl(m_name, m_columns, stored);
 }
 
@@ -498,8 +580,38 @@ std::vector<T> database_t::table_t<T>::rows() const {
 }
 
 template <typename T>
-void database_t::table_t<T>::drop() const {
-    m_database->drop_impl(m_name, m_columns);
+template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
+std::vector<T> database_t::table_t<T>::rows(const selected_t<T, Member>& match) const {
+    const auto encoded = database_t::encode_field(match);
+    std::vector<T> result;
+    m_database->rows_impl(m_name, m_columns, [&result](std::span<cell_t> stored) {
+        result.emplace_back(database_t::decode_record<T>(stored, std::make_index_sequence<std::meta::nonstatic_data_members_of(^^T, std::meta::access_context::current()).size()>{}));
+    }, std::meta::identifier_of(selected_field<T, Member>()), encoded);
+    return result;
+}
+
+template <typename T>
+template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
+std::size_t database_t::table_t<T>::replace(const selected_t<T, Member>& match, const T& replacement) const {
+    const auto encoded = database_t::encode_field(match);
+    const auto stored = database_t::encode_record(replacement);
+    return m_database->mutate_impl(m_name, m_columns, std::meta::identifier_of(selected_field<T, Member>()), encoded, stored);
+}
+
+template <typename T>
+template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
+std::size_t database_t::table_t<T>::erase(const selected_t<T, Member>& match) const {
+    const auto encoded = database_t::encode_field(match);
+    return m_database->mutate_impl(m_name, m_columns, std::meta::identifier_of(selected_field<T, Member>()), encoded, {});
+}
+
+template <typename T>
+database_t::table_t<T>::table_t(database_t& database, std::string_view name):
+    m_database(&database),
+    m_name(name),
+    m_columns(database_t::columns<T>())
+{
+    m_database->ensure_table(m_name, m_columns);
 }
 
 } // namespace m03h5hm86mnvc18opf1rdttsgh_database

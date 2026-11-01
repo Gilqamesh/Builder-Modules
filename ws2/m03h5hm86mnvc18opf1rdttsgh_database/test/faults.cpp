@@ -3,8 +3,36 @@
 #include <cstdio>
 #include <cstdlib>
 #include <dlfcn.h>
+#include <functional>
 #include <sqlite3.h>
 #include <string_view>
+#include <utility>
+
+namespace m03h5hm86mnvc18opf1rdttsgh_database {
+std::function<void()> enumeration_hook;
+} // namespace m03h5hm86mnvc18opf1rdttsgh_database
+
+extern "C" int sqlite3_step(sqlite3_stmt* statement) {
+    static const auto step = reinterpret_cast<decltype(&sqlite3_step)>(dlsym(RTLD_NEXT, "sqlite3_step"));
+    if (!step) std::abort();
+    const auto result = step(statement);
+    const auto* sql = sqlite3_sql(statement);
+    const std::string_view command = sql ? sql : "";
+    if (result == SQLITE_ROW && command == "SELECT name FROM main.sqlite_schema WHERE type = 'table'") {
+        auto hook = std::exchange(m03h5hm86mnvc18opf1rdttsgh_database::enumeration_hook, {});
+        if (hook) hook();
+    }
+    const auto* selected = std::getenv("BUILDER_DATABASE_TEST_FAULT");
+    const std::string_view fault = selected ? selected : "";
+    if (result == SQLITE_ROW && (fault == "mutation" || fault == "mutation_recovery") &&
+        (command.starts_with("UPDATE main.") || command.starts_with("DELETE FROM main."))) {
+        const bool recovery = fault == "mutation_recovery";
+        unsetenv("BUILDER_DATABASE_TEST_FAULT");
+        if (recovery) setenv("BUILDER_DATABASE_TEST_FAULT", "recovery", 1);
+        return SQLITE_IOERR;
+    }
+    return result;
+}
 
 extern "C" int rename(const char* from, const char* to) noexcept {
     static const auto rename_file = reinterpret_cast<decltype(&rename)>(dlsym(RTLD_NEXT, "rename"));

@@ -12,6 +12,7 @@ extern "C" void phase__interface(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::
 
 extern "C" void phase__library(const m03gagbhsujjf63n0w3r2w4q6h_build_phases::library_phase_t* phase) {
     phase->install_library(phase->build_library({ phase->source("database.cpp") }, {}));
+    phase->validate_library("public_api", { phase->source("test/public_api.cpp") });
     phase->validate_library("transactions", { phase->source("test/transactions.cpp") });
     phase->validate_library("private_backend", { phase->source("test/backend.cpp"), phase->source("test/faults.cpp") });
     phase->validate_library("standalone_header", { phase->source("test/standalone_header.cpp") });

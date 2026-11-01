@@ -54,16 +54,15 @@ void expect_failure(F&& action, std::string_view fragment = {}) {
 void atomic_groups() {
     static_assert(std::same_as<decltype(&database_t::transaction), void (database_t::*)(std::function_ref<void(database_t&)>)>);
     static_assert(!has_untyped_drop<database_t>);
-    static_assert(std::same_as<decltype(&table_t<number_row_t>::drop), void (table_t<number_row_t>::*)() const>);
     database_t database;
-    const auto numbers = database.table<number_row_t>("numbers");
+    const auto numbers = database.create_table<number_row_t>("numbers");
     const auto copied = numbers;
     int invocations = 0;
     auto action = [&, token = std::make_unique<int>(7)](database_t& same_database) {
         assert(&same_database == &database && *token == 7);
         ++invocations;
         copied.insert(number_row_t{1});
-        same_database.table<number_row_t>("other").insert(number_row_t{2});
+        same_database.create_table<number_row_t>("other").insert(number_row_t{2});
         assert(numbers.rows().size() == 1);
         int nested_calls = 0;
         expect_failure<std::logic_error>([&] {
@@ -73,27 +72,27 @@ void atomic_groups() {
     };
     database.transaction(action);
     assert(invocations == 1 && numbers.rows().size() == 1);
-    assert(database.table<number_row_t>("other").rows().size() == 1);
+    assert(database.create_table<number_row_t>("other").rows().size() == 1);
 
     std::optional<table_t<number_row_t>> uncommitted;
     expect_failure<callback_error_t>([&] {
         database.transaction([&](database_t& same_database) {
             numbers.insert(number_row_t{3});
-            uncommitted.emplace(same_database.table<number_row_t>("uncommitted"));
+            uncommitted.emplace(same_database.create_table<number_row_t>("uncommitted"));
             uncommitted->insert(number_row_t{4});
-            same_database.table<number_row_t>("other").drop();
+            same_database.drop_table<number_row_t>("other");
             throw callback_error_t{};
         });
     });
     assert(numbers.rows().size() == 1);
-    assert(database.table<number_row_t>("other").rows().size() == 1);
+    assert(database.create_table<number_row_t>("other").rows().size() == 1);
     expect_failure<std::runtime_error>([&] { (void)uncommitted->rows(); }, "does not exist");
 
     database.transaction([&](database_t& same_database) {
         numbers.insert(number_row_t{5});
-        expect_failure<std::runtime_error>([&] { (void)same_database.table<labeled_row_t>("numbers"); });
+        expect_failure<std::runtime_error>([&] { (void)same_database.create_table<labeled_row_t>("numbers"); });
         decode_hook = [] { throw std::runtime_error("decoder sentinel"); };
-        expect_failure<std::runtime_error>([&] { (void)same_database.table<decoded_row_t>("numbers").rows(); }, "decoder sentinel");
+        expect_failure<std::runtime_error>([&] { (void)same_database.create_table<decoded_row_t>("numbers").rows(); }, "decoder sentinel");
         decode_hook = {};
         assert(numbers.rows().size() == 2);
         numbers.insert(number_row_t{6});
@@ -103,44 +102,48 @@ void atomic_groups() {
 
 void removal() {
     database_t database;
-    const auto numbers = database.table<number_row_t>("numbers");
+    const auto numbers = database.create_table<number_row_t>("numbers");
     numbers.insert(number_row_t{1});
-    numbers.drop();
-    numbers.drop();
+    database.drop_table<number_row_t>("numbers");
+    database.drop_table<number_row_t>("numbers");
     expect_failure<std::runtime_error>([&] { (void)numbers.rows(); });
     expect_failure<std::runtime_error>([&] { numbers.insert(number_row_t{2}); });
-    const auto recreated = database.table<number_row_t>("numbers");
+    expect_failure<std::runtime_error>([&] { (void)numbers.rows<&number_row_t::number>(1); });
+    expect_failure<std::runtime_error>([&] { (void)numbers.replace<&number_row_t::number>(1, number_row_t{2}); });
+    expect_failure<std::runtime_error>([&] { (void)numbers.erase<&number_row_t::number>(1); });
+    const auto recreated = database.create_table<number_row_t>("numbers");
     numbers.insert(number_row_t{3});
     assert(recreated.rows().front().number == 3);
+    assert(numbers.replace<&number_row_t::number>(3, number_row_t{3}) == 1);
     expect_failure<callback_error_t>([&] {
         database.transaction([&](database_t&) {
-            numbers.drop();
+            database.drop_table<number_row_t>("numbers");
             throw callback_error_t{};
         });
     });
     assert(numbers.rows().front().number == 3);
     database.transaction([&](database_t& same_database) {
-        numbers.drop();
-        const auto replacement = same_database.table<labeled_row_t>("numbers");
+        database.drop_table<number_row_t>("numbers");
+        const auto replacement = same_database.create_table<labeled_row_t>("numbers");
         replacement.insert(labeled_row_t{4, "preserved"});
-        expect_failure<std::runtime_error>([&] { numbers.drop(); }, "column");
+        expect_failure<std::runtime_error>([&] { database.drop_table<number_row_t>("numbers"); }, "column");
         assert(replacement.rows().front().label == "preserved");
     });
-    expect_failure<std::runtime_error>([&] { numbers.drop(); });
-    const auto replacement = database.table<labeled_row_t>("numbers");
+    expect_failure<std::runtime_error>([&] { database.drop_table<number_row_t>("numbers"); });
+    const auto replacement = database.create_table<labeled_row_t>("numbers");
     assert(replacement.rows().front().label == "preserved");
-    replacement.drop();
-    numbers.drop();
+    database.drop_table<labeled_row_t>("numbers");
+    database.drop_table<number_row_t>("numbers");
 }
 
 void transaction_snapshots(const std::filesystem::path& directory) {
     const auto filename = directory / "transactions.db";
     database_t reader(filename);
     database_t writer(filename);
-    const auto read_numbers = reader.table<number_row_t>("numbers");
-    const auto read_others = reader.table<number_row_t>("others");
-    const auto write_numbers = writer.table<number_row_t>("numbers");
-    const auto write_others = writer.table<number_row_t>("others");
+    const auto read_numbers = reader.create_table<number_row_t>("numbers");
+    const auto read_others = reader.create_table<number_row_t>("others");
+    const auto write_numbers = writer.create_table<number_row_t>("numbers");
+    const auto write_others = writer.create_table<number_row_t>("others");
     write_numbers.insert(number_row_t{1});
     write_others.insert(number_row_t{2});
     reader.transaction([&](database_t&) {
@@ -162,11 +165,11 @@ void transaction_snapshots(const std::filesystem::path& directory) {
         assert(write_numbers.rows().size() == 3 && write_others.rows().size() == 3);
         assert(read_numbers.rows().size() == 2 && read_others.rows().size() == 2);
         // Acquiring another table must not commit the enclosing transaction.
-        same_database.table<number_row_t>("created in transaction").insert(number_row_t{8});
+        same_database.create_table<number_row_t>("created in transaction").insert(number_row_t{8});
         assert(read_numbers.rows().size() == 2);
         expect_failure<std::runtime_error>([&] { read_numbers.insert(number_row_t{9}); });
-        expect_failure<std::runtime_error>([&] { read_numbers.drop(); });
-        expect_failure<std::runtime_error>([&] { (void)reader.table<number_row_t>("blocked acquisition"); });
+        expect_failure<std::runtime_error>([&] { reader.drop_table<number_row_t>("numbers"); });
+        expect_failure<std::runtime_error>([&] { (void)reader.create_table<number_row_t>("blocked acquisition"); });
     });
     assert(read_numbers.rows().size() == 3 && read_others.rows().size() == 3);
     read_numbers.insert(number_row_t{10});
@@ -177,41 +180,111 @@ void handle_snapshots(const std::filesystem::path& directory) {
     const auto filename = directory / "handles.db";
     database_t reader(filename);
     database_t writer(filename);
-    const auto original = reader.table<number_row_t>("numbers");
-    const auto writes = writer.table<number_row_t>("numbers");
+    const auto original = reader.create_table<number_row_t>("numbers");
+    const auto writes = writer.create_table<number_row_t>("numbers");
     original.insert(number_row_t{1});
     original.insert(number_row_t{2});
-    const auto decoded = reader.table<decoded_row_t>("numbers");
+    const auto decoded = reader.create_table<decoded_row_t>("numbers");
     bool changed = false;
     decode_hook = [&] {
         if (changed) return;
         changed = true;
         writer.transaction([&](database_t& same_database) {
-            writes.drop();
-            same_database.table<labeled_row_t>("numbers").insert(labeled_row_t{3, "replacement"});
+            writer.drop_table<number_row_t>("numbers");
+            same_database.create_table<labeled_row_t>("numbers").insert(labeled_row_t{3, "replacement"});
         });
     };
-    const auto snapshot = decoded.rows();
+    const auto snapshot = decoded.rows<&decoded_row_t::number>(decoded_number_t{1});
     decode_hook = {};
-    assert(changed && snapshot.size() == 2);
+    assert(changed && snapshot.size() == 1);
     assert(std::ranges::any_of(snapshot, [](const decoded_row_t& row) { return row.number.number == 1; }));
-    assert(std::ranges::any_of(snapshot, [](const decoded_row_t& row) { return row.number.number == 2; }));
-    expect_failure<std::runtime_error>([&] { original.drop(); });
+    expect_failure<std::runtime_error>([&] { reader.drop_table<number_row_t>("numbers"); });
     expect_failure<std::runtime_error>([&] { original.insert(number_row_t{4}); });
     expect_failure<std::runtime_error>([&] { (void)original.rows(); });
-    const auto replacement = reader.table<labeled_row_t>("numbers");
+    expect_failure<std::runtime_error>([&] { (void)original.rows<&number_row_t::number>(1); });
+    expect_failure<std::runtime_error>([&] { (void)original.replace<&number_row_t::number>(1, number_row_t{5}); });
+    expect_failure<std::runtime_error>([&] { (void)original.erase<&number_row_t::number>(1); });
+    const auto replacement = reader.create_table<labeled_row_t>("numbers");
     assert(replacement.rows().front().label == "replacement");
 
     reader.transaction([&](database_t&) {
         // A replacement committed after snapshot acquisition must also survive drop().
         writer.transaction([&](database_t& same_database) {
-            same_database.table<labeled_row_t>("numbers").drop();
-            same_database.table<number_row_t>("numbers").insert(number_row_t{9});
+            same_database.drop_table<labeled_row_t>("numbers");
+            same_database.create_table<number_row_t>("numbers").insert(number_row_t{9});
         });
-        expect_failure<std::runtime_error>([&] { replacement.drop(); });
+        expect_failure<std::runtime_error>([&] { reader.drop_table<labeled_row_t>("numbers"); });
         assert(replacement.rows().front().label == "replacement");
     });
     assert(original.rows().front().number == 9);
+}
+
+void matching_transactions() {
+    database_t database;
+    const auto numbers = database.create_table<number_row_t>("numbers");
+    const auto decoded = database.create_table<decoded_row_t>("numbers");
+    numbers.insert(number_row_t{1});
+    numbers.insert(number_row_t{1});
+    expect_failure<callback_error_t>([&] {
+        database.transaction([&](database_t&) {
+            assert(numbers.replace<&number_row_t::number>(1, number_row_t{2}) == 2);
+            assert(numbers.rows<&number_row_t::number>(2).size() == 2);
+            assert(numbers.erase<&number_row_t::number>(2) == 2);
+            assert(numbers.rows().empty());
+            throw callback_error_t{};
+        });
+    });
+    assert(numbers.rows<&number_row_t::number>(1).size() == 2);
+    database.transaction([&](database_t&) {
+        assert(numbers.replace<&number_row_t::number>(1, number_row_t{3}) == 2);
+        int decoded_count = 0;
+        decode_hook = [&] { if (++decoded_count == 2) throw callback_error_t{}; };
+        expect_failure<callback_error_t>([&] { (void)decoded.rows<&decoded_row_t::number>(decoded_number_t{3}); });
+        decode_hook = {};
+        assert(decoded_count == 2);
+        assert(numbers.rows<&number_row_t::number>(3).size() == 2);
+        assert(numbers.erase<&number_row_t::number>(3) == 2);
+        numbers.insert(number_row_t{4});
+    });
+    assert(numbers.rows().size() == 1 && numbers.rows().front().number == 4);
+}
+
+void enumeration_snapshots(const std::filesystem::path& directory) {
+    const auto filename = directory / "enumeration";
+    database_t reader(filename);
+    database_t writer(filename);
+    assert(reader.tables().empty());
+    reader.transaction([&](database_t&) {
+        writer.create_table<number_row_t>("outside");
+        assert(reader.tables().empty());
+    });
+    assert(reader.tables() == std::vector<std::string>{"outside"});
+    expect_failure<callback_error_t>([&] {
+        reader.transaction([&](database_t& same_database) {
+            same_database.create_table<labeled_row_t>("own table");
+            same_database.drop_table<number_row_t>("outside");
+            assert(same_database.tables() == std::vector<std::string>{"own table"});
+            assert(writer.tables() == std::vector<std::string>{"outside"});
+            throw callback_error_t{};
+        });
+    });
+    assert(reader.tables() == std::vector<std::string>{"outside"});
+    reader.transaction([&](database_t&) {
+        writer.transaction([&](database_t& same_database) {
+            same_database.drop_table<number_row_t>("outside");
+            same_database.create_table<labeled_row_t>("replacement");
+        });
+        assert(reader.tables() == std::vector<std::string>{"outside"});
+        expect_failure<std::runtime_error>([&] { reader.drop_table<number_row_t>("outside"); });
+        assert(reader.tables() == std::vector<std::string>{"outside"});
+    });
+    assert(reader.tables() == std::vector<std::string>{"replacement"});
+    reader.transaction([&](database_t& same_database) {
+        same_database.drop_table<labeled_row_t>("replacement");
+        same_database.create_table<number_row_t>("committed");
+        assert(same_database.tables() == std::vector<std::string>{"committed"});
+    });
+    assert(writer.tables() == std::vector<std::string>{"committed"});
 }
 
 } // namespace m03h5hm86mnvc18opf1rdttsgh_database
@@ -220,9 +293,11 @@ int main() {
     using namespace m03h5hm86mnvc18opf1rdttsgh_database;
     atomic_groups();
     removal();
+    matching_transactions();
     const auto directory = std::filesystem::temp_directory_path() / std::format("database-transactions-{}", std::chrono::steady_clock::now().time_since_epoch().count());
     std::filesystem::create_directories(directory);
     transaction_snapshots(directory);
     handle_snapshots(directory);
+    enumeration_snapshots(directory);
     std::filesystem::remove_all(directory);
 }
