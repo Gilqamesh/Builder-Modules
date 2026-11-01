@@ -8,6 +8,7 @@ Own the typed record database abstraction. Keep the storage backend, physical re
 
 - Keep the shared model and detailed requirements in [README.md](README.md).
 - Use [database.h](database.h) comments for concise, operation-specific semantics.
+- Keep documentation navigation in Markdown and C++ comments focused on local semantics.
 - Assume an experienced C++ reader.
 - Avoid duplicated explanations and examples.
 - Keep guarantees and limitations explicit in documentation.

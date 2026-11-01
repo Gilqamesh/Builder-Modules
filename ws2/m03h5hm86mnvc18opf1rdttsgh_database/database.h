@@ -26,7 +26,7 @@
 
 namespace m03h5hm86mnvc18opf1rdttsgh_database {
 
-/** @brief Customization point for owning fields; see the [codec contract](README.md#fields-and-codecs). */
+/** @brief Customization point for owning fields. */
 template <typename T>
 struct column_codec;
 
@@ -54,11 +54,7 @@ struct column_codec<T> {
     static T decode(storage_t stored);
 };
 
-/**
- * @brief Manages typed tables and atomic transactions.
- *
- * See [README.md](README.md) for the shared model and detailed requirements.
- */
+/** @brief Manages typed tables and atomic transactions. */
 class database_t {
 public:
     /** @brief Creates an independent in-memory database. */
@@ -72,10 +68,7 @@ public:
     database_t(database_t&&) = delete;
     database_t& operator=(database_t&&) = delete;
 
-    /**
-     * @brief Invokes action(*this) synchronously once.
-     * See README.md for commit and error recovery rules.
-     */
+    /** @brief Invokes action(*this) synchronously once. */
     void transaction(std::function_ref<void(database_t&)> action);
 
     template <typename T>
