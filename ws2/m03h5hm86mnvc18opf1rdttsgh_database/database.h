@@ -26,33 +26,10 @@
 
 namespace m03h5hm86mnvc18opf1rdttsgh_database {
 
-/**
- * @brief Maps an owning field type directly to one canonical column representation.
- *
- * Specializations must be visible before record operations are instantiated.
- * storage_t is exactly int64_t, double, string, or byte_stream_t. encode(const T&)
- * returns storage_t or const storage_t&; borrowed storage must remain valid until
- * consumed by the operation. decode accepts an owned storage_t rvalue and returns T
- * by value, retaining its data independently of that argument and the database.
- * Codec exceptions propagate unchanged. Decoding runs inside the read snapshot;
- * codecs must not re-enter the same database. Encoding compatibility and migration
- * belong to the application; no codec identifier or version is persisted.
- * Nested objects and containers require explicit codecs. Views, enums, and long
- * double have no built-in codec.
- *
- * optional<U> always uses U's codec and represents an absent or present value. Direct codecs
- * for optional and nested optionals are unsupported; use a domain wrapper instead.
- * Storage kinds are not converted. Canonical double must not be NaN when encoding
- * (invalid_argument). Built-in numeric range failures throw out_of_range.
- */
+/** @brief Customization point for owning fields; see the [codec contract](README.md#fields-and-codecs). */
 template <typename T>
 struct column_codec;
 
-/**
- * @brief Stores standard integral types as checked signed 64-bit integers.
- *
- * Insertion and decoding check their destination ranges; bool accepts only 0/1.
- */
 template <std::integral T>
 struct column_codec<T> {
     using storage_t = std::int64_t;
@@ -61,12 +38,6 @@ struct column_codec<T> {
     static T decode(storage_t number);
 };
 
-/**
- * @brief Stores float and double using canonical double precision.
- *
- * Rounding and underflow are allowed, finite overflow is rejected, and infinities
- * are preserved.
- */
 template <typename T> requires (std::same_as<T, float> || std::same_as<T, double>)
 struct column_codec<T> {
     using storage_t = double;
@@ -75,7 +46,6 @@ struct column_codec<T> {
     static T decode(storage_t number);
 };
 
-/** @brief Stores owning strings and byte streams, distinguishing empty data from absence. */
 template <typename T> requires (std::same_as<T, std::string> || std::same_as<T, m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t>)
 struct column_codec<T> {
     using storage_t = T;
@@ -85,47 +55,15 @@ struct column_codec<T> {
 };
 
 /**
- * @brief Manages typed tables and atomic transactions in one database connection.
+ * @brief Manages typed tables and atomic transactions.
  *
- * Serialize access to the database and all its handles, including destruction.
- * Invalid runtime arguments throw invalid_argument; schema, database-state and
- * backend failures throw contextual runtime_error. Allocation exceptions propagate
- * unchanged. See column_codec for codec and numeric failures.
- * Failures attempt transaction cleanup, preserving the original exception.
- * Destruction never throws. Persistent storage is an opaque, module-owned
- * directory. Close all connections before copying or moving the entire directory.
- * Live filesystem copying, external changes, and externally authored storage
- * layouts are unsupported.
- *
- * @code
- * struct person_t { std::int64_t id; std::string name; std::optional<int> age; };
- * database_t db;
- * auto people = db.create_table<person_t>("people");
- * people.insert(person_t{1, "Ada", 36});
- * auto names = db.tables();
- * auto matches = people.rows<&person_t::id>(1);
- * people.replace<&person_t::id>(1, person_t{1, "Ada", 37});
- * people.erase<&person_t::id>(1);
- * db.drop_table<person_t>("people");
- * @endcode
+ * See [README.md](README.md) for the shared model and detailed requirements.
  */
 class database_t {
 public:
     /** @brief Creates an independent in-memory database. */
     database_t();
-    /**
-     * @brief Opens or creates a database storage directory and reads its schema.
-     *
-     * Rejects empty paths and embedded NULs. Relative paths become normalized
-     * absolute paths; the parent directory must exist. All paths are literal.
-     * Creates missing directories or initializes empty ones. Nonempty directories
-     * must contain recognized, supported-version module storage with no extra
-     * entries or linked private files. Legacy database files, unsupported versions,
-     * and incomplete initialization are rejected without conversion or repair.
-     * Failed initialization may leave incomplete storage that must be removed
-     * before retrying. Does not perform an integrity scan; damaged data may be
-     * detected by later operations.
-     */
+    /** @brief Opens or creates a database in a persistent storage directory. */
     explicit database_t(const std::filesystem::path& directory);
     ~database_t() noexcept;
 
@@ -135,70 +73,23 @@ public:
     database_t& operator=(database_t&&) = delete;
 
     /**
-     * @brief Runs action once with this database and atomically commits its changes.
-     *
-     * Invokes action(*this) synchronously after setup; never retains or retries it.
-     * All handles borrowing this database participate, including existing handles.
-     * Reads share one external snapshot established before the callback and see
-     * the transaction's own changes. Operations do not independently commit.
-     * Other connections may commit while this transaction reads; conflicting
-     * writes fail with runtime_error, without automatic retries.
-     *
-     * Normal return commits only if the transaction remains valid. An escaping
-     * exception rolls back and propagates unchanged. A caught operation error
-     * permits continuation only when its effects were undone and the transaction
-     * remains valid; otherwise this call fails even if action returns normally.
-     * Commit failures propagate. Cleanup failures never mask the original error
-     * and may leave the connection unusable. Nested transactions on this database
-     * throw logic_error before invoking their callback.
+     * @brief Invokes action(*this) synchronously once.
+     * See README.md for commit and error recovery rules.
      */
     void transaction(std::function_ref<void(database_t&)> action);
 
     template <typename T>
     class table_t;
 
-    /**
-     * @brief Atomically creates a missing table or validates and reuses a compatible one.
-     *
-     * Logical names must be nonempty and contain no NUL. Lookup is ASCII
-     * case-insensitive. Names are independent of the private storage representation.
-     * Incompatible schemas are rejected without changing existing data.
-     *
-     * T must be a nonempty nonunion aggregate with named accessible fields, no
-     * bases or bitfields, and no reference or raw-pointer fields. Each field needs
-     * a valid codec; duplicate and ASCII case-colliding member names are rejected.
-     * Unsupported fields fail compilation with their names.
-     * T must support vector construction; default construction and assignment
-     * are unnecessary, and move-only owning fields are supported.
-     *
-     * Compatibility requires matching field names, canonical representations and
-     * optionality; declaration order may differ. Member renaming and changes to
-     * codec encodings require application-managed migration. Outside transaction(),
-     * acquisition commits before returning; inside it, acquisition participates.
-     */
+    /** @brief Creates a missing table or reuses a compatible one; rejects incompatibility. */
     template <typename T>
     table_t<T> create_table(std::string_view name);
 
-    /**
-     * @brief Atomically deletes a compatible table, doing nothing when it is missing.
-     *
-     * Uses create_table<T>()'s name and compatibility rules without creating tables.
-     * Lookup, validation and deletion join transaction() or commit before return.
-     * An incompatible table is rejected without deleting it. Existing handles keep
-     * their logical names; record operations fail until compatible recreation.
-     */
+    /** @brief Validates compatibility and deletes the table; a missing table is a no-op. */
     template <typename T>
     void drop_table(std::string_view name);
 
-    /**
-     * @brief Returns all existing application table names in ordinary string order.
-     *
-     * Owning names preserve creation spelling, survive database destruction and
-     * exclude private storage and backend objects. Case-insensitive acquisition
-     * never renames a table. Empty databases return an empty vector.
-     * Reads one consistent snapshot, using transaction()'s snapshot and observing
-     * its own table creations and deletions when inside a transaction.
-     */
+    /** @brief Returns sorted logical table names, preserving creation spelling. */
     std::vector<std::string> tables() const;
 
 private:
@@ -245,16 +136,8 @@ private:
 };
 
 /**
- * @brief Manages records in a typed table borrowed from a database.
- *
- * The database must outlive this handle, all copies, and all operations. Handles
- * own their table name and can be copied or moved. A const handle still permits
- * record changes through its database. Returned records are detached C++ values;
- * persist edited values explicitly with replace(). Use transaction() for atomic
- * read–modify–write sequences.
- * Each operation revalidates the schema; later incompatible changes are rejected.
- * After moving a handle, use its destination; the source may only be reassigned
- * or destroyed.
+ * @brief A typed table handle borrowing its database.
+ * The database must outlive all handles and operations.
  */
 template <typename T>
 class database_t::table_t {
@@ -264,47 +147,22 @@ public:
     table_t(table_t&&) = default;
     table_t& operator=(table_t&&) = default;
 
-    /** @brief Inserts current field values, joining transaction() or committing before return. */
     void insert(const T& record) const;
-    /**
-     * @brief Retrieves owning records from one validated read snapshot.
-     *
-     * Returns vector<T> by value, preserving duplicates with no ordering guarantee.
-     * Records survive handle and database destruction. Failures return no partial
-     * result.
-     */
+    /** @brief Returns unordered, owning records with duplicates preserved. */
     std::vector<T> rows() const;
 
-    /**
-     * @brief Retrieves every record whose selected field has the encoded match value.
-     *
-     * Member must select a supported accessible direct nonstatic data member of T;
-     * invalid selectors fail compilation. match has that field's type and uses its
-     * codec. Equality compares canonical representations: exact strings and bytes
-     * (including NULs), numeric equality, and absence for absent optionals. Custom
-     * encoded equality may differ from C++ equality. Preserves duplicates and uses
-     * the same owning, unordered snapshot contract as rows().
-     */
+    /** @brief Returns unordered records matching encoded equality, preserving duplicates. */
     template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
     std::vector<T> rows(const selected_t<T, Member>& match) const;
 
     /**
-     * @brief Replaces every matching record completely and returns the matched count.
-     *
-     * Uses rows<Member>()'s selection semantics, evaluated against the original
-     * match. Replacement may change the selected field. Identical replacements
-     * count as matches; zero matches succeed. Joins transaction() or commits before
-     * return. Failures roll back the operation under transaction()'s recovery rules.
+     * @brief Replaces every match completely.
+     * Returns the matched count, including unchanged records.
      */
     template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
     std::size_t replace(const selected_t<T, Member>& match, const T& replacement) const;
 
-    /**
-     * @brief Deletes every matching record and returns the deleted count.
-     *
-     * Uses rows<Member>()'s selection semantics. Zero matches succeed; joins
-     * transaction() or commits before return with the same recovery as replace().
-     */
+    /** @brief Deletes every match and returns the deleted count. */
     template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
     std::size_t erase(const selected_t<T, Member>& match) const;
 
@@ -317,7 +175,6 @@ private:
     std::vector<column_t> m_columns;
 };
 
-/** @brief A typed table handle borrowing its owning database. */
 template <typename T>
 using table_t = database_t::table_t<T>;
 

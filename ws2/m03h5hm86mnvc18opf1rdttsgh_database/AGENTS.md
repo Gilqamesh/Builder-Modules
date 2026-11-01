@@ -2,7 +2,15 @@
 
 ## Purpose
 
-Own the typed record database abstraction. Keep the storage backend, physical representation, and recovery mechanisms private. The public contract belongs in [database.h](database.h).
+Own the typed record database abstraction. Keep the storage backend, physical representation, and recovery mechanisms private.
+
+## Documentation
+
+- Keep the shared model and detailed requirements in [README.md](README.md).
+- Use [database.h](database.h) comments for concise, operation-specific semantics.
+- Assume an experienced C++ reader.
+- Avoid duplicated explanations and examples.
+- Keep guarantees and limitations explicit in documentation.
 
 ## Validation
 
