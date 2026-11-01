@@ -182,7 +182,5 @@ From the Builder-Layout root:
 ./cli m03h5hm86mnvc18opf1rdttsgh_database:validate
 ```
 
-The library phase runs six runtime validations, including
-[`test/readme_example.cpp`](test/readme_example.cpp), before publishing its artifact.
-The example test retains the workflow's verification. Completed artifacts are reused
-normally.
+The runnable example is covered by
+[`test/readme_example.cpp`](test/readme_example.cpp), which verifies the workflow's results.

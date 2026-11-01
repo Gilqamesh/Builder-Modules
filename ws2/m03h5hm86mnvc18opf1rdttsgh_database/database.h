@@ -26,7 +26,10 @@
 
 namespace m03h5hm86mnvc18opf1rdttsgh_database {
 
-/** @brief Customization point for owning fields. */
+/**
+ * @brief Converts owning C++ field values to and from database storage values.
+ * Specialize it to store application-defined field types.
+ */
 template <typename T>
 struct column_codec;
 
@@ -54,12 +57,19 @@ struct column_codec<T> {
     static T decode(storage_t stored);
 };
 
-/** @brief Manages typed tables and atomic transactions. */
+/**
+ * @brief Stores owning C++ records in typed tables, in memory or in a persistent directory.
+ * Table handles provide record access; transactions group changes atomically.
+ * Serialize access to the database and all its handles, including destruction.
+ */
 class database_t {
 public:
     /** @brief Creates an independent in-memory database. */
     database_t();
-    /** @brief Opens or creates a database in a persistent storage directory. */
+    /**
+     * @brief Opens or creates a database in a literal storage directory.
+     * The module owns the entire directory; its parent must already exist.
+     */
     explicit database_t(const std::filesystem::path& directory);
     ~database_t() noexcept;
 
@@ -68,24 +78,36 @@ public:
     database_t(database_t&&) = delete;
     database_t& operator=(database_t&&) = delete;
 
-    /** @brief Invokes action(*this) synchronously once. */
+    /**
+     * @brief Groups table and record changes atomically.
+     * Invokes action(*this) synchronously once after setup, without retaining or retrying it.
+     * All handles borrowing this database participate. Normal callback return commits only
+     * if the transaction remains valid; an escaping exception rolls back and propagates unchanged.
+     * Nested transactions on the same database are rejected before the nested callback runs.
+     */
     void transaction(std::function_ref<void(database_t&)> action);
 
     template <typename T>
     class table_t;
 
     /**
-     * @brief Creates a missing table or reuses a compatible one; rejects incompatibility.
-     * Fields may be const; volatile fields and volatile optional elements are unsupported.
+     * @brief Creates a missing table or returns access to a compatible existing table.
+     * An incompatible schema is rejected without changing existing data.
      */
     template <typename T>
     table_t<T> create_table(std::string_view name);
 
-    /** @brief Validates compatibility and deletes the table; a missing table is a no-op. */
+    /**
+     * @brief Validates a table's schema and deletes it atomically.
+     * A missing table is a successful no-op and is never created along the way.
+     */
     template <typename T>
     void drop_table(std::string_view name);
 
-    /** @brief Returns sorted logical table names, preserving creation spelling. */
+    /**
+     * @brief Returns all application table names in std::string order, preserving creation spelling.
+     * Returned names own their data and exclude private storage objects.
+     */
     std::vector<std::string> tables() const;
 
 private:
@@ -132,8 +154,9 @@ private:
 };
 
 /**
- * @brief A typed table handle borrowing its database.
- * The database must outlive all handles and operations.
+ * @brief Provides access to records of type T in a particular table.
+ * Borrows the database, which must outlive the handle, its copies, and all operations.
+ * Const handles permit record changes.
  */
 template <typename T>
 class database_t::table_t {
@@ -143,22 +166,33 @@ public:
     table_t(table_t&&) = default;
     table_t& operator=(table_t&&) = default;
 
+    /** @brief Inserts the record's current field values without retaining the record. */
     void insert(const T& record) const;
-    /** @brief Returns unordered, owning records with duplicates preserved. */
+    /**
+     * @brief Returns all records as unordered, owning values, preserving duplicates.
+     * Editing a returned record does not persist changes. Failure returns no partial result.
+     */
     std::vector<T> rows() const;
 
-    /** @brief Returns unordered records matching encoded equality, preserving duplicates. */
+    /**
+     * @brief Returns unordered, owning records whose selected field equals match after encoding.
+     * Preserves duplicates; encoded equality can differ from C++ equality.
+     */
     template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
     std::vector<T> rows(const selected_t<T, Member>& match) const;
 
     /**
-     * @brief Replaces every match completely.
-     * Returns the matched count, including unchanged records.
+     * @brief Completely replaces every record whose selected field equals match after encoding.
+     * Matches use the original field values, including duplicates; replacement may change the selected field.
+     * Returns the matched count, including unchanged records, or zero when nothing matches.
      */
     template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
     std::size_t replace(const selected_t<T, Member>& match, const T& replacement) const;
 
-    /** @brief Deletes every match and returns the deleted count. */
+    /**
+     * @brief Deletes every record whose selected field equals match after encoding, including duplicates.
+     * Returns the deleted count, or zero when nothing matches.
+     */
     template <auto Member> requires (database_t::selected_field<T, Member>() != std::meta::info{})
     std::size_t erase(const selected_t<T, Member>& match) const;
 
