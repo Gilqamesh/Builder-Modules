@@ -1,11 +1,12 @@
 # Render to a texture
 
 Textures own storage, framebuffers borrow writable views, and materials retain
-sampled textures. Applications keep views valid and sequence passes. Attachment
+sampled textures. Borrowed storage must remain valid throughout each operation;
+passes are explicitly sequenced. Attachment
 and feedback requirements are in [framebuffer.h](../framebuffer.h) and
 [software_renderer.h](../software_renderer.h).
 
-## Two-pass caller
+## Two-pass sequence
 
 With geometry, shader programs, camera and material already configured:
 

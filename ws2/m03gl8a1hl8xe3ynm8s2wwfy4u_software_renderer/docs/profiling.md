@@ -1,32 +1,53 @@
 # Renderer profiling and benchmark
 
-Applications pass a parent metric to drawing and clearing. Each operation creates
+Drawing and clearing borrow a parent metric for the operation. Each operation creates
 its child metric; drawing measures preparation, vertex execution, and rasterization.
 [profiling_metrics.h](../profiling_metrics.h) defines counters. The
 [profiler API](../../../ws1/m03gtjqkhqacstl3luv2ojsz3q_profiling/api.h) defines metric
 lifetimes, enablement, accumulated timing, and reporting.
 
 ```cpp
+#include <m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer/software_renderer.h>
+#include <m03gtrxnmqqa2t7zxpijo222n6_formatting/api.h>
+#include <m03gtjqkhqacstl3luv2ojsz3q_profiling/api.h>
+
+#include <cstddef>
+#include <iostream>
+#include <vector>
+
 namespace profiling = m03gtjqkhqacstl3luv2ojsz3q_profiling;
 namespace renderer = m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer;
 
-// frame_metrics_t and its std::formatter belong to the application.
-renderer::software_renderer_t software_renderer(framebuffer);
-profiling::profiler_t profiler;
-{
-    auto frame_metric = profiler.metric<frame_metrics_t>();
-    software_renderer.clear_color({0, 0, 0, 255}, frame_metric);
-    software_renderer.clear_depth(1, frame_metric);
-    software_renderer.draw(camera, item, frame_metric);
-    frame_metric.update<frame_metrics_t>([](auto& metrics) noexcept {
-        ++metrics.m_draws;
-    });
-}
-profiler.report(std::cout);
+struct frame_metrics_t {
+    std::size_t clears = 0;
+};
 
-// An inactive parent records nothing; rendering still executes.
-profiling::metric_t inactive_metric;
-software_renderer.draw(camera, item, inactive_metric);
+namespace std {
+template <>
+struct formatter<frame_metrics_t> : m03gtrxnmqqa2t7zxpijo222n6_formatting::reflected_formatter_t {};
+} // namespace std
+
+int main() {
+    std::vector<renderer::rgba8_t> pixels(4);
+    std::vector<float> depth(4);
+    renderer::framebuffer_t framebuffer(pixels, 2, 2);
+    framebuffer.depth(depth);
+    renderer::software_renderer_t software_renderer(framebuffer);
+    profiling::profiler_t profiler;
+    {
+        auto frame_metric = profiler.metric<frame_metrics_t>();
+        software_renderer.clear_color({0, 0, 0, 255}, frame_metric);
+        software_renderer.clear_depth(1, frame_metric);
+        frame_metric.update<frame_metrics_t>([](auto& metrics) noexcept {
+            metrics.clears += 2;
+        });
+    }
+    profiler.report(std::cout);
+
+    // An inactive parent records nothing; clearing still executes.
+    profiling::metric_t inactive_metric;
+    software_renderer.clear_color({0, 0, 0, 255}, inactive_metric);
+}
 ```
 
 ## Feature counters and pass attribution
@@ -52,20 +73,35 @@ idle waiting, and the CPU presentation call. It stops frame measurement before
 terminal output. Presentation timing measures the call, including any waiting;
 it does not measure GPU execution separately.
 
-Applications supply these parents using distinct metric types, each with its own
-formatter. The same renderer metric type has independent data beneath each parent:
+Distinct supplied metric types, each with its own formatter, identify separate
+parents. The same renderer metric type has independent data beneath each parent.
+Using the includes, aliases, and frame metric above, this function measures two
+draws with independently accumulated stage data:
 
 ```cpp
-// scene_metrics_t and composition_metrics_t are application-defined metric types.
-{
+struct first_pass_metrics_t {};
+struct second_pass_metrics_t {};
+
+namespace std {
+template <>
+struct formatter<first_pass_metrics_t> : m03gtrxnmqqa2t7zxpijo222n6_formatting::reflected_formatter_t {};
+template <>
+struct formatter<second_pass_metrics_t> : m03gtrxnmqqa2t7zxpijo222n6_formatting::reflected_formatter_t {};
+} // namespace std
+
+void measure_draws(profiling::profiler_t& profiler,
+                   renderer::software_renderer_t& software_renderer,
+                   const renderer::camera_t& camera,
+                   const renderer::render_item_t& first_item,
+                   const renderer::render_item_t& second_item) {
     auto frame = profiler.metric<frame_metrics_t>();
     {
-        auto scene = frame.metric<scene_metrics_t>();
-        renderer.draw(camera, scene_item, scene);
+        auto first_pass = frame.metric<first_pass_metrics_t>();
+        software_renderer.draw(camera, first_item, first_pass);
     }
     {
-        auto composition = frame.metric<composition_metrics_t>();
-        renderer.draw(camera, composition_item, composition);
+        auto second_pass = frame.metric<second_pass_metrics_t>();
+        software_renderer.draw(camera, second_item, second_pass);
     }
 }
 ```

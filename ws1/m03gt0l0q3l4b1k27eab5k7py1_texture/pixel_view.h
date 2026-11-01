@@ -71,8 +71,8 @@ class pixel_view_t;
  *
  * Construction validates format and exact byte count, including size overflow,
  * without accessing texels. Either extent may be zero with empty storage.
- * Copies borrow the same bytes with independent metadata. The caller maintains
- * storage lifetime; changing allocation or layout requires replacing the view.
+ * Copies borrow the same bytes with independent metadata. Storage must remain
+ * valid while a view is used; changing allocation or layout requires replacing the view.
  */
 class const_pixel_view_t {
 public:

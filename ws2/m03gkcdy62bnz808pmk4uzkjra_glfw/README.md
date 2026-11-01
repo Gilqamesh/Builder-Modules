@@ -2,16 +2,16 @@
 
 ## Goal
 
-Expose GLFW through module-owned C++ types while preserving GLFW's process-wide, main-thread event-loop and callback semantics. Applications use this boundary to manage native windows and input through a consistent C++ resource model.
+Expose GLFW through module-owned C++ types while preserving GLFW's process-wide, main-thread event-loop and callback semantics. Own one process-wide GLFW lifetime, same-thread event processing, GLFW-backed windows, monitors, and devices, and their synchronous callbacks.
 
-This module owns one process-wide GLFW lifetime, same-thread event processing, GLFW-backed windows, monitors, and devices, and their synchronous callbacks. A second global owner, background event loop, callback exception transport, or automatic cross-resource lifetime graph requires a different explicit contract. The CLI is a diagnostic and smoke-test surface, not the canonical module API.
+A second global owner, background event loop, callback exception transport, or automatic cross-resource lifetime graph requires a different explicit contract. The CLI is a diagnostic and smoke-test surface, not the canonical module API.
 
 ## Invariants
 
 - Construct exactly one `glfw_t` on the main thread. It must outlive windows and every operation that calls GLFW.
 - Perform GLFW operations on that same thread unless a specific GLFW operation is documented and modeled otherwise.
 - Callbacks run synchronously during event processing. Callback implementations must not throw across the C callback boundary or destroy callback-relevant GLFW resources before returning.
-- Handles returned to callers are borrowed. `window_t` owns its GLFW window and custom cursor; monitor wrappers refer to externally managed GLFW monitor objects.
+- Returned handles are borrowed. `window_t` owns its GLFW window and custom cursor; monitor wrappers refer to externally managed GLFW monitor objects.
 - Monitor, joystick, and gamepad wrappers may outlive `glfw_t` only as disconnected snapshots. A disconnected monitor has a null handle, retains its last successfully cached scalar properties, and reports no current video-mode list; disconnected input devices retain cached identity text but have no connection identifier.
 - Polling writes a staging input snapshot; history publication remains explicit through the ring-buffer contract.
 - Keyboard/mouse counters and scroll offsets are cumulative snapshots. Change views compare snapshots sharing the same origin and require both snapshots to remain alive and unchanged.

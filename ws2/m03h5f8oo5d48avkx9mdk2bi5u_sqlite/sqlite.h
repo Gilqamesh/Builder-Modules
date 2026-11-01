@@ -64,7 +64,7 @@ public:
      * @brief Executes a SQL script and discards result rows.
      *
      * Rejects embedded NULs. Stops on the first error; earlier effects remain
-     * unless the caller controls a transaction with SQL.
+     * unless an explicit SQL transaction controls those effects.
      */
     void execute(std::string_view sql);
 

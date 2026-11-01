@@ -2,7 +2,7 @@
 
 ## Goal
 
-Provide a graphical text-editing workspace with module browsing and name completion so developers can compose text using discovered workspace module names. This application owns editing and completion interaction; foundation modules own discovery and identity, and rendering modules own window presentation.
+Provide a graphical text-editing workspace with module browsing and name completion. Own editing and completion interaction using workspace discovery, identity, and window-rendering interfaces.
 
 See [api.h](api.h) for the public interface.
 

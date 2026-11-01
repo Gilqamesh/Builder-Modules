@@ -2,11 +2,7 @@
 
 ## Goal
 
-Store owning aggregate records in typed tables with atomic transactions and optional
-persistence so applications can work with records through their C++ types. This
-module owns the typed record database abstraction and keeps the storage backend,
-physical representation, and recovery mechanisms private; applications own record
-meaning, codec compatibility, and application-data migrations.
+Store owning aggregate records in typed tables with atomic transactions and optional persistence. Keep the storage backend, physical representation, and recovery mechanisms private. Record types and codecs define the stored logical data; codec compatibility and data-migration requirements remain explicit.
 
 ## Usage
 
@@ -155,7 +151,7 @@ For an owning field type `T`, provide this exact interface, with `S` denoting
 | `column_codec<T>::encode(field)` with `field` a `const T&` | Static function returning exactly `S` or `const S&`. Borrowed storage must remain valid until the operation consumes it. |
 | `column_codec<T>::decode(std::move(stored))` with `stored` an owned `S` | Static function returning exactly `T` by value. The result must own its data independently of the argument and database. |
 
-Codec encoding compatibility belongs to the application. No codec identifier or
+Codec encodings must remain compatible with stored values. No codec identifier or
 version is persisted; changing an encoding can require migration even when the
 schema remains compatible.
 
@@ -179,8 +175,8 @@ unsupported.
 Legacy single-file databases, unsupported versions, and incomplete initialization
 are rejected without conversion or repair. Failed initialization may leave
 incomplete storage that must be removed before retrying. No legacy conversion tool
-is provided. Field renaming and changes to codec encodings require application-managed
-migration; there is no automatic migration.
+is provided. Field renaming and changes to codec encodings require explicit
+data migration; there is no automatic migration.
 
 ## Validation
 
@@ -194,4 +190,4 @@ The runnable example is covered by
 [`test/readme_example.cpp`](test/readme_example.cpp), which verifies the workflow's results.
 
 Public API validation must cover literal storage directory paths, arbitrary
-logical table names, and client-defined column codecs through the database API.
+logical table names, and explicit column-codec specializations through the database API.

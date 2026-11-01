@@ -28,7 +28,7 @@ namespace m03h5hm86mnvc18opf1rdttsgh_database {
 
 /**
  * @brief Converts owning C++ field values to and from database storage values.
- * Specialize it to store application-defined field types.
+ * Specialize it to store additional owning field types.
  */
 template <typename T>
 struct column_codec;

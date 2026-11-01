@@ -2,19 +2,18 @@
 
 ## Goal
 
-Own CPU-side 2D texture data, sampler descriptions, and backend-independent sampling behavior so CPU rendering and shader evaluation can share texture resources. The module also owns validated, non-owning pixel views shared by sampling and CPU
-framebuffer attachments. See [pixel views](pixel_view.h) and [texture ownership](texture.h).
+Own CPU-side 2D texture data, sampler descriptions, and backend-independent sampling behavior. Provide validated non-owning pixel views and explicit mip-level generation. See [pixel views](pixel_view.h) and [texture ownership](texture.h).
 
 ## Model
 
-Renderer and backend modules own GPU resource creation, uploads, binding, attachment
-eligibility, and renderer-facing resource lifetimes. Applications allocate owning
-textures, keep borrowed attachments alive, and sequence rendering and sampling.
+Textures own CPU storage; pixel views borrow it. Borrowed storage must remain
+valid for every operation using a view. Storage mutations and sampling must be
+sequenced explicitly. GPU resource creation, uploads, and binding are not performed.
 
-Sampling leaves alpha association to shaders and blend equations. Its transfer and
-filtering contract is owned by [sampler.h](sampler.h).
+Sampling does not change alpha association. Its transfer and filtering contract
+is owned by [sampler.h](sampler.h).
 
 - Textures allocate a fixed contiguous prefix of mip levels at construction.
   Explicit generation updates lower-level contents in place; writable edits never
-  trigger regeneration. Applications sequence rendering, regeneration and sampling.
+  trigger regeneration. Sequence writes, regeneration, and sampling explicitly.
   Pixel-view lifetimes and sampling rules are owned by the public headers.

@@ -193,7 +193,7 @@ std::vector<render_item_t> make_workload(std::string_view name) {
         material->blend_alpha({blend_factor_t::one, blend_factor_t::one_minus_src_alpha, blend_op_t::add});
         material->depth_write(false);
         std::vector<render_item_t> items(4, item);
-        // Four translucent layers, supplied back to front by the application.
+        // Four translucent layers supplied in back-to-front order.
         for (std::size_t i = 0; i < items.size(); ++i) { items[i].translation()[2] = -1.3F + float(i) * 0.1F; }
         return items;
     }

@@ -237,12 +237,12 @@ public:
     shader_expression_t<std::int32_t> instance_index();
 
     /**
-     * @brief Reads the backend-supplied homogeneous float object-to-world matrix.
+     * @brief Reads the homogeneous float object-to-world matrix built-in.
      */
     shader_expression_t<matrix_t<float, 4, 4>> object_to_world();
 
     /**
-     * @brief Reads the backend-supplied homogeneous float world-to-clip matrix.
+     * @brief Reads the homogeneous float world-to-clip matrix built-in.
      */
     shader_expression_t<matrix_t<float, 4, 4>> world_to_clip();
     void position(shader_expression_t<vector_t<float, 4>> expression);

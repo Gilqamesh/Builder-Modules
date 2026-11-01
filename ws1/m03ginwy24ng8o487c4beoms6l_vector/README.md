@@ -2,6 +2,6 @@
 
 ## Goal
 
-Provide fixed-dimensional numeric vectors and common vector operations so geometry and computation code can share coordinate calculations. This module owns vector storage and arithmetic; callers supply coordinate meaning and satisfy numerical preconditions, including nonzero length for normalization.
+Provide fixed-dimensional numeric vectors, coordinate storage, arithmetic, and common vector operations. Normalization requires nonzero length; coordinate units and interpretation are not encoded.
 
 See [api.h](api.h) for the public interface.

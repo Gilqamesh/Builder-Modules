@@ -12,9 +12,9 @@ NDC -1/+1 and fragment depth maps through (Z/W+1)/2. Vulkan defaults to [0,W].
 
 Recommended direction: adopt [0,W] consistently across perspective and orthographic
 projection, depth clipping, camera world-to-framebuffer results, and fragment depth
-mapping. Migrate examples, fixtures, and direct consumers together, including
-callers that supply clip coordinates directly. Introduce a migration period or
-legacy convention only when a concrete caller requires it.
+mapping. Update examples and fixtures together, including directly supplied clip
+coordinates. Introduce a migration period or legacy convention only for an
+established input/output compatibility requirement.
 
 Consequence: this changes accepted clip positions and projection results, so
 changing a depth clip plane alone is insufficient. Preserve X/Y screen orientation
@@ -22,7 +22,7 @@ and independent depth comparison/write rules.
 
 Validation: near/far boundaries, just-outside positions, varying positive W,
 clipped lines and triangles, perspective/noperspective interpolation, equal-depth
-comparison, clears, stencil/depth ordering, and render-to-texture consumers.
+comparison, clears, stencil/depth ordering, and render-to-texture sequences.
 
 Reference: [Vulkan primitive clipping](https://docs.vulkan.org/spec/latest/chapters/vertexpostproc.html#vertexpostproc-clipping).
 
@@ -40,8 +40,8 @@ as defaults. Keep clearing explicit and decide its region independently of draw
 scissoring; retain existing camera-based clear regions.
 
 Consequence: narrowing the scissor must not change projection or aspect. Reversed
-depth mapping requires a coordinated clear value and comparison selected by the
-application; it must not silently change material state. Settle public state
+depth mapping requires an explicitly coordinated clear value and comparison;
+it must not silently change material state. Settle public state
 placement in this milestone's API design.
 
 Validation: a small scissor inside an unchanged perspective view, partial
@@ -89,7 +89,7 @@ milestone; prefer explicit validation to undocumented clamping.
 Consequence: coordinate shader outputs/built-ins, projection, sample-center
 coverage, and viewport bounds. Preserve the front-facing and fragment/depth/stencil
 rules. The old disk footprint changes; add compatibility only for a demonstrated
-caller requirement.
+input/output compatibility requirement.
 
 Validation: sizes around pixel boundaries, fractional centers, sprite-coordinate
 orientation, viewport edges, clipped centers, invalid sizes, and point attributes.
