@@ -2,12 +2,7 @@
 
 ## Goal
 
-Upgrade application records through the public `database_t` API so applications can
-move persisted data to their required version through explicit, atomic, forward-only
-transformations. Applications own
-migration identities, transformations, and their target version; the database owns
-physical storage and its format version. [The public API](api.h) specifies callback
-obligations, borrowing, atomicity, and exceptions.
+Upgrade stored records through the public `database_t` API using explicit, atomic, forward-only transformations. Accept immutable migration identities, transformation callbacks, and a target version. Track the logical data version separately from the database's physical storage format. [The public API](api.h) specifies callback obligations, borrowing, atomicity, and exceptions.
 
 ## Versions and history
 
@@ -31,9 +26,9 @@ target version. An empty history supports only baseline; a target within a longe
 history is allowed.
 
 Upgrades are forward-only. Persisted versions absent from the history or following
-the requested target are rejected before application callbacks run. Applications
-must call `migrate()` before accessing their tables; it provides no automatic
-compatibility for applications that omit this check.
+the requested target are rejected before transformation callbacks run. Call
+`migrate()` before accessing versioned tables; compatibility is not checked
+automatically when this operation is omitted.
 
 ## Reserved metadata
 
@@ -43,19 +38,19 @@ compatibility for applications that omit this check.
 history, including baseline. Storage retains canonical strings, preserving existing
 metadata and identifiers. Stored identities are parsed when read; malformed text
 throws `std::runtime_error` and is rejected without repair.
-Applications must not mutate this table; exclude its name, regardless of ASCII
-case, from application-table deletion or transformation.
+Transformation callbacks must not mutate this table; exclude its name, regardless
+of ASCII case, from table deletion or transformation.
 
 Missing metadata is accepted only when `tables()` is empty and means baseline.
 Even a baseline-only call initializes the version record transactionally. An empty
-application table makes an unversioned database nonempty. Legacy adoption/import
-is outside this module and must verify the source schema and transactionally
-establish its version; application schemas are never inferred.
+logical table makes an unversioned database nonempty. Legacy adoption/import
+requires verification of the source schema and transactional establishment of
+its version before migration; schemas are never inferred or adopted automatically.
 
 ## Concurrent attempts
 
 Concurrent migration attempts require independent connections and may fail on
-conflict. Running different application versions concurrently against one database
+conflict. Concurrent access to one database using different logical data versions
 is unsupported. Connection access, snapshots, and recovery follow the
 [database transaction contract](../m03h5hm86mnvc18opf1rdttsgh_database/README.md#transactions-and-errors).
 
@@ -126,13 +121,13 @@ int main() {
     using namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations;
     database_t database; // Use a storage-directory path for persistence.
 
-    // The older release initialized its version before storing application data.
+    // Establish v1 before inserting records with the v1 schema.
     migrate(database, v1, migrations);
     const auto v1_people = database.create_table<v1_person_t>("people");
     const v1_person_t v1_person{1, "Ada", 1250};
     v1_people.insert(v1_person);
 
-    // The updated release calls this before opening its application tables.
+    // Reach v3 before accessing records with the v3 schema.
     migrate(database, v3, migrations);
     migrate(database, v3, migrations); // No transformations.
     const auto v3_people = database.create_table<v3_person_t>("people");
@@ -174,11 +169,12 @@ migration's `from` to the new main-branch head, keep its `to`, and revalidate it
 transformation against that head's records. Preserve published migrations while
 upgrades from their source versions remain supported.
 
-When updating a caller of the former string-based API, replace version
-`constexpr std::string_view` declarations with `const unique_id_t`, explicitly parse
-text supplied at runtime, and rebuild the caller. There are no string overloads.
+Version declarations use `const unique_id_t` rather than the former
+`constexpr std::string_view` representation. Text supplied at runtime requires
+explicit parsing; the API has no string overloads and requires recompilation
+when replacing the former declarations.
 Use `.string()` when a version must be written to a text record or compared with
 stored metadata; the database schema does not change.
 
-In application CI, call `migrate()` with the complete history and current target on
-a fresh temporary database, then test upgrades from supported historical records.
+Validate `migrate()` with the complete history and current target on a fresh
+temporary database, then test upgrades from supported historical records.

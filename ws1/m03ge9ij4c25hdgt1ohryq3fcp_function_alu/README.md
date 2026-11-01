@@ -2,6 +2,6 @@
 
 ## Goal
 
-Provide ready-made arithmetic, conditional, and utility function nodes so function graphs can perform basic computations and expose results without repeating callback construction. This module owns those primitive operations; the runtime owns node execution and consumers own graph composition and application meaning.
+Provide ready-made arithmetic, conditional, and utility function nodes for basic computation and result output. Define these primitive operations through the runtime callback interface.
 
 See [function_alu.h](function_alu.h) for the public interface.

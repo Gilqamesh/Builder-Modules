@@ -2,15 +2,9 @@
 
 ## Goal
 
-Own the headless CPU pipeline and its framebuffer, camera, mesh, geometry,
-material, and render-item model. Applications own scene organization, attachment
-allocation, resizing, pass sequencing, windowing, and presentation. This lets applications render deterministic images without a window or graphics device.
+Provide a headless CPU pipeline with framebuffer, camera, mesh, geometry, material, and render-item abstractions for deterministic image rendering without a window or graphics device. Render into borrowed attachments with explicit draw and clear operations.
 
-Shader construction/reflection belongs to
-[`shader`](../m03gsy25j4v7nccgmsdov9ioft_shader/README.md), individual CPU invocations
-to [`software_shader`](../m03gt1djvvy5atia5evkbg6rqy_software_shader/README.md), and
-texture storage/sampling to
-[`texture`](../../ws1/m03gt0l0q3l4b1k27eab5k7py1_texture/README.md).
+Use [`shader`](../m03gsy25j4v7nccgmsdov9ioft_shader/README.md) for shader construction/reflection, [`software_shader`](../m03gt1djvvy5atia5evkbg6rqy_software_shader/README.md) for individual CPU invocations, and [`texture`](../../ws1/m03gt0l0q3l4b1k27eab5k7py1_texture/README.md) for texture storage/sampling.
 
 ## Boundaries
 
@@ -31,6 +25,6 @@ texture storage/sampling to
 
 ## Validation and direction
 
-Validate deterministic pipeline behavior headlessly in this module. Presentation
-and application scenes are consumer integration checks. Outstanding feature
-choices are recorded in [milestones.md](docs/milestones.md).
+Validate deterministic pipeline behavior headlessly through attachment results,
+resource validation, and failure guarantees. Outstanding feature choices are
+recorded in [milestones.md](docs/milestones.md).

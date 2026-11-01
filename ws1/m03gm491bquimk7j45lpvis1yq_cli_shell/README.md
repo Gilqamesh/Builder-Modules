@@ -2,6 +2,6 @@
 
 ## Goal
 
-Provide line editing, completion, and command history around a command application so tools can offer an interactive terminal interface. This module owns the input loop and history integration; the borrowed command application owns command definitions, validation, and execution.
+Provide line editing, completion, and command history around a borrowed command application. Run the interactive input loop using that application's command definitions, validation, and execution; it must outlive the shell.
 
 See [api.h](api.h) for the public interface.

@@ -20,7 +20,7 @@ inline const unique_id_t baseline_version{"03h5mgnvq9zym7wvkijwwaobj"};
 inline constexpr std::string_view metadata_table_name = "__builder_application_migrations";
 
 /**
- * @brief Owns the version identities for one application-owned forward transition.
+ * @brief Owns the version identities for one supplied forward transition.
  *
  * apply must be nonnull, use the supplied database's public API, and leave
  * migration metadata untouched. Only changes through that database are rolled back.
@@ -34,7 +34,7 @@ struct migration_t {
 /**
  * @brief Validates one complete baseline-rooted chain and atomically upgrades to target.
  *
- * Call before application-table access, outside any transaction. The target and
+ * Call before accessing versioned tables, outside any transaction. The target and
  * migration span are borrowed and must remain valid and unchanged until return.
  * Identities own their UUID bytes and are validated when constructed. Remaining callbacks
  * and the final version commit in one transaction or roll back together, without

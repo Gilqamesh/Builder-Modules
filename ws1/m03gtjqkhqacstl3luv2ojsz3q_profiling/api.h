@@ -99,7 +99,7 @@ public:
      * keep construction, destruction, and updates allocation-free. T need not move.
      * Arguments construct T only on first use of this path. First use may allocate;
      * allocation failure preserves completed results and the active branch.
-     * Producer construction must not reenter the profiler; reads and new
+     * Metric construction must not reenter the profiler; reads and new
      * measurements are rejected during construction.
      * Reuse and valid stopping perform no profiler allocation, formatting, I/O, or locking.
      */

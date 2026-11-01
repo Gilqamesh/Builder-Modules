@@ -72,7 +72,7 @@ namespace profiling = m03gtjqkhqacstl3luv2ojsz3q_profiling;
  * Alpha remains linear. Byte conversion rounds to nearest, with halfway values upward.
  * Masked channels preserve their exact stored bytes without changing blend inputs.
  * Shaders and equations determine alpha association; there is no implicit premultiplication
- * or division by alpha. Applications supply pass sequencing and transparent draw order.
+ * or division by alpha. Passes and transparent draws execute in the supplied order.
  *
  * Drawing and clearing borrow a parent metric for the call and create children
  * beneath it. Pass a default inactive metric when recording is unnecessary.

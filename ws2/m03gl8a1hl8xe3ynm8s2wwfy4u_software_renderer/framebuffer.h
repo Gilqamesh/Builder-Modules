@@ -30,8 +30,8 @@ static_assert(sizeof(rgba8_t) == 4);
  *
  * Construction rejects negative dimensions, a pixel count that overflows
  * std::size_t, or storage whose size differs from width * height. Zero dimensions
- * are valid. The caller keeps storage valid during renderer operations and
- * replaces the framebuffer after reallocating color storage or changing dimensions.
+ * are valid. Storage must remain valid during renderer operations. Replace the
+ * framebuffer after reallocating color storage or changing dimensions.
  * After reallocating depth storage, rebind it through depth(). Samples remain mutable.
  * Copies share sample storage but have independent attachment views.
  * The span constructor starts linear; a pixel view supplies its own format. Shaders and blend equations determine alpha association;
@@ -40,7 +40,7 @@ static_assert(sizeof(rgba8_t) == 4);
  * An empty depth span means no depth attachment;
  * a nonempty span must have width * height samples with the same layout as color.
  * Initialize depth before reading it through a draw. Renderer-written depths are
- * in [0,1]; comparisons against caller-written samples use ordinary float operators.
+ * in [0,1]; comparisons against supplied samples use ordinary float operators.
  * Construction validates color shape and leaves depth/stencil detached, without reading or
  * initializing attachment contents.
  */
@@ -82,7 +82,7 @@ public:
      *
      * A nonempty span contains width * height bytes in color's row order; an empty
      * span detaches stencil. Failure preserves the previous view. No samples are
-     * initialized. The caller maintains storage lifetime and rebinds after allocation
+     * initialized. Storage must remain valid during use; rebind after allocation
      * changes. Copies share samples with independent views. Initialize before reading.
      */
     void stencil(std::span<std::uint8_t> samples);
@@ -94,7 +94,7 @@ public:
      * Accepts rgba8_unorm and rgba8_srgb; other formats fail before changing the view. Copies retain independent
      * encoding; changing an external view does not rebind the renderer's copy.
      * pixels().format() always reflects this interpretation. The owning texture's
-     * format is unchanged; callers coordinate explicit reinterpretation with sampling.
+     * format is unchanged; explicit reinterpretation must be coordinated with sampling.
      */
     void format(texture::format_t format);
     texture::format_t format() const;

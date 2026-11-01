@@ -17,9 +17,10 @@ The cleanup introduced prepared shader execution and draw preparation, corrected
 strip winding, and retained exceptional coverage guarantees. This proposal uses
 source and test-source inspection; it adds no build or benchmark results.
 
-Public headers own current behavior. Existing ownership remains as described in
-[README.md](../README.md): applications and shaders implement lighting models,
-shadow-pass organization, tone mapping, and scene management.
+Public headers own current behavior. The [README](../README.md) describes the
+pipeline boundary: lighting and tone mapping are specified by supplied shader
+programs, and draw/pass order is explicit. No scene manager or automatic shadow-pass
+organization is provided.
 
 ## Capability scope
 
@@ -59,9 +60,9 @@ These are recommendations for review, not settled API designs.
 | Decision | Preferred direction | Consequence |
 |---|---|---|
 | Semantic reference | Use Vulkan 1.4 core behavior for supported features; identify optional features/extensions explicitly in each milestone. Keep the camera/item/material API. | The target is a documented subset, with intentional deviations identified; it is not a full Vulkan implementation. |
-| Coordinates and coverage | Adopt [the rasterization recommendations](rasterization-planning.md): coordinated depth migration, independent viewport/scissor, retained screen orientation and exceptional polygon guarantees. Add compatibility modes only for demonstrated caller needs. | Projections, clipping, direct clip-coordinate callers, and consumers migrate together; broad coverage simplification is not a prerequisite. |
+| Coordinates and coverage | Adopt [the rasterization recommendations](rasterization-planning.md): coordinated depth migration, independent viewport/scissor, retained screen orientation and exceptional polygon guarantees. Add compatibility modes only for demonstrated input/output compatibility requirements. | Projections, clipping, and direct clip-coordinate inputs must use the same depth convention; broad coverage simplification is not a prerequisite. |
 | Attachment model | Extend the existing texture/view model for typed depth and color storage; retain borrowed framebuffer attachments and explicit pass sequencing. Make framebuffer extent independent of a mandatory color attachment. | Shadows, HDR, and MRT share attachment validation/lifetime decisions, while remaining separate capabilities. Detailed layouts and sample storage belong to their milestone designs. |
-| Per-instance data | Prefer instance-rate vertex attributes for the initial repeated-transform/color example. Review shader-indexed resources as an alternative if a concrete caller benefits. | Instancing requires a selected data mechanism; general arrays/buffers are not automatically a prerequisite. |
+| Per-instance data | Prefer instance-rate vertex attributes for the initial repeated-transform/color example. Review shader-indexed resources as an alternative against a concrete input-data requirement. | Instancing requires a selected data mechanism; general arrays/buffers are not automatically a prerequisite. |
 | General indexed shader data | Start with typed, read-only indexed resources for light lists and matrix palettes; keep shader writes/atomics outside scope. | Design bounds failures, borrowing, mutation visibility, and preparation/refresh behavior together before exposing this separate capability. |
 | Derivative execution | Prefer coordinated 2x2 fragment groups with helper invocations and documented control-flow restrictions. Preserve the independent invocation path for shaders that do not need derivatives. | Shader construction, CPU execution, rasterization, and sampling need a shared execution contract; interpolant gradients alone cannot cover arbitrary shader-modified UVs. |
 | Initial MSAA subset | Start with 1x/4x storage and per-sample tests, centroid interpolation and sample masks, followed by explicit color resolve. Defer sample-rate shading and depth/stencil resolve. | Coverage, shading frequency, attachment layout, and resolve semantics must be designed together; 1x behavior must remain covered by regression tests. |
@@ -107,7 +108,7 @@ Actual dependencies:
 ## Completion evidence
 
 For each accepted milestone, provide one small public-API example, focused
-contract and negative-case validation, relevant direct-consumer checks, and
+contract and negative-case validation, representative input/output checks, and
 comparable measurements. Extend existing feature guides alongside the implementation.
 Keep executable evidence in tests and measurement results in their reports.
 

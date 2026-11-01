@@ -84,7 +84,7 @@ public:
     window_t& operator=(window_t&&) = delete;
 
     /**
-     * @brief Returns the owned GLFW handle; the caller must not destroy it or replace its user pointer or callbacks.
+     * @brief Returns a borrowed GLFW handle that must not be destroyed or have its user pointer or callbacks replaced.
      */
     GLFWwindow* handle() const;
 

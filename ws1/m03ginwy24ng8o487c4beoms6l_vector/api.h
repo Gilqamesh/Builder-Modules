@@ -75,7 +75,7 @@ public:
      * @brief Returns a unit vector in the same direction as this vector.
      * 
      * Can only be called for floating point types.
-     * No bound checking is performed, so the caller must ensure that the vector is not zero.
+     * No bound checking is performed; the vector must have nonzero length.
      */
     vector_t unit() const;
 

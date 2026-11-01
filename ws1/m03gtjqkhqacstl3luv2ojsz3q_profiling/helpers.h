@@ -58,7 +58,7 @@ struct stored_metric_t final : metric_base_t {
     std::optional<T> metrics;
 };
 
-// Owns storage and validates the active branch; the caller selects the parent.
+// Owns storage and validates the active branch beneath the supplied parent.
 struct storage_t {
     template <typename T, typename... Args>
     metric_base_t& start(metric_base_t* parent, Args&&... args);

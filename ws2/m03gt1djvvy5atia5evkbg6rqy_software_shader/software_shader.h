@@ -58,7 +58,7 @@ public:
     /**
      * @brief Runs a fresh vertex invocation using temporary execution storage.
      *
-     * Preserves caller inputs, indices, and matrices. Validates the invoked stage's
+     * Preserves supplied inputs, indices, and matrices. Validates the invoked stage's
      * inputs and bindings. Normal completion requires position. Results are cleared
      * before any potentially failing preparation and again on failure.
      */
@@ -67,7 +67,7 @@ public:
     /**
      * @brief Runs a fresh fragment invocation using temporary execution storage.
      *
-     * Preserves caller inputs and built-ins. Validates the invoked stage's inputs
+     * Preserves supplied inputs and built-ins. Validates the invoked stage's inputs
      * and bindings. Color and numbered outputs are optional. Discard terminates
      * execution and invalidates all outputs. Results are cleared before any
      * potentially failing preparation and again on failure.
@@ -135,8 +135,8 @@ private:
  * Moving leaves the source unprepared. Failed preparation leaves this object
  * unprepared, with retained storage capacity.
  *
- * Inputs and numbered outputs follow their stage's reflection order. The caller
- * supplies every input with its declared type; no location search or full input
+ * Inputs and numbered outputs follow their stage's reflection order. Every input
+ * must be supplied with its declared type; no location search or full input
  * validation is performed. Output entries are empty when unwritten. Built-ins and
  * special results use the supplied IO; its numbered inputs and outputs are unused.
  * Result invalidation, discard, local freshness and warmed execution-storage rules

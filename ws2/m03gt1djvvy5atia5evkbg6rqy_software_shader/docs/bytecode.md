@@ -1,7 +1,7 @@
 # Compiled shader execution
 
 [program_t](../software_shader.h) compiles ASTs at construction and executes them
-with caller-owned bindings and IO:
+with borrowed bindings and mutable IO:
 
 ```cpp
 namespace cpu = m03gt1djvvy5atia5evkbg6rqy_software_shader;

@@ -2,10 +2,7 @@
 
 ## Goal
 
-Provide a C++ ownership API for SQLite connections, statements, and transactions so
-consumers can execute SQL without managing native handles directly. This module
-owns SQLite integration and resource lifetimes; consumers own SQL schemas and
-application data semantics.
+Provide a C++ ownership API for SQLite connections, statements, and transactions. Execute supplied SQL while managing native handles and resource lifetimes, without imposing schemas or domain data semantics.
 
 ## Model
 

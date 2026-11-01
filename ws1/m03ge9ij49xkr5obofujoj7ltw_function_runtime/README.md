@@ -2,6 +2,6 @@
 
 ## Goal
 
-Execute connected function nodes, propagate argument values, and expand compound definitions so function graphs can perform computation. The runtime owns live node state, connections, and invocation behavior; type conversions, persisted definitions, and interactive visualization belong to their respective modules.
+Execute connected function nodes, propagate argument values, and expand compound definitions. Own live node state, connections, and invocation behavior using registered types, conversions, definitions, and callbacks.
 
 See [function.h](function.h) for the public interface.

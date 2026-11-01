@@ -2,6 +2,6 @@
 
 ## Goal
 
-Connect Dear ImGui input and drawing to Raylib so applications can place interactive UI within a Raylib frame loop. This module owns backend setup, frame integration, and UI rendering; ImGui owns widgets and applications own interface content and frame sequencing.
+Connect Dear ImGui input and drawing to Raylib. Provide backend setup, frame integration, and UI rendering within a Raylib frame loop; the supplied UI commands define interface content.
 
 See [rlImGui.h](rlImGui.h) for the public interface.

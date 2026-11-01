@@ -1,7 +1,7 @@
-# Function visualizer text input
+# Text-entry overlay
 
 ## Goal
 
-Provide a text-entry overlay with text-submission callbacks and input-capture reporting so the function visualizer can collect names and other text without also interpreting those keystrokes as scene controls. This module owns overlay interaction; the visualizer owns what submitted text means and any resulting graph changes.
+Provide a text-entry overlay with text-submission callbacks and input-capture reporting. Keep text input distinct from other input handling through explicit capture state and deliver submitted text to the supplied callback.
 
 See [function_visualizer_editor.h](function_visualizer_editor.h) for the public interface.

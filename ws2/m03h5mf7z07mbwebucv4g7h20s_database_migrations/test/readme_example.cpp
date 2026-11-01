@@ -52,13 +52,13 @@ int main() {
     using namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations;
     database_t database; // Use a storage-directory path for persistence.
 
-    // The older release initialized its version before storing application data.
+    // Establish v1 before inserting records with the v1 schema.
     migrate(database, v1, migrations);
     const auto v1_people = database.create_table<v1_person_t>("people");
     const v1_person_t v1_person{1, "Ada", 1250};
     v1_people.insert(v1_person);
 
-    // The updated release calls this before opening its application tables.
+    // Reach v3 before accessing records with the v3 schema.
     migrate(database, v3, migrations);
     migrate(database, v3, migrations); // No transformations.
     const auto v3_people = database.create_table<v3_person_t>("people");

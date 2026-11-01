@@ -2930,7 +2930,7 @@ void test_profiling_features() {
         require(metrics.points + metrics.lines + metrics.triangles == counts[i]);
     }
 
-    // Each caller parent owns independent draw data; repeated calls accumulate.
+    // Each supplied parent has independent draw data; repeated calls accumulate.
     profiling::profiler_t profiler;
     {
         auto frame = profiler.metric<application_metrics_t>();

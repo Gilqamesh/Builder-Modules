@@ -2,9 +2,7 @@
 
 ## Goal
 
-Link and execute individual CPU shader invocations from backend-independent ASTs
-and canonical CPU resources. Assembly, interpolation, rasterization, framebuffer
-behavior, and renderer-facing resource lifetimes belong to the renderer. This lets CPU consumers evaluate shaders without requiring a complete rendering pipeline.
+Link and execute individual CPU shader invocations from backend-independent ASTs and canonical CPU resources. Provide stage invocation and resource binding without primitive assembly, interpolation, rasterization, or framebuffer operations.
 
 ## Execution
 

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Provide an interactive tower-defense application where gameplay can be developed and exercised with a complete rendering and presentation loop. The application owns game behavior and scene orchestration; reusable rendering semantics belong to the renderer modules.
+Provide an interactive tower-defense application with a complete rendering and presentation loop. Own game behavior and scene orchestration using the rendering interfaces.
 
 ## Model
 
