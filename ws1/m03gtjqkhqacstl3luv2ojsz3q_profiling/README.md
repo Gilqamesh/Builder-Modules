@@ -1,13 +1,13 @@
 # `m03gtjqkhqacstl3luv2ojsz3q_profiling`
 
-## Purpose
+## Goal
 
 Measure synchronous code execution. Producers own metric data, constructors,
 counter meanings, formatters, and measurement boundaries. The profiler owns
 persistent storage, timing statistics, and deferred reporting. Applications own
 profilers; measured metrics borrow them and explicitly create child metrics.
 Data accumulates per parent/type path, with children reported in first-use order.
-See [the public contract](api.h) for enablement, lifetime, and type requirements.
+See [the public contract](api.h) for enablement, lifetime, and type requirements. This lets producers explain execution cost through their own metrics without implementing timing aggregation and reporting.
 
 ## Validation
 

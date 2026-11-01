@@ -1,8 +1,8 @@
 # `m03gkcdy62bnz808pmk4uzkjra_glfw`
 
-## Purpose
+## Goal
 
-Expose GLFW through module-owned C++ types while preserving GLFW's process-wide, main-thread event-loop and callback semantics.
+Expose GLFW through module-owned C++ types while preserving GLFW's process-wide, main-thread event-loop and callback semantics. Applications use this boundary to manage native windows and input through a consistent C++ resource model.
 
 This module owns one process-wide GLFW lifetime, same-thread event processing, GLFW-backed windows, monitors, and devices, and their synchronous callbacks. A second global owner, background event loop, callback exception transport, or automatic cross-resource lifetime graph requires a different explicit contract. The CLI is a diagnostic and smoke-test surface, not the canonical module API.
 

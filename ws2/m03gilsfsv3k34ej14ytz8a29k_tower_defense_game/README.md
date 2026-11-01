@@ -1,6 +1,10 @@
 # `m03gilsfsv3k34ej14ytz8a29k_tower_defense_game`
 
-## Purpose
+## Goal
+
+Provide an interactive tower-defense application where gameplay can be developed and exercised with a complete rendering and presentation loop. The application owns game behavior and scene orchestration; reusable rendering semantics belong to the renderer modules.
+
+## Model
 
 Implement the tower-defense application and exercise `m03gl8a1hl8xe3ynm8s2wwfy4u_software_renderer` as its active rendering path.
 

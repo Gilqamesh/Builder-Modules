@@ -1,7 +1,16 @@
 # SQLite
 
-Packages the unmodified SQLite 3.54.1 amalgamation and a C++ ownership API as
-a Builder library. The amalgamation is compiled as C; this module has no CLI.
+## Goal
+
+Provide a C++ ownership API for SQLite connections, statements, and transactions so
+consumers can execute SQL without managing native handles directly. This module
+owns SQLite integration and resource lifetimes; consumers own SQL schemas and
+application data semantics.
+
+## Model
+
+Packages the unmodified SQLite 3.54.1 amalgamation as a Builder library. The
+amalgamation is compiled as C; this module has no CLI.
 
 Include `<m03h5f8oo5d48avkx9mdk2bi5u_sqlite/sqlite.h>` for the C++ API:
 

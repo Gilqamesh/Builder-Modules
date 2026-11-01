@@ -1,10 +1,10 @@
 # `m03gsy25j4v7nccgmsdov9ioft_shader`
 
-## Purpose
+## Goal
 
 Define and validate immutable, backend-independent shader ASTs and reflection.
 Execution belongs to backends; primitive processing, framebuffer behavior, and
-resource ownership belong to renderers.
+resource ownership belong to renderers. This gives rendering backends a common shader description whose meaning can be checked before execution.
 
 ## Stage interfaces
 

@@ -1,9 +1,11 @@
 # `m03gt0l0q3l4b1k27eab5k7py1_texture`
 
-## Purpose
+## Goal
 
-Keep this module responsible for owning CPU-side 2D texture data, sampler descriptions, and backend-independent sampling behavior. The module also owns validated, non-owning pixel views shared by sampling and CPU
+Own CPU-side 2D texture data, sampler descriptions, and backend-independent sampling behavior so CPU rendering and shader evaluation can share texture resources. The module also owns validated, non-owning pixel views shared by sampling and CPU
 framebuffer attachments. See [pixel views](pixel_view.h) and [texture ownership](texture.h).
+
+## Model
 
 Renderer and backend modules own GPU resource creation, uploads, binding, attachment
 eligibility, and renderer-facing resource lifetimes. Applications allocate owning
