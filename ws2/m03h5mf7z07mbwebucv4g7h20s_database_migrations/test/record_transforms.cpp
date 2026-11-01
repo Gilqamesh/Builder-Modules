@@ -9,13 +9,12 @@
 #include <format>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 
 namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations {
 
-constexpr std::string_view v1 = "03h5mgnvq9zym7wvkijwwaobp";
-constexpr std::string_view v2 = "03h5mgnvq9zym7wvkijwwaobo";
-constexpr std::string_view v3 = "03h5mgnvq9zym7wvkijwwaobn";
+const unique_id_t v1{"03h5mgnvq9zym7wvkijwwaobp"};
+const unique_id_t v2{"03h5mgnvq9zym7wvkijwwaobo"};
+const unique_id_t v3{"03h5mgnvq9zym7wvkijwwaobn"};
 
 struct v1_person_t {
     std::int64_t id;
@@ -80,7 +79,7 @@ void seed(database_t& database) {
 }
 
 void verify_v1(database_t& database) {
-    assert(database.create_table<version_row_t>(metadata_table_name).rows().front().version == v1);
+    assert(database.create_table<version_row_t>(metadata_table_name).rows().front().version == v1.string());
     const auto v1_people = database.create_table<v1_person_t>("people");
     assert(v1_people.rows().size() == 2);
     const auto ada = v1_people.rows<&v1_person_t::id>(1);
@@ -93,7 +92,7 @@ void verify_v2(database_t& database) {
     const auto metadata = database.create_table<version_row_t>(metadata_table_name);
     const auto version_rows = metadata.rows();
     assert(version_rows.size() == 1);
-    assert(version_rows.front().version == v2);
+    assert(version_rows.front().version == v2.string());
 
     const auto v2_people = database.create_table<v2_person_t>("people");
     const auto v2_rows = v2_people.rows();
@@ -115,7 +114,7 @@ void verify_v2(database_t& database) {
 }
 
 void verify_v3(database_t& database) {
-    assert(database.create_table<version_row_t>(metadata_table_name).rows().front().version == v3);
+    assert(database.create_table<version_row_t>(metadata_table_name).rows().front().version == v3.string());
     const auto v3_people = database.create_table<v3_person_t>("people");
     assert(v3_people.rows().size() == 2);
     const auto ada = v3_people.rows<&v3_person_t::id>(1);

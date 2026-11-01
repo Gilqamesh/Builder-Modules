@@ -11,13 +11,12 @@
 #include <future>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <thread>
 
 namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations {
 
-constexpr std::string_view v1 = "03h5mgnvq9zym7wvkijwwaobr";
-constexpr std::string_view v2 = "03h5mgnvq9zym7wvkijwwaobk";
+const unique_id_t v1{"03h5mgnvq9zym7wvkijwwaobr"};
+const unique_id_t v2{"03h5mgnvq9zym7wvkijwwaobk"};
 
 struct entry_t { int number; };
 struct metadata_row_t { std::string version; };
@@ -85,7 +84,7 @@ void concurrent_upgrade(const std::filesystem::path& directory, bool newly_initi
     const auto entries = rival.create_table<entry_t>("entries").rows();
     assert(entries.size() == 1 && entries.front().number == 42);
     const auto records = rival.create_table<metadata_row_t>(metadata_table_name).rows();
-    assert(records.size() == 1 && records.front().version == v2);
+    assert(records.size() == 1 && records.front().version == v2.string());
 }
 
 } // namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations
@@ -99,7 +98,7 @@ int main() {
         concurrent_upgrade(directory, newly_initialized);
         database_t reopened_database(directory);
         const auto records = reopened_database.create_table<metadata_row_t>(metadata_table_name).rows();
-        assert(records.size() == 1 && records.front().version == v2);
+        assert(records.size() == 1 && records.front().version == v2.string());
         const auto entries = reopened_database.create_table<entry_t>("entries").rows();
         assert(entries.size() == 1 && entries.front().number == 42);
     }

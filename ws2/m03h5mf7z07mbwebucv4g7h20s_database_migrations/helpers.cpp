@@ -1,6 +1,5 @@
 #include "helpers.h"
 
-#include <array>
 #include <cstddef>
 #include <format>
 #include <span>
@@ -11,31 +10,6 @@
 #include <vector>
 
 namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations {
-
-bool valid_version(std::string_view version) {
-    if (version.size() != 25) return false;
-
-    // Decode only the fixed version representation. Keeping this format check
-    // local leaves the migration library dependent on database_t and the STL.
-    std::array<unsigned char, 16> bytes{};
-    for (const char character : version) {
-        unsigned carry;
-        if ('0' <= character && character <= '9') {
-            carry = static_cast<unsigned>(character - '0');
-        } else if ('a' <= character && character <= 'z') {
-            carry = static_cast<unsigned>(character - 'a' + 10);
-        } else {
-            return false;
-        }
-        for (std::size_t index = bytes.size(); 0 < index; --index) {
-            const unsigned digit = bytes[index - 1] * 36u + carry;
-            bytes[index - 1] = static_cast<unsigned char>(digit & 0xffu);
-            carry = digit >> 8;
-        }
-        if (carry != 0) return false;
-    }
-    return (bytes[6] & 0xf0u) == 0x70u && (bytes[8] & 0xc0u) == 0x80u;
-}
 
 bool metadata_name(std::string_view name) {
     if (name.size() != metadata_table_name.size()) return false;
@@ -48,12 +22,17 @@ bool metadata_name(std::string_view name) {
 }
 
 std::vector<const migration_t*> ordered_migrations(std::span<const migration_t> migrations) {
-    std::unordered_map<std::string_view, const migration_t*> successors;
-    std::unordered_set<std::string_view> destinations;
-    for (const auto& migration : migrations) {
-        if (!valid_version(migration.from) || !valid_version(migration.to)) {
-            throw std::invalid_argument(std::format("migrate: transition {} requires 25-character lowercase base36 UUIDv7 identities", migration));
+    auto hash_unique_id = [](const unique_id_t& unique_id) {
+        std::size_t hash = 0;
+        const auto uuid = unique_id.uuid();
+        for (const auto byte : uuid.bytes()) {
+            hash = hash * 31 + std::to_integer<std::size_t>(byte);
         }
+        return hash;
+    };
+    std::unordered_map<unique_id_t, const migration_t*, decltype(hash_unique_id)> successors;
+    std::unordered_set<unique_id_t, decltype(hash_unique_id)> destinations;
+    for (const auto& migration : migrations) {
         if (migration.apply == nullptr) {
             throw std::invalid_argument(std::format("migrate: transition {} has no callback", migration));
         }

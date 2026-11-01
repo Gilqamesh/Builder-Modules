@@ -3,7 +3,6 @@
 #include <array>
 #include <cstdint>
 #include <string>
-#include <string_view>
 
 namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations {
 
@@ -39,9 +38,9 @@ void convert_balances(database_t& database) {
     }
 }
 
-constexpr std::string_view v1 = "03h5mgnvq9zym7wvkijwwaobp";
-constexpr std::string_view v2 = "03h5mgnvq9zym7wvkijwwaobo";
-constexpr std::string_view v3 = "03h5mgnvq9zym7wvkijwwaobn";
+const unique_id_t v1{"03h5mgnvq9zym7wvkijwwaobp"};
+const unique_id_t v2{"03h5mgnvq9zym7wvkijwwaobo"};
+const unique_id_t v3{"03h5mgnvq9zym7wvkijwwaobn"};
 const std::array migrations = {
     migration_t{baseline_version, v1, initialize_people},
     migration_t{v1, v2, add_display_names},

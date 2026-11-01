@@ -12,8 +12,16 @@ obligations, borrowing, atomicity, and exceptions.
 ## Versions and history
 
 `baseline_version` is universal and independent of application schemas; never
-regenerate it. Other versions are independently generated UUIDv7 identities encoded
+regenerate it. Version fields, the baseline, and the `migrate()` target use owning
+`unique_id_t` values, re-exported by this module. Construct an identity explicitly
+from a published literal; malformed text throws `std::invalid_argument` during
+construction, before calling `migrate()`. Identities do not borrow their input text.
+The baseline is an `inline const` value, not a compile-time constant.
+
+Other versions are independently generated UUIDv7 identities encoded
 as exactly 25 lowercase base36 characters, without a module prefix or name suffix.
+The [unique identity module](https://github.com/Gilqamesh/Builder/blob/main/ws0/m03h5n4ecgpxtl2skl0hn35s0n_unique_id/README.md)
+owns their shared representation and validation contract.
 
 Supply one complete linear history rooted at `baseline_version`, with at most one
 predecessor and successor per version. Definitions may be unordered: only `from`/`to`
@@ -32,7 +40,9 @@ compatibility for applications that omit this check.
 `metadata_table_name` is the stable reserved logical name of a table visible in
 `database_t::tables()`. Its schema is exactly one nonnullable string column named
 `version`, with exactly one row containing a valid identity from the supplied
-history, including baseline. Invalid metadata is rejected without repair.
+history, including baseline. Storage retains canonical strings, preserving existing
+metadata and identifiers. Stored identities are parsed when read; malformed text
+throws `std::runtime_error` and is rejected without repair.
 Applications must not mutate this table; exclude its name, regardless of ASCII
 case, from application-table deletion or transformation.
 
@@ -67,7 +77,6 @@ owned by `migrate()`.
 #include <array>
 #include <cstdint>
 #include <string>
-#include <string_view>
 
 namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations {
 
@@ -103,9 +112,9 @@ void convert_balances(database_t& database) {
     }
 }
 
-constexpr std::string_view v1 = "03h5mgnvq9zym7wvkijwwaobp";
-constexpr std::string_view v2 = "03h5mgnvq9zym7wvkijwwaobo";
-constexpr std::string_view v3 = "03h5mgnvq9zym7wvkijwwaobn";
+const unique_id_t v1{"03h5mgnvq9zym7wvkijwwaobp"};
+const unique_id_t v2{"03h5mgnvq9zym7wvkijwwaobo"};
+const unique_id_t v3{"03h5mgnvq9zym7wvkijwwaobn"};
 const std::array migrations = {
     migration_t{baseline_version, v1, initialize_people},
     migration_t{v1, v2, add_display_names},
@@ -155,14 +164,21 @@ demonstrates an upgrade. Storage paths follow the
 ## Authoring migrations
 
 Generate each new identity once when authoring a migration:
-`uuid::generate(7)`, `byte_stream_t(uuid.bytes()).to_radix(36)`, then prepend zeros
-to the fixed width. Retain the literal permanently; do not generate it at startup
+`unique_id_t::generate().string()` from
+`m03h5n4ecgpxtl2skl0hn35s0n_unique_id/unique_id.h`. Store the result as a permanent
+literal in a `const unique_id_t` declaration, as in the example. Do not generate it at startup
 or reuse a module ID. Use `baseline_version` as the first predecessor.
 
 When feature branches introduce competing successors, update the later unpublished
 migration's `from` to the new main-branch head, keep its `to`, and revalidate its
 transformation against that head's records. Preserve published migrations while
 upgrades from their source versions remain supported.
+
+When updating a caller of the former string-based API, replace version
+`constexpr std::string_view` declarations with `const unique_id_t`, explicitly parse
+text supplied at runtime, and rebuild the caller. There are no string overloads.
+Use `.string()` when a version must be written to a text record or compared with
+stored metadata; the database schema does not change.
 
 In application CI, call `migrate()` with the complete history and current target on
 a fresh temporary database, then test upgrades from supported historical records.

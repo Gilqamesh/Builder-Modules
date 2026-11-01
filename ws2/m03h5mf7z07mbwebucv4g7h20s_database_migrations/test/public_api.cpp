@@ -18,10 +18,10 @@
 namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations {
 
 // Generation order deliberately differs from chain order.
-constexpr std::string_view v1 = "03h5mgnvq9zym7wvkijwwaobs";
-constexpr std::string_view v2 = "03h5mgnvq9zym7wvkijwwaobl";
-constexpr std::string_view v3 = "03h5mgnvq9zym7wvkijwwaobq";
-constexpr std::string_view unknown_version = "03h5mgnvq9zym7wvkijwwaobm";
+const unique_id_t v1{"03h5mgnvq9zym7wvkijwwaobs"};
+const unique_id_t v2{"03h5mgnvq9zym7wvkijwwaobl"};
+const unique_id_t v3{"03h5mgnvq9zym7wvkijwwaobq"};
+const unique_id_t unknown_version{"03h5mgnvq9zym7wvkijwwaobm"};
 
 struct number_row_t { int number; };
 struct metadata_row_t { std::string version; };
@@ -58,7 +58,7 @@ void fail(database_t& database) {
 }
 
 void alter_metadata(database_t& database) {
-    database.create_table<metadata_row_t>(metadata_table_name).insert(metadata_row_t{std::string(unknown_version)});
+    database.create_table<metadata_row_t>(metadata_table_name).insert(metadata_row_t{unknown_version.string()});
 }
 
 void delete_metadata(database_t& database) {
@@ -67,7 +67,7 @@ void delete_metadata(database_t& database) {
 
 void rewrite_metadata(database_t& database) {
     const auto metadata = database.create_table<metadata_row_t>(metadata_table_name);
-    assert(metadata.replace<&metadata_row_t::version>(std::string(v1), metadata_row_t{std::string(unknown_version)}) == 1);
+    assert(metadata.replace<&metadata_row_t::version>(v1.string(), metadata_row_t{unknown_version.string()}) == 1);
 }
 
 void nested_migration(database_t& database) {
@@ -108,7 +108,7 @@ void verify_number(database_t& database, int expected) {
 void progression(database_t& database) {
     calls.clear();
     migrate(database, baseline_version, {});
-    assert(persisted_version(database) == baseline_version);
+    assert(persisted_version(database) == baseline_version.string());
     assert(database.tables() == std::vector<std::string>{std::string(metadata_table_name)});
     migrate(database, baseline_version, {});
     assert(calls.empty());
@@ -116,12 +116,12 @@ void progression(database_t& database) {
     migrate(database, v1, history);
     assert(calls == std::vector<int>{1});
     verify_number(database, 10);
-    assert(persisted_version(database) == v1);
+    assert(persisted_version(database) == v1.string());
     calls.clear();
     migrate(database, v3, history);
     assert((calls == std::vector<int>{2, 3}));
     verify_number(database, 30);
-    assert(persisted_version(database) == v3);
+    assert(persisted_version(database) == v3.string());
     const auto names = database.tables();
     calls.clear();
     migrate(database, v3, history);
@@ -134,12 +134,12 @@ void progression(database_t& database) {
     expect_failure<std::runtime_error>([&] { migrate(database, v1, v1_history); }, "unknown");
     assert(calls.empty() && database.tables() == names);
     verify_number(database, 30);
-    assert(persisted_version(database) == v3);
+    assert(persisted_version(database) == v3.string());
 }
 
 void malformed_chains(database_t& database) {
     calls.clear();
-    const auto reject = [&](std::span<const migration_t> migrations, std::string_view target = v3) {
+    const auto reject = [&](std::span<const migration_t> migrations, const unique_id_t& target = v3) {
         const auto names = database.tables();
         expect_failure<std::invalid_argument>([&] { migrate(database, target, migrations); });
         assert(database.tables() == names && calls.empty());
@@ -159,16 +159,6 @@ void malformed_chains(database_t& database) {
     reject(std::array{start, migration_t{v1, baseline_version, advance}});
     reject(std::array{migration_t{baseline_version, v1, nullptr}});
     reject(history, unknown_version);
-    reject(history, "");
-    reject(history, "0000000000000000000000000");
-    reject(history, "03H5mgnvq9zym7wvkijwwaobl");
-    reject(history, "zzzzzzzzzzzzzzzzzzzzzzzzz"); // Exceeds 128 bits.
-    reject(history, "0000000000000000000000001"); // Not a UUIDv7.
-    reject(std::array{migration_t{"bad", v1, initialize}}, v1);
-    reject(std::array{migration_t{baseline_version, "bad", initialize}}, baseline_version);
-    std::string embedded_nul(v1);
-    embedded_nul[10] = '\0';
-    reject(history, embedded_nul);
     // Even a no-op target validates all supplied definitions first.
     reject(std::array{start, start}, baseline_version);
 }
@@ -187,18 +177,18 @@ void rollback(database_t& database) {
     assert((calls == std::vector<int>{2, 4}));
     assert(database.tables() == names);
     verify_number(database, 10);
-    assert(persisted_version(database) == v1);
+    assert(persisted_version(database) == v1.string());
 
     for (const auto callback : {alter_metadata, delete_metadata, rewrite_metadata}) {
         const std::array corrupting_history = {start.front(), migration_t{v1, v2, callback}};
         expect_failure<std::runtime_error>([&] { migrate(database, v2, corrupting_history); });
         assert(database.tables() == names);
-        assert(persisted_version(database) == v1);
+        assert(persisted_version(database) == v1.string());
         verify_number(database, 10);
     }
     const std::array nested_history = {start.front(), migration_t{v1, v2, nested_migration}};
     expect_failure<std::logic_error>([&] { migrate(database, v2, nested_history); });
-    assert(persisted_version(database) == v1);
+    assert(persisted_version(database) == v1.string());
 
     // A later explicit call may succeed, but the failed call did not retry.
     calls.clear();
@@ -248,18 +238,18 @@ void corrupt_metadata(database_t& database) {
         assert(before == after);
     };
     rejected(); // No record.
-    metadata.insert(metadata_row_t{std::string(baseline_version)});
-    metadata.insert(metadata_row_t{std::string(baseline_version)});
+    metadata.insert(metadata_row_t{baseline_version.string()});
+    metadata.insert(metadata_row_t{baseline_version.string()});
     rejected(); // Duplicate identical records.
-    assert(metadata.replace<&metadata_row_t::version>(std::string(baseline_version), metadata_row_t{std::string(v1)}) == 2);
-    metadata.insert(metadata_row_t{std::string(v3)});
+    assert(metadata.replace<&metadata_row_t::version>(baseline_version.string(), metadata_row_t{v1.string()}) == 2);
+    metadata.insert(metadata_row_t{v3.string()});
     rejected(); // Conflicting records.
     database.drop_table<metadata_row_t>(metadata_table_name);
     database.create_table<metadata_row_t>(metadata_table_name);
-    for (const auto version : {std::string_view(""), std::string_view("broken"), std::string_view("0000000000000000000000000"), unknown_version}) {
-        metadata.insert(metadata_row_t{std::string(version)});
+    for (const auto& version : {std::string(""), std::string("broken"), std::string("0000000000000000000000000"), unknown_version.string()}) {
+        metadata.insert(metadata_row_t{version});
         rejected();
-        assert(metadata.erase<&metadata_row_t::version>(std::string(version)) == 1);
+        assert(metadata.erase<&metadata_row_t::version>(version) == 1);
     }
 }
 
@@ -274,14 +264,14 @@ void incompatible_metadata(database_t& database, const T& record) {
 
 void metadata_schema(database_t& database) {
     incompatible_metadata(database, wrong_metadata_t{7});
-    incompatible_metadata(database, nullable_metadata_t{std::string(baseline_version)});
-    incompatible_metadata(database, extra_metadata_t{std::string(baseline_version), 7});
-    incompatible_metadata(database, renamed_metadata_t{std::string(baseline_version)});
+    incompatible_metadata(database, nullable_metadata_t{baseline_version.string()});
+    incompatible_metadata(database, extra_metadata_t{baseline_version.string(), 7});
+    incompatible_metadata(database, renamed_metadata_t{baseline_version.string()});
     // The database's ASCII-insensitive naming must not hide a reserved table.
     constexpr std::string_view uppercase_name = "__BUILDER_APPLICATION_MIGRATIONS";
-    database.create_table<metadata_row_t>(uppercase_name).insert(metadata_row_t{std::string(baseline_version)});
+    database.create_table<metadata_row_t>(uppercase_name).insert(metadata_row_t{baseline_version.string()});
     migrate(database, v3, history);
-    assert(persisted_version(database) == v3);
+    assert(persisted_version(database) == v3.string());
     assert((database.tables() == std::vector<std::string>{std::string(uppercase_name), "numbers"}));
 }
 
@@ -289,7 +279,7 @@ void metadata_schema(database_t& database) {
 
 int main() {
     using namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations;
-    assert(baseline_version == "03h5mgnvq9zym7wvkijwwaobj"); // Published identity must remain immutable.
+    assert(baseline_version.string() == "03h5mgnvq9zym7wvkijwwaobj"); // Published identity must remain immutable.
     assert(std::format("{}", history.front()).contains(" -> "));
     for (const auto exercise : {progression, malformed_chains, rollback, failed_initialization, unversioned, corrupt_metadata, metadata_schema}) {
         database_t database;
@@ -313,7 +303,7 @@ int main() {
     }
     {
         database_t reopened_database(root / "failed");
-        assert(persisted_version(reopened_database) == v1);
+        assert(persisted_version(reopened_database) == v1.string());
         verify_number(reopened_database, 10);
         assert((reopened_database.tables() == std::vector<std::string>{std::string(metadata_table_name), "numbers"}));
     }
@@ -333,10 +323,10 @@ int main() {
         database_t reopened_database(root / "committed");
         calls.clear();
         migrate(reopened_database, v3, history);
-        assert(calls.empty() && persisted_version(reopened_database) == v3);
+        assert(calls.empty() && persisted_version(reopened_database) == v3.string());
         verify_number(reopened_database, 30);
         malformed_chains(reopened_database);
-        assert(persisted_version(reopened_database) == v3);
+        assert(persisted_version(reopened_database) == v3.string());
         verify_number(reopened_database, 30);
     }
     std::filesystem::remove_all(root);

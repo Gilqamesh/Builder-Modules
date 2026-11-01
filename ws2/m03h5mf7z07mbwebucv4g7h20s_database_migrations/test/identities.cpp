@@ -1,15 +1,12 @@
 #include <m03h5mf7z07mbwebucv4g7h20s_database_migrations/api.h>
-#include <m03gagbhtft23yhjwpp881tfmc_uuid/uuid.h>
-#include <m03gagbht2l61mj6qitacwbmea_byte_stream/byte_stream.h>
 
 #include <array>
 #include <cassert>
-#include <cstddef>
-#include <span>
+#include <filesystem>
+#include <format>
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations {
 
@@ -17,62 +14,102 @@ struct metadata_row_t { std::string version; };
 
 void no_transform(database_t&) {}
 
-std::string encode(std::span<const std::byte> bytes) {
-    auto identifier = m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t(bytes).to_radix(36);
-    identifier.insert(0, 25 - identifier.size(), '0');
-    return identifier;
-}
+const unique_id_t reference_id{"000000006g2dvmnfh66jop340"};
+const std::array reference_history = {migration_t{baseline_version, reference_id, no_transform}};
 
-void reject_identity(std::string_view identifier) {
-    database_t database;
-    const std::array history = {migration_t{baseline_version, identifier, no_transform}};
+void reject_stored_version(std::string_view encoded_version) {
     bool caught = false;
     try {
-        migrate(database, identifier, history);
+        [[maybe_unused]] const unique_id_t invalid_id(encoded_version);
     } catch (const std::invalid_argument&) {
         caught = true;
     }
-    assert(caught && database.tables().empty());
+    assert(caught);
+
+    database_t database;
+    const auto metadata = database.create_table<metadata_row_t>(metadata_table_name);
+    metadata.insert(metadata_row_t{std::string(encoded_version)});
+    const auto names = database.tables();
+    caught = false;
+    try {
+        migrate(database, baseline_version, {});
+    } catch (const std::runtime_error& error) {
+        caught = std::string_view(error.what()).contains("malformed persisted version");
+    }
+    assert(caught && database.tables() == names);
+    const auto records = metadata.rows();
+    assert(records.size() == 1 && records.front().version == encoded_version);
+}
+
+void existing_metadata(const std::filesystem::path& directory) {
+    {
+        database_t database(directory);
+        const auto metadata = database.create_table<metadata_row_t>(metadata_table_name);
+        // Reproduce metadata written by the former string-based API.
+        metadata.insert(metadata_row_t{"03h5mgnvq9zym7wvkijwwaobj"});
+        migrate(database, baseline_version, {});
+        assert(metadata.rows().front().version == "03h5mgnvq9zym7wvkijwwaobj");
+        migrate(database, reference_id, reference_history);
+        const auto records = metadata.rows();
+        assert(records.size() == 1 && records.front().version == "000000006g2dvmnfh66jop340");
+    }
+    {
+        database_t reopened_database(directory);
+        migrate(reopened_database, reference_id, reference_history);
+        const auto records = reopened_database.create_table<metadata_row_t>(metadata_table_name).rows();
+        assert(records.size() == 1 && records.front().version == "000000006g2dvmnfh66jop340");
+    }
 }
 
 } // namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations
 
 int main() {
     using namespace m03h5mf7z07mbwebucv4g7h20s_database_migrations;
-    using m03gagbhtft23yhjwpp881tfmc_uuid::uuid;
-    using m03gagbht2l61mj6qitacwbmea_byte_stream::byte_stream_t;
 
-    // Independently check the fixed baseline with Builder's public UUID parser.
-    const auto decoded = byte_stream_t::from_radix(baseline_version, 36);
-    std::array<std::byte, 16> baseline_bytes{};
-    assert(decoded.size() <= baseline_bytes.size());
-    for (std::size_t index = 0; index < decoded.size(); ++index) {
-        baseline_bytes[baseline_bytes.size() - decoded.size() + index] = decoded.bytes()[index];
+    assert(baseline_version.uuid().version() == 7);
+    assert(baseline_version.string() == "03h5mgnvq9zym7wvkijwwaobj");
+    assert(reference_history.front().from == baseline_version);
+    assert(std::format("{}", reference_id.uuid()) == "00000000-002a-7000-8000-000000000000");
+    assert(std::format("{}", reference_history.front()) == "03h5mgnvq9zym7wvkijwwaobj -> 000000006g2dvmnfh66jop340");
+    {
+        std::string source_text = "000000006g2dvmnfh66jop340";
+        const std::array history = {migration_t{baseline_version, unique_id_t(source_text), no_transform}};
+        source_text.assign("replaced source text");
+        database_t database;
+        migrate(database, unique_id_t(std::string("000000006g2dvmnfh66jop340")), history);
+        const auto records = database.create_table<metadata_row_t>(metadata_table_name).rows();
+        assert(records.size() == 1 && records.front().version == "000000006g2dvmnfh66jop340");
     }
-    assert(uuid(std::span<const std::byte>(baseline_bytes)).version() == 7);
-    assert(encode(baseline_bytes) == baseline_version);
 
     for (int attempt = 0; attempt < 16; ++attempt) {
-        // Use exactly create_module's UUIDv7 -> big-endian base36 -> zero padding.
-        const auto generated_uuid = uuid::generate(7);
-        const auto identifier = encode(generated_uuid.bytes());
+        const auto unique_id = unique_id_t::generate();
         database_t database;
-        const std::array history = {migration_t{baseline_version, identifier, no_transform}};
-        migrate(database, identifier, history);
-        migrate(database, identifier, history);
+        const std::array history = {migration_t{baseline_version, unique_id, no_transform}};
+        migrate(database, unique_id, history);
+        migrate(database, unique_id_t(unique_id.string()), history);
         const auto records = database.create_table<metadata_row_t>(metadata_table_name).rows();
-        assert(records.size() == 1 && records.front().version == identifier);
-
-        std::vector<std::byte> bytes(generated_uuid.bytes().begin(), generated_uuid.bytes().end());
-        for (unsigned version = 0; version != 16; ++version) {
-            if (version == 7) continue;
-            bytes[6] = (generated_uuid.bytes()[6] & std::byte{0x0f}) | static_cast<std::byte>(version << 4);
-            reject_identity(encode(bytes));
-        }
-        bytes[6] = generated_uuid.bytes()[6];
-        for (const auto variant : {std::byte{0x00}, std::byte{0x40}, std::byte{0xc0}}) {
-            bytes[8] = (generated_uuid.bytes()[8] & std::byte{0x3f}) | variant;
-            reject_identity(encode(bytes));
-        }
+        assert(records.size() == 1 && records.front().version == unique_id.string());
     }
+
+    for (const auto encoded_version : {
+        "", "00000006g2dvmnfh66jop340", "0000000006g2dvmnfh66jop340",
+        "000000006g2Dvmnfh66jop340", "000000006g2dvmnfh66jop34!",
+        "f5lxx1zz5pnorynqglhzmsp34", "0000000000000000000000000",
+        "000000006f1h1uz039d4g622o", "000000006g2dtokqgnngmaups"
+    }) {
+        reject_stored_version(encoded_version);
+    }
+    auto embedded_nul = reference_id.string();
+    embedded_nul[10] = '\0';
+    reject_stored_version(embedded_nul);
+
+    const auto root = std::filesystem::temp_directory_path() / ("typed-migration-identities-" + unique_id_t::generate().string());
+    std::filesystem::create_directories(root);
+    try {
+        existing_metadata(root);
+    } catch (...) {
+        std::filesystem::remove_all(root);
+        throw;
+    }
+    std::filesystem::remove_all(root);
 }
